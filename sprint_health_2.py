@@ -2,6 +2,7 @@ import os
 import sys
 import argparse
 import json
+import ast
 from html import escape
 from pathlib import Path
 import requests
@@ -28,6 +29,9 @@ SLACK_TOKEN     = os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL   = os.getenv("SLACK_CHANNEL_ID")
 REPORT_SITE_URL = os.getenv("REPORT_SITE_URL", "").strip()
 REPORT_PDF_URL  = os.getenv("REPORT_PDF_URL", "").strip()
+OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-5.2").strip() or "gpt-5.2"
+OPENAI_TIMEOUT  = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
 METRICS_CONFIG_PATH = Path(
     os.getenv("METRICS_CONFIG_PATH", str(Path(__file__).resolve().with_name("health_metrics_config.json")))
 )
@@ -104,6 +108,24 @@ DEFAULT_METRICS_CONFIG = {
         "yellow_min_score": 70,
         "orange_min_score": 50,
     },
+    "final_score": {
+        "custom_formula": (
+            "(commitment * weight_commitment) + "
+            "(carryover * weight_carryover) + "
+            "(cycle_time * weight_cycle_time) + "
+            "(bug_ratio * weight_bug_ratio) + burndown"
+        ),
+        "round_result": True,
+        "min_score": 0,
+        "max_score": 100,
+    },
+    "ai": {
+        "enabled": False,
+        "model": OPENAI_MODEL,
+        "max_output_tokens": 350,
+        "include_in_html": True,
+        "include_in_slack": False,
+    },
 }
 
 
@@ -158,6 +180,14 @@ def _config_weights() -> dict:
     return METRICS_CONFIG["weights"]
 
 
+def _config_final_score() -> dict:
+    return METRICS_CONFIG["final_score"]
+
+
+def _config_ai() -> dict:
+    return METRICS_CONFIG["ai"]
+
+
 def _format_decimal(value: float, places: int = 2) -> str:
     text = f"{value:.{places}f}"
     return text.rstrip("0").rstrip(".")
@@ -165,6 +195,98 @@ def _format_decimal(value: float, places: int = 2) -> str:
 
 def _weight_text(name: str) -> str:
     return f"{_config_weights()[name]:.2f}"
+
+
+_SAFE_FORMULA_FUNCS = {
+    "abs": abs,
+    "max": max,
+    "min": min,
+    "round": round,
+}
+
+
+class _SafeFormulaEvaluator(ast.NodeVisitor):
+    def __init__(self, variables: dict[str, float]):
+        self.variables = variables
+
+    def visit_Expression(self, node: ast.Expression):
+        return self.visit(node.body)
+
+    def visit_Name(self, node: ast.Name):
+        if node.id not in self.variables:
+            raise ValueError(f"Unknown formula variable: {node.id}")
+        return self.variables[node.id]
+
+    def visit_Constant(self, node: ast.Constant):
+        if isinstance(node.value, (int, float)):
+            return node.value
+        raise ValueError("Formula supports numbers only.")
+
+    def visit_UnaryOp(self, node: ast.UnaryOp):
+        value = self.visit(node.operand)
+        if isinstance(node.op, ast.UAdd):
+            return +value
+        if isinstance(node.op, ast.USub):
+            return -value
+        raise ValueError("Unsupported unary operator in formula.")
+
+    def visit_BinOp(self, node: ast.BinOp):
+        left = self.visit(node.left)
+        right = self.visit(node.right)
+        if isinstance(node.op, ast.Add):
+            return left + right
+        if isinstance(node.op, ast.Sub):
+            return left - right
+        if isinstance(node.op, ast.Mult):
+            return left * right
+        if isinstance(node.op, ast.Div):
+            return left / right
+        if isinstance(node.op, ast.FloorDiv):
+            return left // right
+        if isinstance(node.op, ast.Mod):
+            return left % right
+        if isinstance(node.op, ast.Pow):
+            return left ** right
+        raise ValueError("Unsupported operator in formula.")
+
+    def visit_Call(self, node: ast.Call):
+        if not isinstance(node.func, ast.Name):
+            raise ValueError("Unsupported function call in formula.")
+        func = _SAFE_FORMULA_FUNCS.get(node.func.id)
+        if func is None:
+            raise ValueError(f"Unsupported formula function: {node.func.id}")
+        return func(*[self.visit(arg) for arg in node.args])
+
+    def generic_visit(self, node):
+        raise ValueError(f"Unsupported formula syntax: {type(node).__name__}")
+
+
+def _safe_eval_formula(expression: str, variables: dict[str, float]) -> float:
+    try:
+        tree = ast.parse(expression, mode="eval")
+        result = _SafeFormulaEvaluator(variables).visit(tree)
+    except Exception as e:
+        raise ValueError(f"Invalid custom formula: {e}") from e
+    return float(result)
+
+
+def _build_formula_context(c_score, co_score, cy_score, b_score, bd_nudge: int = 0) -> dict[str, float]:
+    weights = _config_weights()
+    return {
+        "commitment": float(c_score),
+        "carryover": float(co_score),
+        "cycle_time": float(cy_score),
+        "bug_ratio": float(b_score),
+        "burndown": float(bd_nudge),
+        "weight_commitment": float(weights["commitment"]),
+        "weight_carryover": float(weights["carryover"]),
+        "weight_cycle_time": float(weights["cycle_time"]),
+        "weight_bug_ratio": float(weights["bug_ratio"]),
+        "weighted_commitment": float(c_score * weights["commitment"]),
+        "weighted_carryover": float(co_score * weights["carryover"]),
+        "weighted_cycle_time": float(cy_score * weights["cycle_time"]),
+        "weighted_bug_ratio": float(b_score * weights["bug_ratio"]),
+    }
 
 
 def _signal_threshold_texts() -> dict:
@@ -715,15 +837,106 @@ def score_burndown(bd: dict, sprint_pct: float | None) -> int:
     return int(cfg["behind_large_penalty"])
 
 
-def calc_health_score(c_score, co_score, cy_score, b_score, bd_nudge: int = 0) -> int:
-    weights = _config_weights()
-    raw = (
-        c_score  * weights["commitment"] +
-        co_score * weights["carryover"] +
-        cy_score * weights["cycle_time"] +
-        b_score  * weights["bug_ratio"]
-    )
-    return max(0, min(100, round(raw) + bd_nudge))
+def calc_health_score(c_score, co_score, cy_score, b_score, bd_nudge: int = 0) -> dict:
+    cfg = _config_final_score()
+    formula = (cfg.get("custom_formula") or "").strip() or DEFAULT_METRICS_CONFIG["final_score"]["custom_formula"]
+    context = _build_formula_context(c_score, co_score, cy_score, b_score, bd_nudge)
+    raw_value = _safe_eval_formula(formula, context)
+    bounded = max(float(cfg.get("min_score", 0)), min(float(cfg.get("max_score", 100)), raw_value))
+    final_score = round(bounded) if cfg.get("round_result", True) else bounded
+    return {
+        "score": int(round(final_score)),
+        "raw_score": raw_value,
+        "formula": formula,
+        "context": context,
+        "weighted_breakdown": {
+            "commitment": round(context["weighted_commitment"], 1),
+            "carryover": round(context["weighted_carryover"], 1),
+            "cycle_time": round(context["weighted_cycle_time"], 1),
+            "bug_ratio": round(context["weighted_bug_ratio"], 1),
+        },
+    }
+
+
+def _extract_response_text(payload: dict) -> str:
+    output_text = (payload.get("output_text") or "").strip()
+    if output_text:
+        return output_text
+    for item in payload.get("output", []):
+        if item.get("type") != "message":
+            continue
+        for content in item.get("content", []):
+            if content.get("type") == "output_text" and content.get("text"):
+                return str(content["text"]).strip()
+    return ""
+
+
+def generate_ai_insights(report: dict) -> dict | None:
+    cfg = _config_ai()
+    if not cfg.get("enabled"):
+        return None
+    if not OPENAI_API_KEY:
+        return {
+            "status": "disabled",
+            "title": "AI insights unavailable",
+            "summary": "Set OPENAI_API_KEY in .env to enable AI recommendations.",
+            "actions": [],
+        }
+
+    payload = {
+        "model": (cfg.get("model") or OPENAI_MODEL).strip() or OPENAI_MODEL,
+        "input": [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": (
+                            "You analyze sprint health reports. Reply in JSON only with keys "
+                            "title, summary, actions. actions must be an array of up to 3 short strings."
+                        ),
+                    }
+                ],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_text",
+                        "text": json.dumps(report, ensure_ascii=False),
+                    }
+                ],
+            },
+        ],
+        "max_output_tokens": int(cfg.get("max_output_tokens", 350)),
+    }
+
+    try:
+        resp = requests.post(
+            "https://api.openai.com/v1/responses",
+            headers={
+                "Authorization": f"Bearer {OPENAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=OPENAI_TIMEOUT,
+        )
+        resp.raise_for_status()
+        parsed = json.loads(_extract_response_text(resp.json()))
+        actions = parsed.get("actions") if isinstance(parsed.get("actions"), list) else []
+        return {
+            "status": "ok",
+            "title": str(parsed.get("title") or "AI insight").strip(),
+            "summary": str(parsed.get("summary") or "").strip(),
+            "actions": [str(item).strip() for item in actions if str(item).strip()][:3],
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "title": "AI insight failed",
+            "summary": f"AI request failed: {e}",
+            "actions": [],
+        }
 
 
 def health_label(score: int) -> tuple[str, str]:
@@ -915,7 +1128,8 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     # Burndown
     bd       = build_burndown(issues, ss)
     bd_nudge = score_burndown(bd, sp)
-    health   = calc_health_score(c_score, co_score, cy_score, b_score, bd_nudge)
+    health_calc = calc_health_score(c_score, co_score, cy_score, b_score, bd_nudge)
+    health = health_calc["score"]
     emoji, label = health_label(health)
 
     # Bug change vs previous sprint
@@ -932,15 +1146,33 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         no_data_signals.append("cycle_time")
 
     weights = _config_weights()
-    fb = {
-        "commitment": round(c_score  * weights["commitment"], 1),
-        "carryover":  round(co_score * weights["carryover"],  1),
-        "cycle_time": round(cy_score * weights["cycle_time"], 1),
-        "bug_ratio":  round(b_score  * weights["bug_ratio"],  1),
-    }
+    fb = dict(health_calc["weighted_breakdown"])
 
     # Developer activity
     dev_activity = build_developer_activity(issues, ss.start_str)
+    ai_insights = generate_ai_insights({
+        "sprint_name": ss.name,
+        "health_score": health,
+        "health_label": label,
+        "signals": {
+            "commitment": {"score": c_score, "pct": c_pct, "raw": f"{done}/{total} issues done"},
+            "carryover": {"score": co_score, "pct": co_pct, "raw": f"{carried_over}/{total} carried over"},
+            "cycle_time": {
+                "score": cy_score,
+                "pct": cy_pct,
+                "raw": (
+                    f"avg {round(current_avg_ct,1) if current_avg_ct else 'N/A'} days"
+                    + (f" (prev: {round(prev_avg_ct,1)})" if prev_avg_ct else "")
+                ),
+            },
+            "bug_ratio": {"score": b_score, "pct": b_pct, "raw": f"{new_bugs} new bugs / {total} total issues"},
+        },
+        "burndown": bd,
+        "blocked_count": blockers,
+        "flagged_count": flagged,
+        "new_bugs": new_bugs,
+        "carried_over": carried_over,
+    })
 
     return {
         # Sprint meta
@@ -1007,7 +1239,10 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         },
         "formula_breakdown": fb,
         "weights": dict(weights),
+        "formula_expression": health_calc["formula"],
+        "formula_context": health_calc["context"],
         "signal_thresholds": _signal_threshold_texts(),
+        "ai_insights": ai_insights,
 
         # Burndown
         "burndown": bd,
@@ -1351,6 +1586,7 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
     bd          = r.get("burndown", {})
     weights     = r["weights"]
     thresholds  = r["signal_thresholds"]
+    ai_insights = r.get("ai_insights")
 
     def signal_color(s):
         return "green" if s >= 85 else "yellow" if s >= 70 else "orange" if s >= 50 else "red"
@@ -1512,6 +1748,17 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
         )
 
     dev_activity_html = _build_dev_activity_html(r.get("dev_activity", []))
+    ai_html = ""
+    if ai_insights and _config_ai().get("include_in_html"):
+        actions_html = "".join(f"<li>{escape(item)}</li>" for item in ai_insights.get("actions", []))
+        actions_block = f"<ul class='ai-actions'>{actions_html}</ul>" if actions_html else ""
+        ai_html = f"""
+  <div class="section-title">AI Insight</div>
+  <div class="card">
+    <div class="ai-title">{escape(ai_insights.get('title', 'AI Insight'))}</div>
+    <div class="ai-summary">{escape(ai_insights.get('summary', ''))}</div>
+    {actions_block}
+  </div>"""
 
     html_text = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1637,6 +1884,8 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
   padding:20px;border-radius:10px;text-align:center;font-size:14px;font-weight:700;
   margin-top:16px;font-family:'Monaco','Courier New',monospace}}
 .formula-final .value{{font-size:28px;margin-top:8px;color:#1a6bff}}
+.formula-expression{{margin-top:14px;font-size:12px;color:#8ab4d9;line-height:1.6}}
+.formula-expression code{{color:#d9e7ff}}
 
 /* ── Tables ── */
 .tables-grid{{display:grid;grid-template-columns:1fr 1fr;gap:20px}}
@@ -1704,6 +1953,12 @@ td:first-child{{color:#e0eaff}}
 .interp-status{{font-size:13px;font-weight:700;margin-bottom:4px;color:#e0eaff}}
 .interp-desc{{font-size:11px;color:#4a90d9;line-height:1.4}}
 
+/* AI */
+.ai-title{{font-size:18px;font-weight:700;color:#e0eaff;margin-bottom:10px}}
+.ai-summary{{font-size:13px;color:#8ab4d9;line-height:1.7}}
+.ai-actions{{margin:14px 0 0 18px;color:#e0eaff}}
+.ai-actions li{{margin-bottom:8px}}
+
 /* ── Footer ── */
 .footer{{text-align:center;margin-top:40px;padding:20px;color:#2d5a8e;font-size:11px}}
 </style>
@@ -1752,6 +2007,8 @@ td:first-child{{color:#e0eaff}}
     <div class="dev-grid">{dev_activity_html}</div>
   </div>
 
+  {ai_html}
+
   <div class="section-title">Weighted Formula</div>
   <div class="card">
     <div class="formula-breakdown">
@@ -1777,6 +2034,10 @@ td:first-child{{color:#e0eaff}}
       {fb['commitment']} + {fb['carryover']} + {fb['cycle_time']} + {fb['bug_ratio']}
       {f"+ ({r['bd_nudge']:+d})" if r.get('bd_nudge') else ""}
       <div class="value">= {score}</div>
+    </div>
+    <div class="formula-expression">
+      Custom formula in use:
+      <code>{escape(r['formula_expression'])}</code>
     </div>
   </div>
 
@@ -2030,6 +2291,7 @@ def run_scheduled(hour: int = 9, minute: int = 0) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sprint Health Score Reporter")
+    parser.add_argument("--admin-dashboard", action="store_true", help="Run the local private admin dashboard")
     parser.add_argument("--dry-run",         action="store_true", help="Print without sending to Slack")
     parser.add_argument("--schedule",        action="store_true", help="Run daily at 09:00 Cairo time")
     parser.add_argument("--schedule-hour",   type=int, default=9,  help="Hour for scheduled run (Cairo, 24h)")
@@ -2042,7 +2304,10 @@ if __name__ == "__main__":
     parser.add_argument("--slack-link-only", action="store_true", help="Send link-only Slack summary")
     args = parser.parse_args()
 
-    if args.schedule:
+    if args.admin_dashboard:
+        from admin_dashboard import run_dashboard
+        run_dashboard()
+    elif args.schedule:
         run_scheduled(hour=args.schedule_hour, minute=args.schedule_minute)
     else:
         run(
