@@ -5,6 +5,8 @@ __pycache__/
 output.txt
 tunnel.out.txt
 tunnel.err.txt
+admin_dashboard.out.txt
+admin_dashboard.err.txt
 *.key
 *.pem
 *.token
