@@ -8,3 +8,4 @@ tunnel.err.txt
 *.key
 *.pem
 *.token
+health_metrics_config.json
