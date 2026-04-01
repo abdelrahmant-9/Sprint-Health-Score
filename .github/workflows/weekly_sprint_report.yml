@@ -1,0 +1,75 @@
+name: Weekly Sprint Health Report
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every Friday at 07:00 UTC (adjust as needed)
+    - cron: "0 7 * * 5"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-deploy-send:
+    runs-on: ubuntu-latest
+    env:
+      JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      JIRA_PROJECT_KEY: ${{ secrets.JIRA_PROJECT_KEY }}
+      JIRA_BOARD_ID: ${{ secrets.JIRA_BOARD_ID }}
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_CHANNEL_ID: ${{ secrets.SLACK_CHANNEL_ID }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests python-dotenv schedule pytz reportlab
+
+      - name: Generate report files
+        run: |
+          python sprint_health_2.py --html --pdf --no-slack
+
+      - name: Prepare Pages artifact
+        run: |
+          mkdir -p site
+          cp sprint_health_report.html site/index.html
+          latest_pdf=$(ls -1t sprint-health-*.pdf | head -n 1 || true)
+          if [ -n "$latest_pdf" ]; then
+            cp "$latest_pdf" site/
+            cp "$latest_pdf" site/latest.pdf
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Send Slack hosted-link report
+        env:
+          SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          PDF_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/latest.pdf
+        run: |
+          python sprint_health_2.py --slack-link-only --site-url "$SITE_URL" --pdf-url "$PDF_URL"
