@@ -236,7 +236,7 @@ def fetch_last_n_sprints(n: int = 3) -> list[dict]:
     try:
         data = jira_get("search/jql", {
             "jql": f"project = {JIRA_PROJECT} AND sprint in closedSprints() ORDER BY created DESC",
-            "fields": "resolutiondate,created,customfield_10020",
+            "fields": "resolutiondate,created,customfield_10020,status,issuetype",
             "maxResults": 200,
         })
 
@@ -255,12 +255,19 @@ def fetch_last_n_sprints(n: int = 3) -> list[dict]:
 
         for sp in sorted_sprints:
             cycle_times = []
+            bug_count = 0
             for f in sp["issues"]:
                 ct = calc_cycle_time_days(f.get("created"), f.get("resolutiondate"))
                 if ct is not None:
                     cycle_times.append(ct)
+                if (f.get("issuetype") or {}).get("name") == BUG_TYPE:
+                    bug_count += 1
             avg_ct = sum(cycle_times) / len(cycle_times) if cycle_times else None
-            sprints_data.append({"name": sp["info"].get("name"), "avg_cycle_time": avg_ct})
+            sprints_data.append({
+                "name": sp["info"].get("name"),
+                "avg_cycle_time": avg_ct,
+                "bugs": bug_count,
+            })
 
     except Exception as e:
         print(f"[warn] Could not fetch closed sprints: {e}")
@@ -498,6 +505,12 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         valid = [s["avg_cycle_time"] for s in prev_sprints if s["avg_cycle_time"] is not None]
         if valid:
             prev_avg_ct = sum(valid) / len(valid)
+    prev_bugs = None
+    if prev_sprints:
+        for s in prev_sprints:
+            if s.get("bugs") is not None:
+                prev_bugs = s.get("bugs")
+                break
 
     # Scores — FIX: use corrected scoring functions
     c_score, c_pct   = score_commitment(done, total)
@@ -508,6 +521,11 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     # otherwise fall back to total done issues; never pass both as 0 silently.
     bug_denom = stories_done if stories_done > 0 else done
     b_score, b_pct = score_bug_ratio(bugs, bug_denom)
+    bug_change_pct = None
+    bug_change_arrow = "→"
+    if prev_bugs is not None and prev_bugs > 0:
+        bug_change_pct = round(((bugs - prev_bugs) / prev_bugs) * 100, 1)
+        bug_change_arrow = "↓" if bug_change_pct < 0 else ("↑" if bug_change_pct > 0 else "→")
 
     health = calc_health_score(c_score, co_score, cy_score, b_score)
     emoji, label = health_label(health)
@@ -569,6 +587,9 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
                 "no_data": bug_denom == 0 and bugs == 0,
             },
         },
+        "bug_change_pct": bug_change_pct,
+        "bug_change_arrow": bug_change_arrow,
+        "current_avg_cycle_time": round(current_avg_ct, 1) if current_avg_ct is not None else None,
         "execution": {
             "completed": done,
             "unfinished": carried_over,
@@ -692,25 +713,25 @@ def format_slack_message(r: dict) -> str:
 
 def format_slack_site_message(r: dict, site_url: str, pdf_url: str = "") -> str:
     """Build a concise Slack message focused on hosted report link."""
-    date_range = (
-        f"{r['sprint_start']} -> {r['sprint_end']}"
-        if r["sprint_start"] and r["sprint_end"]
-        else "Dates not set"
-    )
     score = r["health_score"]
-    health_tag = "GOOD" if score >= 85 else "WARN" if score >= 70 else "RISK" if score >= 50 else "BAD"
-    label = r["health_label"].lower()
-    lines = [
-        "*Sprint Health Report*",
-        f"*Sprint:* {r['sprint_name']} | *Link:* {site_url}",
-        "",
-        f"• *Dates:* {date_range}",
-        f"• *Score:* {score}/100 [{health_tag}] - {label}",
-        f"• *Scope:* {r['total']} issues | *Bugs:* {r['bugs']}",
-        "",
-        f"_Generated {r['generated_at']}_",
-    ]
-    return "\n".join(lines)
+    health_dot = "🟢" if score >= 85 else "🟡" if score >= 70 else "🟠" if score >= 50 else "🔴"
+    bugs_line = f"Bugs: {r['bugs']}"
+    if r.get("bug_change_pct") is not None:
+        bugs_line = f"Bugs: {r['bugs']} ({r['bug_change_arrow']} {abs(r['bug_change_pct'])}%)"
+    cycle_time = (
+        f"{r['current_avg_cycle_time']} days"
+        if r.get("current_avg_cycle_time") is not None
+        else "N/A"
+    )
+
+    return (
+        "🚀 *Sprint Health Report Ready*\n\n"
+        f"Score: {score}/100 {health_dot}\n"
+        f"{bugs_line}\n"
+        f"Cycle Time: {cycle_time}\n\n"
+        "🔗 *View Report:*\n"
+        f"{site_url}"
+    )
 
 
 def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -> str:
