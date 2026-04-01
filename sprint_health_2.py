@@ -1,27 +1,3 @@
-"""
-sprint_health.py
-================
-Sprint Health Score Calculator for Jira PM Project
-Fetches live data from Jira, calculates weighted health score,
-and sends a formatted report to Slack.
-
-Usage:
-    python sprint_health.py                  # Run once manually
-    python sprint_health.py --dry-run        # Print report without sending to Slack
-    python sprint_health.py --schedule       # Run every Friday at 9:00 AM Cairo time
-
-Setup:
-    pip install requests python-dotenv schedule pytz
-
-Environment variables (.env file):
-    JIRA_BASE_URL=https://lumofyinc.atlassian.net
-    JIRA_EMAIL=your@email.com
-    JIRA_API_TOKEN=your_jira_api_token
-    JIRA_PROJECT_KEY=PM
-    SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
-    SLACK_CHANNEL_ID=C0XXXXXXXXX
-"""
-
 import os
 import sys
 import math
@@ -715,21 +691,25 @@ def format_slack_message(r: dict) -> str:
 
 
 def format_slack_site_message(r: dict, site_url: str, pdf_url: str = "") -> str:
-    """Build a Slack message focused on hosted report links."""
+    """Build a concise Slack message focused on hosted report link."""
     date_range = (
         f"{r['sprint_start']} -> {r['sprint_end']}"
         if r["sprint_start"] and r["sprint_end"]
         else "Dates not set"
     )
+    score = r["health_score"]
+    health_tag = "GOOD" if score >= 85 else "WARN" if score >= 70 else "RISK" if score >= 50 else "BAD"
+    label = r["health_label"].lower()
     lines = [
-        ":globe_with_meridians: *Sprint Health Report (Hosted)*",
-        f"*{r['sprint_name']}* | {date_range}",
-        f"*Health Score:* {r['health_score']}/100 ({r['health_label']})",
-        f"- Website: {site_url}",
+        "*Sprint Health Report*",
+        f"*Sprint:* {r['sprint_name']} | *Link:* {site_url}",
+        "",
+        f"• *Dates:* {date_range}",
+        f"• *Score:* {score}/100 [{health_tag}] - {label}",
+        f"• *Scope:* {r['total']} issues | *Bugs:* {r['bugs']}",
+        "",
+        f"_Generated {r['generated_at']}_",
     ]
-    if pdf_url:
-        lines.append(f"- PDF: {pdf_url}")
-    lines.append(f"_Generated {r['generated_at']}_")
     return "\n".join(lines)
 
 
