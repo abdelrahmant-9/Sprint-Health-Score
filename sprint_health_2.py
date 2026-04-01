@@ -717,7 +717,9 @@ def format_slack_site_message(r: dict, site_url: str, pdf_url: str = "") -> str:
     health_dot = "🟢" if score >= 85 else "🟡" if score >= 70 else "🟠" if score >= 50 else "🔴"
     bugs_line = f"Bugs: {r['bugs']}"
     if r.get("bug_change_pct") is not None:
-        bugs_line = f"Bugs: {r['bugs']} ({r['bug_change_arrow']} {abs(r['bug_change_pct'])}%)"
+        bugs_pct = abs(r["bug_change_pct"])
+        bugs_pct_text = str(int(bugs_pct)) if float(bugs_pct).is_integer() else str(bugs_pct)
+        bugs_line = f"Bugs: {r['bugs']} ({r['bug_change_arrow']} {bugs_pct_text}%)"
     cycle_time = (
         f"{r['current_avg_cycle_time']} days"
         if r.get("current_avg_cycle_time") is not None
@@ -725,11 +727,11 @@ def format_slack_site_message(r: dict, site_url: str, pdf_url: str = "") -> str:
     )
 
     return (
-        "🚀 *Sprint Health Report Ready*\n\n"
+        "🚀 Sprint Health Report Ready\n\n"
         f"Score: {score}/100 {health_dot}\n"
         f"{bugs_line}\n"
         f"Cycle Time: {cycle_time}\n\n"
-        "🔗 *View Report:*\n"
+        "🔗 View Report:\n"
         f"{site_url}"
     )
 
