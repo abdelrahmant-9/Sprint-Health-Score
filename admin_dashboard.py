@@ -36,6 +36,18 @@ def _bool_value(params: dict, key: str) -> bool:
     return (params.get(key, [""])[0] or "").strip().lower() in {"1", "true", "on", "yes"}
 
 
+def _list_values(params: dict, key: str) -> list[str]:
+    raw = (params.get(key, [""])[0] or "").strip()
+    if not raw:
+        return []
+    parts = []
+    for line in raw.replace(",", "\n").splitlines():
+        item = line.strip()
+        if item:
+            parts.append(item)
+    return parts
+
+
 def _field_input(label: str, name: str, value, step: str = "1", input_type: str = "number", hint: str = "") -> str:
     hint_html = f"<small>{escape(hint)}</small>" if hint else ""
     return (
@@ -141,6 +153,9 @@ def _build_config_from_form(params: dict) -> dict:
     config["final_score"]["round_result"] = _bool_value(params, "final_score_round_result")
     config["final_score"]["min_score"] = _int_value(params, "final_score_min_score")
     config["final_score"]["max_score"] = _int_value(params, "final_score_max_score")
+    config.setdefault("activity_people", {})
+    config["activity_people"]["qa_names"] = _list_values(params, "activity_qa_names")
+    config["activity_people"]["developer_names"] = _list_values(params, "activity_developer_names")
 
     total_weight = sum(config["weights"].values())
     if round(total_weight, 4) <= 0:
@@ -160,6 +175,7 @@ def _build_sections(config: dict) -> list[str]:
     stale = config["stale_thresholds"]
     labels = config["labels"]
     final_score = config["final_score"]
+    activity_people = config.get("activity_people", {"qa_names": [], "developer_names": []})
 
     return [
         _section(
@@ -276,6 +292,26 @@ def _build_sections(config: dict) -> list[str]:
                 _field_checkbox("Round result", "final_score_round_result", final_score["round_result"], "Round the formula result before saving the final score."),
                 _field_input("Minimum score", "final_score_min_score", final_score["min_score"]),
                 _field_input("Maximum score", "final_score_max_score", final_score["max_score"]),
+            ],
+        ),
+        _section(
+            "People Filters",
+            "Optional filters for activity sections. Leave empty to show everyone.",
+            [
+                _field_textarea(
+                    "QA names",
+                    "activity_qa_names",
+                    "\n".join(activity_people.get("qa_names", [])),
+                    "One name per line (or comma-separated). Only these names appear in Today's QA Activity.",
+                    rows=4,
+                ),
+                _field_textarea(
+                    "Developer names",
+                    "activity_developer_names",
+                    "\n".join(activity_people.get("developer_names", [])),
+                    "One name per line (or comma-separated). Only these names appear in Today's Developer Activity.",
+                    rows=4,
+                ),
             ],
         ),
     ]

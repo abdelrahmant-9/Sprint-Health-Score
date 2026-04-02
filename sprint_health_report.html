@@ -3,14 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Sprint Health — Sprint 15 - PM Sprint 6</title>
+<title>Sprint Health - Sprint 15 - PM Sprint 6</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
   background:#050d1a;color:#e0eaff;padding:32px 16px;min-height:100vh}
 .container{max-width:1060px;margin:0 auto}
-
-/* ── Header ── */
 .header{text-align:center;margin-bottom:36px}
 .lumofy-logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:18px}
 .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,#1a6bff,#00d4aa);
@@ -19,22 +17,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .logo-text span{color:#1a6bff}
 .header h1{font-size:30px;font-weight:700;color:#fff;margin-bottom:6px}
 .header p{font-size:13px;color:#4a90d9}
-.progress-bar-wrap{background:rgba(26,107,255,.15);border-radius:999px;height:4px;
-  width:260px;margin:12px auto 0;border:1px solid rgba(26,107,255,.2)}
-.progress-bar-fill{height:4px;border-radius:999px;
-  background:linear-gradient(90deg,#1a6bff,#00d4aa)}
-
-/* ── Cards ── */
+.progress-bar-wrap{background:rgba(26,107,255,.15);border-radius:999px;height:4px;width:260px;margin:12px auto 0;border:1px solid rgba(26,107,255,.2)}
+.progress-bar-fill{height:4px;border-radius:999px;background:linear-gradient(90deg,#1a6bff,#00d4aa)}
 .card{background:rgba(10,20,40,.8);backdrop-filter:blur(20px);border-radius:16px;
-  padding:32px 28px;margin-bottom:24px;
-  border:1px solid rgba(26,107,255,.2);
-  box-shadow:0 4px 24px rgba(0,0,0,.4)}
-
-/* ── Score ── */
+  padding:32px 28px;margin-bottom:24px;border:1px solid rgba(26,107,255,.2);box-shadow:0 4px 24px rgba(0,0,0,.4)}
 .score-wrap{text-align:center}
 .score-circle{width:150px;height:150px;border-radius:50%;margin:0 auto 20px;
-  display:flex;align-items:center;justify-content:center;flex-direction:column;
-  font-weight:700;border:2px solid rgba(26,107,255,.3)}
+  display:flex;align-items:center;justify-content:center;flex-direction:column;font-weight:700;border:2px solid rgba(26,107,255,.3)}
 .score-circle.green{background:linear-gradient(135deg,#00d4aa22,#00d4aa44);border-color:#00d4aa}
 .score-circle.yellow{background:linear-gradient(135deg,#fbbf2422,#fbbf2444);border-color:#fbbf24}
 .score-circle.orange{background:linear-gradient(135deg,#fb923c22,#fb923c44);border-color:#fb923c}
@@ -45,121 +34,87 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .score-label{font-size:12px;color:#4a90d9;margin-top:2px}
 .health-status{font-size:17px;font-weight:600;margin-top:14px;color:#e0eaff}
 .health-sub{font-size:12px;color:#4a90d9;margin-top:6px}
-
-/* ── Banners ── */
-.no-data-banner,.state-banner{border-radius:10px;padding:12px 16px;
-  margin-bottom:20px;font-size:13px}
+.no-data-banner,.state-banner{border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:13px}
 .no-data-banner{background:rgba(251,191,36,.08);border-left:3px solid #fbbf24;color:#fbbf24}
 .state-banner.extended{background:rgba(255,71,87,.08);border-left:3px solid #ff4757;color:#ff4757}
 .state-banner.closed{background:rgba(26,107,255,.08);border-left:3px solid #1a6bff;color:#4a90d9}
-
-/* ── Section title ── */
-.section-title{font-size:16px;font-weight:700;color:#4a90d9;
-  margin:32px 0 14px;text-transform:uppercase;letter-spacing:.8px;
-  display:flex;align-items:center;gap:8px}
+.section-title{font-size:16px;font-weight:700;color:#4a90d9;margin:32px 0 14px;
+  text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px}
 .section-title::after{content:'';flex:1;height:1px;background:rgba(26,107,255,.2)}
-
-/* ── Signals ── */
 .signals-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:24px}
 .signal-card{background:rgba(10,20,40,.9);border-radius:14px;padding:22px 16px;
-  border:1px solid rgba(26,107,255,.2);text-align:center;
-  transition:transform .25s,border-color .25s}
+  border:1px solid rgba(26,107,255,.2);text-align:center;transition:transform .25s,border-color .25s}
 .signal-card:hover{transform:translateY(-4px);border-color:#1a6bff}
-.signal-label{font-size:10px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.8px;color:#4a90d9;margin-bottom:10px}
-.signal-score{font-size:44px;font-weight:900;margin-bottom:6px;
-  display:flex;align-items:baseline;justify-content:center;gap:3px}
+.signal-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#4a90d9;margin-bottom:10px}
+.signal-score{font-size:44px;font-weight:900;margin-bottom:6px;display:flex;align-items:baseline;justify-content:center;gap:3px}
 .signal-score.red{color:#ff4757}.signal-score.orange{color:#fb923c}
 .signal-score.yellow{color:#fbbf24}.signal-score.green{color:#00d4aa}
 .signal-unit{font-size:16px;color:#2d5a8e}
 .signal-metric{font-size:11px;color:#8ab4d9;font-weight:500;margin-bottom:6px}
 .no-data-badge{display:inline-block;background:rgba(251,191,36,.1);color:#fbbf24;
-  font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;
-  margin-bottom:8px;text-transform:uppercase;letter-spacing:.4px;border:1px solid rgba(251,191,36,.3)}
+  font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;margin-bottom:8px;
+  text-transform:uppercase;letter-spacing:.4px;border:1px solid rgba(251,191,36,.3)}
 .signal-explanation{font-size:10px;color:#4a90d9;line-height:1.6;padding:10px;
   background:rgba(26,107,255,.05);border-radius:7px;border-left:2px solid #1a6bff;text-align:left}
 .explanation-title{font-weight:600;color:#8ab4d9;margin-bottom:4px}
-
-/* ── Bug Cards ── */
 .bug-cards{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:8px}
 @media(max-width:560px){.bug-cards{grid-template-columns:1fr}}
 .bug-card{border-radius:14px;padding:24px 20px;border:1px solid;text-align:center}
 .bug-card.new-bugs{background:rgba(251,191,36,.06);border-color:rgba(251,191,36,.3)}
 .bug-card.carried-bugs{background:rgba(255,71,87,.06);border-color:rgba(255,71,87,.3)}
 .bug-card-icon{font-size:28px;margin-bottom:8px}
-.bug-card-title{font-size:11px;font-weight:700;text-transform:uppercase;
-  letter-spacing:.8px;color:#4a90d9;margin-bottom:8px}
+.bug-card-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#4a90d9;margin-bottom:8px}
 .bug-card-count{font-size:48px;font-weight:900;color:#fff;line-height:1;margin-bottom:4px}
-.new-bugs .bug-card-count{color:#fbbf24}
-.carried-bugs .bug-card-count{color:#ff4757}
+.new-bugs .bug-card-count{color:#fbbf24}.carried-bugs .bug-card-count{color:#ff4757}
 .bug-card-sub{font-size:11px;color:#4a90d9;margin-bottom:10px}
 .bug-card-ratio{font-size:12px;color:#8ab4d9;margin-bottom:4px}
 .bug-card-resolved{font-size:12px;color:#00d4aa;margin-bottom:8px}
 .bug-card-note{font-size:10px;padding:4px 10px;border-radius:999px;display:inline-block}
 .new-bugs .bug-card-note{background:rgba(251,191,36,.1);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
 .carried-bugs .bug-card-note{background:rgba(74,144,217,.1);color:#4a90d9;border:1px solid rgba(74,144,217,.2)}
-
-/* ── Burndown ── */
 .bd-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:12px;margin-bottom:20px}
-.bd-stat{text-align:center;padding:14px 10px;background:rgba(26,107,255,.06);
-  border-radius:10px;border:1px solid rgba(26,107,255,.15)}
+.bd-stat{text-align:center;padding:14px 10px;background:rgba(26,107,255,.06);border-radius:10px;border:1px solid rgba(26,107,255,.15)}
 .bd-stat-val{font-size:16px;font-weight:700;color:#e0eaff;margin-bottom:4px}
 .bd-stat-val.green{color:#00d4aa}.bd-stat-val.red{color:#ff4757}
 .bd-stat-lbl{font-size:10px;color:#4a90d9;text-transform:uppercase;letter-spacing:.5px}
-
-/* ── Formula ── */
-.formula-breakdown{margin-bottom:16px;padding:16px;
-  background:rgba(26,107,255,.06);border-radius:10px;border-left:3px solid #1a6bff}
-.formula-row{display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:10px;font-size:13px;color:#8ab4d9}
+.formula-breakdown{margin-bottom:16px;padding:16px;background:rgba(26,107,255,.06);border-radius:10px;border-left:3px solid #1a6bff}
+.formula-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:13px;color:#8ab4d9}
 .formula-row:last-child{margin-bottom:0}
 .formula-component{display:flex;align-items:center;gap:8px}
 .formula-code{font-family:'Monaco','Courier New',monospace;background:rgba(26,107,255,.15);
-  padding:2px 6px;border-radius:4px;font-size:11px;color:#4a90d9;font-weight:600;
-  border:1px solid rgba(26,107,255,.2)}
+  padding:2px 6px;border-radius:4px;font-size:11px;color:#4a90d9;font-weight:600;border:1px solid rgba(26,107,255,.2)}
 .formula-final{background:linear-gradient(135deg,rgba(26,107,255,.2),rgba(0,212,170,.1));
-  border:1px solid rgba(26,107,255,.3);color:#e0eaff;
-  padding:20px;border-radius:10px;text-align:center;font-size:14px;font-weight:700;
-  margin-top:16px;font-family:'Monaco','Courier New',monospace}
+  border:1px solid rgba(26,107,255,.3);color:#e0eaff;padding:20px;border-radius:10px;
+  text-align:center;font-size:14px;font-weight:700;margin-top:16px;font-family:'Monaco','Courier New',monospace}
 .formula-final .value{font-size:28px;margin-top:8px;color:#1a6bff}
-
-/* ── Tables ── */
 .tables-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 @media(max-width:680px){.tables-grid{grid-template-columns:1fr}}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th,td{border-bottom:1px solid rgba(26,107,255,.1);padding:8px 10px;text-align:left;color:#8ab4d9}
-th{background:rgba(26,107,255,.08);color:#4a90d9;font-size:10px;
-  text-transform:uppercase;letter-spacing:.5px}
+th{background:rgba(26,107,255,.08);color:#4a90d9;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
 td:first-child{color:#e0eaff}
 .bar{background:rgba(26,107,255,.1);border-radius:999px;height:6px;overflow:hidden;min-width:60px}
 .bar>span{display:block;height:6px;background:linear-gradient(90deg,#1a6bff,#00d4aa)}
-
-/* ── Developer Activity ── */
 .dev-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px}
-.dev-card{background:rgba(10,20,40,.9);border-radius:14px;
-  border:1px solid rgba(26,107,255,.2);overflow:hidden}
+.dev-card{background:rgba(10,20,40,.9);border-radius:14px;border:1px solid rgba(26,107,255,.2);overflow:hidden}
 .dev-header{display:flex;align-items:center;gap:12px;padding:16px 18px;
   background:rgba(26,107,255,.06);border-bottom:1px solid rgba(26,107,255,.15)}
 .dev-avatar{width:40px;height:40px;border-radius:50%;border:2px solid rgba(26,107,255,.3)}
 .dev-avatar-placeholder{width:40px;height:40px;border-radius:50%;
   background:linear-gradient(135deg,#1a6bff,#00d4aa);
-  display:flex;align-items:center;justify-content:center;
-  font-size:16px;font-weight:700;color:#fff}
+  display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#fff}
 .dev-name{font-size:14px;font-weight:700;color:#e0eaff}
 .dev-meta{font-size:11px;color:#4a90d9;margin-top:2px}
 .dev-stale-badge{display:inline-block;background:rgba(255,71,87,.15);color:#ff4757;
-  font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;
-  margin-left:6px;border:1px solid rgba(255,71,87,.3)}
+  font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;margin-left:6px;border:1px solid rgba(255,71,87,.3)}
 .dev-issues{padding:12px 18px;display:flex;flex-direction:column;gap:10px}
 .dev-issue{display:flex;align-items:flex-start;gap:10px;padding:10px;
-  border-radius:8px;background:rgba(26,107,255,.04);border:1px solid rgba(26,107,255,.1);
-  transition:border-color .2s}
+  border-radius:8px;background:rgba(26,107,255,.04);border:1px solid rgba(26,107,255,.1);transition:border-color .2s}
 .dev-issue:hover{border-color:rgba(26,107,255,.3)}
 .dev-issue.stale{background:rgba(255,71,87,.04);border-color:rgba(255,71,87,.2)}
 .issue-icon{font-size:18px;margin-top:2px;flex-shrink:0}
 .issue-body{flex:1;min-width:0}
-.issue-key{font-size:11px;font-weight:700;color:#1a6bff;text-decoration:none;
-  font-family:'Monaco','Courier New',monospace}
+.issue-key{font-size:11px;font-weight:700;color:#1a6bff;text-decoration:none;font-family:'Monaco','Courier New',monospace}
 .issue-key:hover{color:#4a90d9}
 .issue-summary{display:block;font-size:12px;color:#8ab4d9;margin:2px 0 6px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -175,8 +130,11 @@ td:first-child{color:#e0eaff}
   background:rgba(167,139,250,.08);color:#a78bfa;border:1px solid rgba(167,139,250,.2)}
 .issue-done-tag{font-size:9px;font-weight:600;padding:2px 7px;border-radius:999px;
   background:rgba(0,212,170,.08);color:#00d4aa;border:1px solid rgba(0,212,170,.2)}
-
-/* ── Interpretation ── */
+/* QA Activity */
+.qa-group{margin-bottom:20px}
+.qa-group:last-child{margin-bottom:0}
+.qa-group-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
+  margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(26,107,255,.15)}
 .interp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
 .interp-item{padding:16px;border-radius:10px;border:1px solid;text-align:center}
 .interp-item.green{border-color:rgba(0,212,170,.3);background:rgba(0,212,170,.05)}
@@ -188,282 +146,202 @@ td:first-child{color:#e0eaff}
 .interp-range.orange{color:#fb923c}.interp-range.red{color:#ff4757}
 .interp-status{font-size:13px;font-weight:700;margin-bottom:4px;color:#e0eaff}
 .interp-desc{font-size:11px;color:#4a90d9;line-height:1.4}
-
-/* ── Footer ── */
+.ai-title{font-size:18px;font-weight:700;color:#e0eaff;margin-bottom:10px}
+.ai-summary{font-size:13px;color:#8ab4d9;line-height:1.7}
+.ai-actions{margin:14px 0 0 18px;color:#e0eaff}
+.ai-actions li{margin-bottom:8px}
 .footer{text-align:center;margin-top:40px;padding:20px;color:#2d5a8e;font-size:11px}
 </style>
 </head>
 <body>
 <div class="container">
-
   <div class="header">
     <div class="lumofy-logo">
       <div class="logo-mark"></div>
       <div class="logo-text">Lumo<span>fy</span></div>
     </div>
     <h1>Sprint Health Score</h1>
-    <p>2026-03-12 → 2026-03-30 &nbsp;·&nbsp; Day 20/18 (100.0% through sprint)</p>
-    <div class="progress-bar-wrap">
-      <div class="progress-bar-fill" style="width:100.0%"></div>
-    </div>
+    <p>2026-03-12 -> 2026-03-30 &nbsp;|&nbsp; Day 21/18 (100.0% through sprint)</p>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:100.0%"></div></div>
   </div>
-
-  <div class="state-banner extended">⚠️ Sprint has passed its end date but has not been closed in Jira yet.</div>
-  
-
+  <div class="state-banner extended">Sprint has passed its end date but has not been closed in Jira yet.</div>
   <div class="card score-wrap">
     <div class="score-circle red">
       <div class="score-number red">37</div>
       <div class="score-label">/100</div>
     </div>
     <div class="health-status">Sprint Breakdown</div>
-    <div class="health-sub">Sprint 15 - PM Sprint 6 &nbsp;·&nbsp; 2026-04-01 13:47 UTC</div>
+    <div class="health-sub">Sprint 15 - PM Sprint 6 &nbsp;|&nbsp; 2026-04-02 08:16 UTC</div>
   </div>
-
   <div class="section-title">Health Signals</div>
   <div class="signals-grid">
         <div class="signal-card">
           <div class="signal-label">Commitment Reliability</div>
           <div class="signal-score red">40<span class="signal-unit">/100</span></div>
-          <div class="signal-metric">28/50 issues done &nbsp;·&nbsp; 56.0%</div>
+          <div class="signal-metric">28/50 issues done &nbsp;Â·&nbsp; 56.0%</div>
           
           <div class="signal-explanation">
             <div class="explanation-title">How it's calculated:</div>
-            Completed ÷ Committed × 100<br>
-            <strong>Scoring:</strong><br>85–95% → 100 pts<br>70–84% → 70 pts<br>50–69% → 40 pts<br>&lt;50% → 0 pts
+            Completed Ã· Committed Ã— 100<br><strong>Scoring:</strong><br>85-95% -> 100 pts<br>70-84% -> 70 pts<br>50-69% -> 40 pts<br>&lt;50% -> 0 pts
           </div>
         </div>
         <div class="signal-card">
           <div class="signal-label">Carryover Rate</div>
           <div class="signal-score red">0<span class="signal-unit">/100</span></div>
-          <div class="signal-metric">22/50 carried over &nbsp;·&nbsp; 44.0%</div>
+          <div class="signal-metric">22/50 carried over &nbsp;Â·&nbsp; 44.0%</div>
           
           <div class="signal-explanation">
             <div class="explanation-title">How it's calculated:</div>
-            Carried ÷ Total Scope × 100<br>
-            <strong>Scoring:</strong><br>&lt;10% → 100 pts<br>10–20% → 70 pts<br>20–30% → 40 pts<br>&gt;30% → 0 pts
+            Carried Ã· Total Scope Ã— 100<br><strong>Scoring:</strong><br>&lt;10% -> 100 pts<br>10-20% -> 70 pts<br>20-30% -> 40 pts<br>&gt;30% -> 0 pts
           </div>
         </div>
         <div class="signal-card">
           <div class="signal-label">Cycle Time Stability</div>
           <div class="signal-score yellow">70<span class="signal-unit">/100</span></div>
-          <div class="signal-metric">avg 3.0 days (prev: 5.5) &nbsp;·&nbsp; -45.7% vs 3-sprint avg%</div>
+          <div class="signal-metric">avg 3.0 days (prev: 5.5) &nbsp;Â·&nbsp; -45.9% vs 3-sprint avg%</div>
           
           <div class="signal-explanation">
             <div class="explanation-title">How it's calculated:</div>
-            Current avg vs Last 3-sprint avg<br>
-            <strong>Scoring:</strong><br>±10% → 100 pts<br>+10–20% → 70 pts<br>+20–30% → 40 pts<br>&gt;30% → 0 pts
+            Current avg vs Last 3-sprint avg<br><strong>Scoring:</strong><br>within +/-10% -> 100 pts<br>up to +20% -> 70 pts<br>up to +30% -> 40 pts<br>&gt;+30% -> 0 pts
           </div>
         </div>
         <div class="signal-card">
           <div class="signal-label">Bug Ratio (New Only)</div>
           <div class="signal-score yellow">70<span class="signal-unit">/100</span></div>
-          <div class="signal-metric">12 new bugs / 50 total issues &nbsp;·&nbsp; 24.0%</div>
+          <div class="signal-metric">12 new bugs / 50 total issues &nbsp;Â·&nbsp; 24.0%</div>
           
           <div class="signal-explanation">
             <div class="explanation-title">How it's calculated:</div>
-            New Bugs (created this sprint) ÷ Total Issues<br>
-            <strong>Scoring:</strong><br>&lt;15% → 100 pts<br>15–25% → 70 pts<br>25–35% → 40 pts<br>&gt;35% → 0 pts
+            New Bugs (created this sprint) Ã· Total Issues<br><strong>Scoring:</strong><br>&lt;15% -> 100 pts<br>15-25% -> 70 pts<br>25-35% -> 40 pts<br>&gt;35% -> 0 pts
           </div>
         </div></div>
-
   <div class="section-title">Bug Breakdown</div>
   <div class="card">
     <div class="bug-cards">
       <div class="bug-card new-bugs">
-        <div class="bug-card-icon">🟡</div>
+        <div class="bug-card-icon">NEW</div>
         <div class="bug-card-title">New Bugs</div>
         <div class="bug-card-count">12</div>
         <div class="bug-card-sub">Created this sprint</div>
         <div class="bug-card-ratio">Bug Ratio: <strong>24.0%</strong> of total issues</div>
-        <div class="bug-card-resolved">✓ Resolved: <strong>5</strong> (41.7%)</div>
-        <div class="bug-card-note">⚡ Counts toward Health Score</div>
+        <div class="bug-card-resolved">Resolved: <strong>4</strong> (33.3%)</div>
+        <div class="bug-card-note">Counts toward Health Score</div>
       </div>
       <div class="bug-card carried-bugs">
-        <div class="bug-card-icon">🔴</div>
+        <div class="bug-card-icon">OLD</div>
         <div class="bug-card-title">Carried Bugs</div>
         <div class="bug-card-count">0</div>
         <div class="bug-card-sub">From previous sprints</div>
-        <div class="bug-card-note">ℹ️ Display only — not in Health Score</div>
+        <div class="bug-card-note">Display only - not in Health Score</div>
       </div>
     </div></div>
-
   <div class="section-title">Burndown Chart</div>
   <div class="card">
-    
         <div class="bd-stats">
-          <div class="bd-stat"><div class="bd-stat-val">20/18</div><div class="bd-stat-lbl">Days Elapsed</div></div>
+          <div class="bd-stat"><div class="bd-stat-val">21/18</div><div class="bd-stat-lbl">Days Elapsed</div></div>
           <div class="bd-stat"><div class="bd-stat-val">22</div><div class="bd-stat-lbl">Remaining</div></div>
           <div class="bd-stat"><div class="bd-stat-val">0.0</div><div class="bd-stat-lbl">Ideal Remaining</div></div>
-          <div class="bd-stat"><div class="bd-stat-val red">Sprint overran 🔴</div><div class="bd-stat-lbl">Status</div></div>
-          <div class="bd-stat"><div class="bd-stat-val">1.4/day</div><div class="bd-stat-lbl">Velocity</div></div>
-          <div class="bd-stat"><div class="bd-stat-val">2026-04-17</div><div class="bd-stat-lbl">Projected Finish</div></div>
-        </div>
-    <svg viewBox="0 0 620 260" xmlns="http://www.w3.org/2000/svg"
-     style="width:100%;max-width:620px;height:auto;display:block">
+          <div class="bd-stat"><div class="bd-stat-val red">Sprint overran</div><div class="bd-stat-lbl">Status</div></div>
+          <div class="bd-stat"><div class="bd-stat-val">1.33/day</div><div class="bd-stat-lbl">Velocity</div></div>
+          <div class="bd-stat"><div class="bd-stat-val">2026-04-18</div><div class="bd-stat-lbl">Projected Finish</div></div>
+        </div><svg viewBox="0 0 620 260" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:620px;height:auto;display:block">
   <line x1="48" y1="216.0" x2="600" y2="216.0" stroke="#1e3a5f" stroke-width="1"/><text x="42" y="220.0" text-anchor="end" font-size="10" fill="#4a90d9">0</text><line x1="48" y1="176.8" x2="600" y2="176.8" stroke="#1e3a5f" stroke-width="1"/><text x="42" y="180.8" text-anchor="end" font-size="10" fill="#4a90d9">10</text><line x1="48" y1="137.6" x2="600" y2="137.6" stroke="#1e3a5f" stroke-width="1"/><text x="42" y="141.6" text-anchor="end" font-size="10" fill="#4a90d9">20</text><line x1="48" y1="98.4" x2="600" y2="98.4" stroke="#1e3a5f" stroke-width="1"/><text x="42" y="102.4" text-anchor="end" font-size="10" fill="#4a90d9">30</text><line x1="48" y1="59.2" x2="600" y2="59.2" stroke="#1e3a5f" stroke-width="1"/><text x="42" y="63.2" text-anchor="end" font-size="10" fill="#4a90d9">40</text><line x1="48" y1="20.0" x2="600" y2="20.0" stroke="#1e3a5f" stroke-width="1"/><text x="42" y="24.0" text-anchor="end" font-size="10" fill="#4a90d9">50</text>
   <line x1="48" y1="20" x2="48" y2="216" stroke="#1e3a5f" stroke-width="1.5"/>
   <line x1="48" y1="216" x2="600" y2="216" stroke="#1e3a5f" stroke-width="1.5"/>
   <polyline points="48.0,20.0 78.67,30.98 109.33,41.95 140.0,52.54 170.67,63.51 201.33,74.49 232.0,85.46 262.67,96.05 293.33,107.02 324.0,118.0 354.67,128.98 385.33,139.95 416.0,150.54 446.67,161.51 477.33,172.49 508.0,183.46 538.67,194.05 569.33,205.02 600.0,216.0" fill="none" stroke="#2d5a8e" stroke-width="2" stroke-dasharray="6,4"/>
-  <polyline points="48.0,20.0 78.67,20.0 109.33,20.0 140.0,20.0 170.67,20.0 201.33,20.0 232.0,27.84 262.67,74.88 293.33,74.88 324.0,74.88 354.67,74.88 385.33,74.88 416.0,74.88 446.67,82.72 477.33,98.4 508.0,98.4 538.67,98.4 569.33,102.32 600.0,118.0 630.67,125.84 661.33,129.76" fill="none" stroke="#ff4757" stroke-width="2.5"/>
-  <line x1="600.0" y1="20" x2="600.0" y2="216" stroke="#1a6bff" stroke-width="1.5" stroke-dasharray="4,3"/><text x="604.0" y="32" font-size="10" fill="#1a6bff">Today</text>
-  <text x="48.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/12</text><text x="140.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/15</text><text x="232.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/18</text><text x="324.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/21</text><text x="416.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/24</text><text x="508.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/27</text><text x="600.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/30</text>
+  <polyline points="48.0,20.0 78.67,20.0 109.33,20.0 140.0,20.0 170.67,20.0 201.33,20.0 232.0,27.84 262.67,70.96 293.33,70.96 324.0,70.96 354.67,70.96 385.33,70.96 416.0,70.96 446.67,78.8 477.33,94.48 508.0,94.48 538.67,94.48 569.33,98.4 600.0,114.08 630.67,121.92 661.33,125.84 692.0,129.76" fill="none" stroke="#ff4757" stroke-width="2.5"/>
+  <line x1="600.0" y1="20" x2="600.0" y2="216" stroke="#1a6bff" stroke-width="1.5" stroke-dasharray="4,3"/><text x="604.0" y="32" font-size="10" fill="#1a6bff">Today</text><text x="48.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/12</text><text x="140.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/15</text><text x="232.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/18</text><text x="324.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/21</text><text x="416.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/24</text><text x="508.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/27</text><text x="600.0" y="232" text-anchor="middle" font-size="10" fill="#4a90d9">03/30</text>
   <line x1="56" y1="254" x2="72" y2="254" stroke="#2d5a8e" stroke-width="2" stroke-dasharray="4,3"/>
   <text x="76" y="258" font-size="10" fill="#4a90d9">Ideal</text>
   <line x1="120" y1="254" x2="136" y2="254" stroke="#ff4757" stroke-width="2.5"/>
   <text x="140" y="258" font-size="10" fill="#4a90d9">Actual</text>
-</svg>
-  </div>
-
+</svg></div>
   <div class="section-title">Today's Developer Activity</div>
-  <div class="card">
-    <div class="dev-grid">
-        <div class="dev-card">
-          <div class="dev-header">
-            <div class="dev-avatar-wrap">
-              <img src="https://secure.gravatar.com/avatar/f93f2a3d736b0b97245943dbd30c8ab3?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAH-0.png" class="dev-avatar"/>
-            </div>
-            <div class="dev-info">
-              <div class="dev-name">Ali Husain</div>
-              <div class="dev-meta">1 issue(s) updated today </div>
-            </div>
-          </div>
-          <div class="dev-issues">
+  <div class="card"><div class="dev-grid"><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Assma Benmussa (3 issues)</div>
             <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">🔧</span>
+              <span class="issue-icon" style="color:#ff4757">BUG</span>
               <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1908" target="_blank" class="issue-key">PM-1908</a>
-                <span class="issue-summary" style="opacity:0.6;text-decoration:line-through;">[BE] fix publish api to handle mapping score formula</span>
-                <div class="issue-tags">
-                  <span class="issue-status-tag">Done</span>
-                  <span class="issue-done-tag">✓ Done</span>
-                </div>
-              </div>
-            </div></div>
-        </div>
-        <div class="dev-card">
-          <div class="dev-header">
-            <div class="dev-avatar-wrap">
-              <img src="https://secure.gravatar.com/avatar/e397276399aa996281b2e4903bc752fd?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAB-3.png" class="dev-avatar"/>
-            </div>
-            <div class="dev-info">
-              <div class="dev-name">Assma Benmussa</div>
-              <div class="dev-meta">2 issue(s) updated today </div>
-            </div>
-          </div>
-          <div class="dev-issues">
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">🔧</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1911" target="_blank" class="issue-key">PM-1911</a>
-                <span class="issue-summary" style="">[FE] Fix payload for goals bulk upload</span>
-                <div class="issue-tags">
-                  <span class="issue-status-tag">In Progress</span>
-                  
-                </div>
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1835" target="_blank" class="issue-key">PM-1835</a>
+                <span class="issue-summary">X Button is not working</span>
+                <div class="issue-tags"><span class="issue-status-tag">Ready for Testing</span><span class="issue-status-tag">In Progress â†’ Ready for Testing</span></div>
               </div>
             </div>
             <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">🔧</span>
+              <span class="issue-icon" style="color:#4a90d9">SUB</span>
               <div class="issue-body">
                 <a href="https://lumofyinc.atlassian.net/browse/PM-1910" target="_blank" class="issue-key">PM-1910</a>
-                <span class="issue-summary" style="">[FE]: fix comment connectors</span>
-                <div class="issue-tags">
-                  <span class="issue-status-tag">CODE REVIEW</span>
-                  
-                </div>
-              </div>
-            </div></div>
-        </div>
-        <div class="dev-card">
-          <div class="dev-header">
-            <div class="dev-avatar-wrap">
-              <img src="https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:10445236-8789-4cbe-b243-58986c3a0356/cc0b00d2-7856-4eb6-903e-f11f1d27871f/48" class="dev-avatar"/>
-            </div>
-            <div class="dev-info">
-              <div class="dev-name">Moses Oderinde</div>
-              <div class="dev-meta">1 issue(s) updated today </div>
-            </div>
-          </div>
-          <div class="dev-issues">
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">🔧</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1909" target="_blank" class="issue-key">PM-1909</a>
-                <span class="issue-summary" style="">[FE] - Potential Rating Insights (9-Box Grid) API Integration</span>
-                <div class="issue-tags">
-                  <span class="issue-status-tag">CODE REVIEW</span>
-                  
-                </div>
-              </div>
-            </div></div>
-        </div>
-        <div class="dev-card">
-          <div class="dev-header">
-            <div class="dev-avatar-wrap">
-              <img src="https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:cc8df296-cc3b-4db7-848b-5cb571dede2f/4df54da5-b939-4d3b-9b0b-31fbac2c0743/48" class="dev-avatar"/>
-            </div>
-            <div class="dev-info">
-              <div class="dev-name">Safa AlFulaij</div>
-              <div class="dev-meta">3 issue(s) updated today </div>
-            </div>
-          </div>
-          <div class="dev-issues">
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#ff4757">🐛</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1904" target="_blank" class="issue-key">PM-1904</a>
-                <span class="issue-summary" style="">Assessment Generation process is incomplete</span>
-                <div class="issue-tags">
-                  <span class="issue-status-tag">Open</span>
-                  <span class="issue-active-tag">Active 2d</span>
-                </div>
+                <span class="issue-summary">[FE]: fix comment connectors</span>
+                <div class="issue-tags"><span class="issue-status-tag">Done</span></div>
               </div>
             </div>
             <div class="dev-issue ">
-              <span class="issue-icon" style="color:#ff4757">🐛</span>
+              <span class="issue-icon" style="color:#4a90d9">SUB</span>
               <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1897" target="_blank" class="issue-key">PM-1897</a>
-                <span class="issue-summary" style="opacity:0.6;text-decoration:line-through;">Failed to confirm competencies generated on submit (500 Server Error)</span>
-                <div class="issue-tags">
-                  <span class="issue-status-tag">Done</span>
-                  <span class="issue-active-tag">Active 3d</span><span class="issue-done-tag">✓ Done</span>
-                </div>
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1911" target="_blank" class="issue-key">PM-1911</a>
+                <span class="issue-summary">[FE] Fix payload for goals bulk upload</span>
+                <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span></div>
+              </div>
+            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Adel ElNabarawy (1 issue)</div>
+            <div class="dev-issue ">
+              <span class="issue-icon" style="color:#1a6bff">STORY</span>
+              <div class="issue-body">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1664" target="_blank" class="issue-key">PM-1664</a>
+                <span class="issue-summary">AI-Powered Talent Insights &amp; Recommendations</span>
+                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open â†’ In Progress</span></div>
+              </div>
+            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Moses Oderinde (1 issue)</div>
+            <div class="dev-issue stale">
+              <span class="issue-icon" style="color:#1a6bff">STORY</span>
+              <div class="issue-body">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1697" target="_blank" class="issue-key">PM-1697</a>
+                <span class="issue-summary">Smart goals are optional in reviews</span>
+                <div class="issue-tags"><span class="issue-status-tag">Ready for Testing</span><span class="issue-active-tag">Active 17d</span><span class="issue-stale-tag">Stale (17d / 4d)</span></div>
+              </div>
+            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Mutasim AlMualimi (1 issue)</div>
+            <div class="dev-issue stale">
+              <span class="issue-icon" style="color:#1a6bff">STORY</span>
+              <div class="issue-body">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1698" target="_blank" class="issue-key">PM-1698</a>
+                <span class="issue-summary">Smart goals are optional in components</span>
+                <div class="issue-tags"><span class="issue-status-tag">Pending Fixes</span><span class="issue-active-tag">Active 17d</span><span class="issue-stale-tag">Stale (17d / 4d)</span></div>
+              </div>
+            </div></div></div></div>
+  <div class="section-title">Today's QA Activity</div>
+  <div class="card"><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">QA: Abdelrahman Tarek (2 issues)</div>
+            <div class="dev-issue">
+              <span class="issue-icon" style="color:#1a6bff">STORY</span>
+              <div class="issue-body">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1697" target="_blank" class="issue-key">PM-1697</a>
+                <span class="issue-summary">Smart goals are optional in reviews</span>
+                <div class="issue-tags"><span class="issue-active-tag">[clock] 0.9d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for Testing (Abdelrahman Tarek)</span></div>
               </div>
             </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#ff4757">🐛</span>
+            <div class="dev-issue">
+              <span class="issue-icon" style="color:#1a6bff">STORY</span>
               <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1847" target="_blank" class="issue-key">PM-1847</a>
-                <span class="issue-summary" style="opacity:0.6;text-decoration:line-through;">Arabic Translation Issues in PM</span>
-                <div class="issue-tags">
-                  <span class="issue-status-tag">Done</span>
-                  <span class="issue-active-tag">Active 14d</span><span class="issue-done-tag">✓ Done</span>
-                </div>
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1698" target="_blank" class="issue-key">PM-1698</a>
+                <span class="issue-summary">Smart goals are optional in components</span>
+                <div class="issue-tags"><span class="issue-active-tag">[clock] 0.8d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for PM Review (Abdelrahman Tarek)</span><span class="issue-status-tag">Ready for PM Review -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Pending Fixes (Abdelrahman Tarek)</span><span class="issue-status-tag">Pending Fixes -> Ready for Testing (Abdelrahman Tarek)</span></div>
               </div>
-            </div></div>
-        </div></div>
-  </div>
-
+            </div></div></div>
+  <div class="section-title">Today's Tester Bugs</div>
+  <div class="card"><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Tester: Abdelrahman Tarek (1 bug)</div>
+            <div class="dev-issue">
+              <span class="issue-icon" style="color:#ff4757">BUG</span>
+              <div class="issue-body">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1912" target="_blank" class="issue-key">PM-1912</a>
+                <span class="issue-summary">Smart Goals are not optional</span>
+                <div class="issue-tags"><span class="issue-status-tag">Open</span><span class="issue-status-tag">Linked Story: PM-1698</span><span class="issue-active-tag">Sprint: Sprint 15 - PM Sprint 6</span></div>
+              </div>
+            </div></div></div>
+  
   <div class="section-title">Weighted Formula</div>
   <div class="card">
     <div class="formula-breakdown">
-      <div class="formula-row">
-        <div class="formula-component"><span>Commitment Reliability</span><span class="formula-code">40 × 0.35</span></div>
-        <strong>= 14.0</strong>
-      </div>
-      <div class="formula-row">
-        <div class="formula-component"><span>Carryover Rate</span><span class="formula-code">0 × 0.25</span></div>
-        <strong>= 0.0</strong>
-      </div>
-      <div class="formula-row">
-        <div class="formula-component"><span>Cycle Time Stability</span><span class="formula-code">70 × 0.20</span></div>
-        <strong>= 14.0</strong>
-      </div>
-      <div class="formula-row">
-        <div class="formula-component"><span>Bug Ratio (New Only)</span><span class="formula-code">70 × 0.20</span></div>
-        <strong>= 14.0</strong>
-      </div>
+      <div class="formula-row"><div class="formula-component"><span>Commitment Reliability</span><span class="formula-code">40 x 0.35</span></div><strong>= 14.0</strong></div>
+      <div class="formula-row"><div class="formula-component"><span>Carryover Rate</span><span class="formula-code">0 x 0.25</span></div><strong>= 0.0</strong></div>
+      <div class="formula-row"><div class="formula-component"><span>Cycle Time Stability</span><span class="formula-code">70 x 0.20</span></div><strong>= 14.0</strong></div>
+      <div class="formula-row"><div class="formula-component"><span>Bug Ratio (New Only)</span><span class="formula-code">70 x 0.20</span></div><strong>= 14.0</strong></div>
       <div class='formula-row'><div class='formula-component'><span>Burndown Nudge</span><span class='formula-code'>-5 pts</span></div><strong>penalty</strong></div>
     </div>
     <div class="formula-final">
@@ -472,76 +350,56 @@ td:first-child{color:#e0eaff}
       <div class="value">= 37</div>
     </div>
   </div>
-
   <div class="section-title">Sprint Details</div>
   <div class="card">
     <div class="tables-grid">
       <div>
         <strong style="color:#e0eaff">Carryover Breakdown</strong>
-        <table style="margin-top:10px">
-          <thead><tr><th>Status</th><th>Issues</th></tr></thead>
-          <tbody><tr><td>Open</td><td>12</td></tr>
-<tr><td>In Progress</td><td>4</td></tr>
+        <table style="margin-top:10px"><thead><tr><th>Status</th><th>Issues</th></tr></thead><tbody><tr><td>Open</td><td>13</td></tr>
 <tr><td>CODE REVIEW</td><td>4</td></tr>
+<tr><td>In Progress</td><td>3</td></tr>
 <tr><td>ON HOLD</td><td>1</td></tr>
-<tr><td>Ready for Testing</td><td>1</td></tr></tbody>
-        </table>
+<tr><td>Ready for Testing</td><td>1</td></tr></tbody></table>
       </div>
       <div>
         <strong style="color:#e0eaff">Age of Unfinished Issues</strong>
-        <div style="font-size:12px;color:#4a90d9;margin:6px 0">
-          Avg: 8.1 days
-        </div>
-        <table>
-          <thead><tr><th>Bucket</th><th>Issues</th><th>Distribution</th></tr></thead>
-          <tbody><tr><td>0-3d</td><td>6</td><td><div class='bar'><span style='width:27.3%'></span></div></td></tr>
-<tr><td>4-7d</td><td>3</td><td><div class='bar'><span style='width:13.6%'></span></div></td></tr>
+        <div style="font-size:12px;color:#4a90d9;margin:6px 0">Avg: 8.9 days</div>
+        <table><thead><tr><th>Bucket</th><th>Issues</th><th>Distribution</th></tr></thead><tbody><tr><td>0-3d</td><td>6</td><td><div class='bar'><span style='width:27.3%'></span></div></td></tr>
+<tr><td>4-7d</td><td>2</td><td><div class='bar'><span style='width:9.1%'></span></div></td></tr>
 <tr><td>8-14d</td><td>10</td><td><div class='bar'><span style='width:45.5%'></span></div></td></tr>
-<tr><td>15+d</td><td>3</td><td><div class='bar'><span style='width:13.6%'></span></div></td></tr></tbody>
-        </table>
+<tr><td>15+d</td><td>4</td><td><div class='bar'><span style='width:18.2%'></span></div></td></tr></tbody></table>
       </div>
     </div>
     <div class="tables-grid" style="margin-top:24px">
       <div>
         <strong style="color:#e0eaff">Issue Type Distribution</strong>
-        <table style="margin-top:10px">
-          <thead><tr><th>Type</th><th>Issues</th><th>%</th></tr></thead>
-          <tbody><tr><td>Sub-task</td><td>34</td><td>68.0%</td></tr>
+        <table style="margin-top:10px"><thead><tr><th>Type</th><th>Issues</th><th>%</th></tr></thead><tbody><tr><td>Sub-task</td><td>34</td><td>68.0%</td></tr>
 <tr><td>Bug</td><td>12</td><td>24.0%</td></tr>
-<tr><td>Story</td><td>4</td><td>8.0%</td></tr></tbody>
-        </table>
+<tr><td>Story</td><td>4</td><td>8.0%</td></tr></tbody></table>
       </div>
       <div>
         <strong style="color:#e0eaff">Workload by Assignee</strong>
-        <table style="margin-top:10px">
-          <thead><tr><th>Assignee</th><th>Issues</th><th>Share</th></tr></thead>
-          <tbody><tr><td>Assma Benmussa</td><td>15</td><td><div class='bar'><span style='width:30.0%'></span></div></td></tr>
+        <table style="margin-top:10px"><thead><tr><th>Assignee</th><th>Issues</th><th>Share</th></tr></thead><tbody><tr><td>Assma Benmussa</td><td>15</td><td><div class='bar'><span style='width:30.0%'></span></div></td></tr>
+<tr><td>Unassigned</td><td>7</td><td><div class='bar'><span style='width:14.0%'></span></div></td></tr>
 <tr><td>Abdulrahman Al-Tayeb</td><td>7</td><td><div class='bar'><span style='width:14.0%'></span></div></td></tr>
-<tr><td>Mutasim AlMualimi</td><td>7</td><td><div class='bar'><span style='width:14.0%'></span></div></td></tr>
-<tr><td>Unassigned</td><td>6</td><td><div class='bar'><span style='width:12.0%'></span></div></td></tr>
+<tr><td>Mutasim AlMualimi</td><td>6</td><td><div class='bar'><span style='width:12.0%'></span></div></td></tr>
 <tr><td>Ali Husain</td><td>5</td><td><div class='bar'><span style='width:10.0%'></span></div></td></tr>
 <tr><td>Safa AlFulaij</td><td>5</td><td><div class='bar'><span style='width:10.0%'></span></div></td></tr>
 <tr><td>Moses Oderinde</td><td>4</td><td><div class='bar'><span style='width:8.0%'></span></div></td></tr>
-<tr><td>Ahmad ElSayed</td><td>1</td><td><div class='bar'><span style='width:2.0%'></span></div></td></tr></tbody>
-        </table>
+<tr><td>Ahmad ElSayed</td><td>1</td><td><div class='bar'><span style='width:2.0%'></span></div></td></tr></tbody></table>
       </div>
     </div>
   </div>
-
   <div class="section-title">Score Interpretation</div>
   <div class="card">
     <div class="interp-grid">
-      <div class="interp-item green"><div class="interp-range green">85–100</div><div class="interp-status">Predictable Sprint</div><div class="interp-desc">Excellent execution and stability</div></div>
-      <div class="interp-item yellow"><div class="interp-range yellow">70–84</div><div class="interp-status">Some Instability</div><div class="interp-desc">Good progress, address minor risks</div></div>
-      <div class="interp-item orange"><div class="interp-range orange">50–69</div><div class="interp-status">Execution Issues</div><div class="interp-desc">Needs attention on delivery</div></div>
+      <div class="interp-item green"><div class="interp-range green">85-100</div><div class="interp-status">Predictable Sprint</div><div class="interp-desc">Excellent execution and stability</div></div>
+      <div class="interp-item yellow"><div class="interp-range yellow">70-84</div><div class="interp-status">Some Instability</div><div class="interp-desc">Good progress, address minor risks</div></div>
+      <div class="interp-item orange"><div class="interp-range orange">50-69</div><div class="interp-status">Execution Issues</div><div class="interp-desc">Needs attention on delivery</div></div>
       <div class="interp-item red"><div class="interp-range red">&lt;50</div><div class="interp-status">Sprint Breakdown</div><div class="interp-desc">Critical issues, act now</div></div>
     </div>
   </div>
-
-  <div class="footer">
-    Lumofy QA · Sprint Health Dashboard · 2026-04-01 13:47 UTC
-  </div>
-
+  <div class="footer">Lumofy QA | Sprint Health Dashboard | 2026-04-02 08:16 UTC</div>
 </div>
 </body>
 </html>
