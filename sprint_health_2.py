@@ -4,6 +4,8 @@ import argparse
 import json
 import ast
 import hashlib
+import socket
+import subprocess
 from html import escape
 from pathlib import Path
 import requests
@@ -2874,6 +2876,7 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health
     Poll Jira and refresh the HTML dashboard whenever sprint issues change.
     """
     interval_seconds = max(10, int(interval_seconds))
+    ensure_admin_dashboard_running()
     print(f"[watch] Live mode enabled. Poll interval: {interval_seconds}s")
     print("[watch] Press Ctrl+C to stop.")
 
@@ -2903,6 +2906,50 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health
         time.sleep(interval_seconds)
 
 
+def _is_admin_dashboard_running(host: str, port: int, timeout_seconds: float = 0.6) -> bool:
+    try:
+        with socket.create_connection((host, port), timeout=timeout_seconds):
+            return True
+    except OSError:
+        return False
+
+
+def ensure_admin_dashboard_running() -> bool:
+    admin_host = os.getenv("ADMIN_DASHBOARD_HOST", "127.0.0.1").strip() or "127.0.0.1"
+    admin_port = int(os.getenv("ADMIN_DASHBOARD_PORT", "8765"))
+
+    if _is_admin_dashboard_running(admin_host, admin_port):
+        print(f"[admin] Dashboard already running at http://{admin_host}:{admin_port}")
+        return False
+
+    cmd = [sys.executable, str(Path(__file__).resolve()), "--admin-dashboard"]
+    kwargs = {
+        "cwd": str(Path(__file__).resolve().parent),
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "close_fds": True,
+    }
+    if os.name == "nt":
+        kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS
+    else:
+        kwargs["start_new_session"] = True
+
+    try:
+        subprocess.Popen(cmd, **kwargs)
+    except Exception as e:
+        print(f"[warn] Could not auto-start admin dashboard: {e}")
+        return False
+
+    for _ in range(20):
+        time.sleep(0.25)
+        if _is_admin_dashboard_running(admin_host, admin_port):
+            print(f"[admin] Auto-started admin dashboard at http://{admin_host}:{admin_port}")
+            return True
+
+    print(f"[warn] Admin dashboard did not start on http://{admin_host}:{admin_port} yet.")
+    return False
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Sprint Health Score Reporter")
     parser.add_argument("--admin-dashboard", action="store_true")
@@ -2929,6 +2976,8 @@ if __name__ == "__main__":
     elif args.schedule:
         run_scheduled(hour=args.schedule_hour, minute=args.schedule_minute)
     else:
+        if args.html:
+            ensure_admin_dashboard_running()
         run(
             dry_run=args.dry_run, export_html=args.html, export_pdf=args.pdf,
             no_slack=args.no_slack, site_url=args.site_url,
