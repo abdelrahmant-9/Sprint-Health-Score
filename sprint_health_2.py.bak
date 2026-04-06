@@ -19,7 +19,7 @@ if hasattr(sys.stdout, "reconfigure"):
 if hasattr(sys.stderr, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-# ——— CONFIG ————————————————————————————————————————————————————————————————————
+# â”€â”€â”€ CONFIG â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 JIRA_BASE_URL   = os.getenv("JIRA_BASE_URL", "https://lumofyinc.atlassian.net")
 JIRA_EMAIL      = os.getenv("JIRA_EMAIL")
@@ -44,7 +44,7 @@ except Exception:
     print(f"[warn] Could not load timezone '{LOCAL_TIMEZONE}', falling back to UTC.")
     LOCAL_TZ = timezone.utc
 
-# —— Status sets ————————————————————————————————————————————————————————————————
+# â”€â”€ Status sets â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 DONE_STATUSES_RAW = {"Done", "Closed", "Resolved", "DONE"}
 
 def is_done(status_name: str) -> bool:
@@ -58,7 +58,7 @@ BUG_TYPE          = "Bug"
 STORY_TYPE        = "Story"
 ENHANCEMENT_TYPES = {"Enhancement", "Improvement", "Task"}
 
-# —— Issue type icons ————————————————————————————————————————————————————————————
+# â”€â”€ Issue type icons â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 ALL_ISSUE_TYPES = {
     "Bug":         ("BUG", "#ff4757"),
     "Story":       ("STORY", "#1a6bff"),
@@ -70,7 +70,7 @@ ALL_ISSUE_TYPES = {
 }
 DEFAULT_ISSUE_ICON = ("ITEM", "#4a90d9")
 
-# —— Scoring weights —————————————————————————————————————————————————————————————
+# â”€â”€ Scoring weights â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 DEFAULT_METRICS_CONFIG = {
     "weights": {
         "commitment": 0.35,
@@ -86,21 +86,17 @@ DEFAULT_METRICS_CONFIG = {
         "neutral": 70,
     },
     "commitment": {
-        "ideal_min_pct": 60,
-        "ideal_max_pct": 85,
-        "good_min_pct": 45,
-        "warning_min_pct": 30,
+        "ideal_min_pct": 85,
+        "ideal_max_pct": 95,
+        "good_min_pct": 70,
+        "warning_min_pct": 50,
         "extended_cap_score": 70,
     },
     "carryover": {
-        "excellent_lt_pct": 15,
-        "good_lte_pct": 30,
-        "warning_lte_pct": 45,
+        "excellent_lt_pct": 10,
+        "good_lte_pct": 20,
+        "warning_lte_pct": 30,
         "extended_penalty": 10,
-    },
-    "scope_calculation": {
-        "include_mid_sprint_added": False,
-        "weighting": "hybrid_scope",
     },
     "cycle_time": {
         "stable_abs_pct": 10,
@@ -222,10 +218,6 @@ def _config_ai() -> dict:
 
 def _config_activity_people() -> dict:
     return METRICS_CONFIG.get("activity_people", {})
-
-
-def _config_scope_calculation() -> dict:
-    return METRICS_CONFIG.get("scope_calculation", {})
 
 
 def _normalize_person_name(name: str) -> str:
@@ -363,7 +355,7 @@ def get_stale_threshold(issue_type: str, story_points: float | None) -> int:
     return int(thresholds["default_days"])
 
 
-# ——— JIRA CLIENT ————————————————————————————————————————————————————————————————
+# â”€â”€â”€ JIRA CLIENT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def jira_get(path: str, params: dict = None) -> dict:
     url  = f"{JIRA_BASE_URL}/rest/api/3/{path}"
@@ -392,8 +384,6 @@ def agile_get(path: str, params: dict = None) -> dict:
 
 
 _BOARD_ID_CACHE = None
-_SPRINT_CATALOG_CACHE: dict[int, dict[str, dict]] = {}
-_ISSUE_HISTORY_CACHE: dict[str, dict] = {}
 
 
 def get_board_id():
@@ -418,7 +408,7 @@ def get_board_id():
         return None
 
 
-# ——— SPRINT STATE ———————————————————————————————————————————————————————————————
+# â”€â”€â”€ SPRINT STATE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class SprintState:
     def __init__(self, sprint: dict | None):
@@ -498,114 +488,42 @@ def fetch_active_sprint_from_board(board_id) -> dict | None:
     return None
 
 
-def fetch_board_sprint_catalog(board_id: int) -> dict[str, dict]:
-    cached = _SPRINT_CATALOG_CACHE.get(int(board_id))
-    if cached is not None:
-        return cached
-
-    catalog: dict[str, dict] = {}
-    for state in ("active", "closed", "future"):
-        start_at = 0
-        while True:
-            data = agile_get(f"board/{board_id}/sprint", {
-                "state": state,
-                "startAt": start_at,
-                "maxResults": 100,
-            })
-            values = data.get("values", []) or []
-            if not values:
-                break
-            for sprint in values:
-                name = (sprint.get("name") or "").strip()
-                if name and name not in catalog:
-                    catalog[name] = sprint
-            start_at += len(values)
-            if start_at >= int(data.get("total", 0) or 0):
-                break
-
-    _SPRINT_CATALOG_CACHE[int(board_id)] = catalog
-    return catalog
-
-
-def _jira_page_has_more(data: dict, fetched_count: int, page_size: int, items_key: str = "issues") -> bool:
-    items = data.get(items_key, []) or []
-    total = data.get("total")
-    if isinstance(total, int) and total > 0:
-        return fetched_count < total
-    return len(items) >= page_size
-
-
-def _page_signature(items: list[dict]) -> tuple[str, str, int]:
-    if not items:
-        return ("", "", 0)
-    first_key = str(items[0].get("key", ""))
-    last_key = str(items[-1].get("key", ""))
-    return (first_key, last_key, len(items))
-
-
 def fetch_sprint_issues() -> tuple[list, dict]:
     all_issues, sprint_info = [], {}
     board_id  = get_board_id()
     sprint_id = None
-    fields = (
-        "summary,status,issuetype,created,resolutiondate,"
-        "customfield_10016,customfield_10020,customfield_10021,"
-        "assignee,labels,updated,customfield_10014,priority"
-    )
     if board_id:
         raw = fetch_active_sprint_from_board(board_id)
         if raw:
             sprint_id   = raw["id"]
             sprint_info = raw
-
-    if sprint_id and board_id:
-        start_at = 0
-        page_size = 50
-        while True:
-            data = agile_get(f"board/{board_id}/sprint/{sprint_id}/issue", {
-                "fields": fields,
-                "maxResults": page_size,
-                "startAt": start_at,
-            })
-            issues = data.get("issues", [])
-            if not issues:
-                break
-            all_issues.extend(issues)
-            start_at += len(issues)
-            if not _jira_page_has_more(data, start_at, page_size):
-                break
+    if sprint_id:
+        jql = f"project = {JIRA_PROJECT} AND sprint = {sprint_id}"
+    elif board_id:
+        jql = f"project = {JIRA_PROJECT} AND sprint in activeSprints({board_id})"
     else:
-        if sprint_id:
-            jql = f"project = {JIRA_PROJECT} AND sprint = {sprint_id}"
-        elif board_id:
-            jql = f"project = {JIRA_PROJECT} AND sprint in activeSprints({board_id})"
-        else:
-            jql = f"project = {JIRA_PROJECT} AND sprint in activeSprints()"
+        jql = f"project = {JIRA_PROJECT} AND sprint in activeSprints()"
 
-        start_at = 0
-        page_size = 50
-        seen_pages: set[tuple[str, str, int]] = set()
-        while True:
-            data   = jira_get("search/jql", {
-                "jql": jql,
-                "fields": fields,
-                "maxResults": page_size, "startAt": start_at,
-            })
-            issues = data.get("issues", [])
-            if not issues: break
-            signature = _page_signature(issues)
-            if signature in seen_pages:
-                print("[warn] Jira returned a repeated sprint page; stopping pagination early.")
-                break
-            seen_pages.add(signature)
-            all_issues.extend(issues)
-            start_at += len(issues)
-            if not _jira_page_has_more(data, start_at, page_size): break
-
-    if all_issues and not sprint_info:
-        sprints = all_issues[0]["fields"].get("customfield_10020") or []
-        active  = [s for s in sprints if s.get("state", "").lower() == "active"]
-        sprint_info = active[0] if active else (sprints[0] if sprints else {})
+    start_at = 0
+    while True:
+        data   = jira_get("search/jql", {
+            "jql": jql,
+            "fields": (
+                "summary,status,issuetype,created,resolutiondate,"
+                "customfield_10016,customfield_10020,customfield_10021,"
+                "assignee,labels,updated,customfield_10014,priority"
+            ),
+            "maxResults": 50, "startAt": start_at,
+        })
+        issues = data.get("issues", [])
+        if not issues: break
+        all_issues.extend(issues)
+        if not sprint_info:
+            sprints = issues[0]["fields"].get("customfield_10020") or []
+            active  = [s for s in sprints if s.get("state", "").lower() == "active"]
+            sprint_info = active[0] if active else (sprints[0] if sprints else {})
+        start_at += len(issues)
+        if start_at >= data.get("total", 0): break
 
     if not all_issues:
         print("[warn] No issues found in sprint.")
@@ -618,8 +536,6 @@ def fetch_today_project_issues() -> list:
     """
     all_issues = []
     start_at = 0
-    page_size = 50
-    seen_pages: set[tuple[str, str, int]] = set()
     jql = f"project = {JIRA_PROJECT} AND updated >= startOfDay() ORDER BY updated DESC"
     while True:
         data = jira_get("search/jql", {
@@ -629,20 +545,15 @@ def fetch_today_project_issues() -> list:
                 "customfield_10016,customfield_10020,customfield_10021,"
                 "assignee,labels,updated,customfield_10014,priority"
             ),
-            "maxResults": page_size,
+            "maxResults": 50,
             "startAt": start_at,
         })
         issues = data.get("issues", [])
         if not issues:
             break
-        signature = _page_signature(issues)
-        if signature in seen_pages:
-            print("[warn] Jira returned a repeated project issues page; stopping pagination early.")
-            break
-        seen_pages.add(signature)
         all_issues.extend(issues)
         start_at += len(issues)
-        if not _jira_page_has_more(data, start_at, page_size):
+        if start_at >= data.get("total", 0):
             break
     return all_issues
 
@@ -653,8 +564,6 @@ def fetch_today_created_bugs() -> list:
     """
     all_issues = []
     start_at = 0
-    page_size = 50
-    seen_pages: set[tuple[str, str, int]] = set()
     jql = (
         f"project = {JIRA_PROJECT} "
         f"AND issuetype in (\"{BUG_TYPE}\", \"Feature Bug\") "
@@ -669,20 +578,15 @@ def fetch_today_created_bugs() -> list:
                 "customfield_10016,customfield_10020,"
                 "assignee,reporter,creator,parent,issuelinks"
             ),
-            "maxResults": page_size,
+            "maxResults": 50,
             "startAt": start_at,
         })
         issues = data.get("issues", [])
         if not issues:
             break
-        signature = _page_signature(issues)
-        if signature in seen_pages:
-            print("[warn] Jira returned a repeated bug page; stopping pagination early.")
-            break
-        seen_pages.add(signature)
         all_issues.extend(issues)
         start_at += len(issues)
-        if not _jira_page_has_more(data, start_at, page_size):
+        if start_at >= data.get("total", 0):
             break
     return all_issues
 
@@ -720,7 +624,7 @@ def fetch_last_n_sprints(n: int = 3) -> list[dict]:
     return sprints_data
 
 
-# ——— CHANGELOG & STATUS HISTORY ————————————————————————————————————————————————
+# â”€â”€â”€ CHANGELOG & STATUS HISTORY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def fetch_issue_changelog(issue_key: str) -> list[dict]:
     """Returns status change events for an issue, oldest first."""
@@ -751,49 +655,6 @@ def fetch_issue_changelog(issue_key: str) -> list[dict]:
     except Exception as e:
         print(f"[warn] changelog failed for {issue_key}: {e}")
     return sorted(events, key=lambda x: x["datetime"])
-
-
-def fetch_issue_history(issue_key: str) -> dict:
-    cached = _ISSUE_HISTORY_CACHE.get(issue_key)
-    if cached is not None:
-        return cached
-
-    history = {"status": [], "sprint": []}
-    try:
-        start_at = 0
-        while True:
-            data = jira_get(f"issue/{issue_key}/changelog", {"startAt": start_at, "maxResults": 100})
-            values = data.get("values", []) or []
-            for entry in values:
-                created_raw = entry.get("created")
-                dt = parse_jira_datetime(created_raw)
-                if not dt:
-                    continue
-                for item in entry.get("items", []):
-                    field_id = item.get("fieldId")
-                    field_name = item.get("field")
-                    if field_id == "status" or field_name == "status":
-                        history["status"].append({
-                            "from": item.get("fromString", ""),
-                            "to": item.get("toString", ""),
-                            "datetime": dt,
-                        })
-                    elif field_id == "customfield_10020" or field_name == "Sprint":
-                        history["sprint"].append({
-                            "from": item.get("fromString", ""),
-                            "to": item.get("toString", ""),
-                            "datetime": dt,
-                        })
-            start_at += len(values)
-            if start_at >= int(data.get("total", 0) or 0):
-                break
-    except Exception as e:
-        print(f"[warn] issue history failed for {issue_key}: {e}")
-
-    history["status"].sort(key=lambda row: row["datetime"])
-    history["sprint"].sort(key=lambda row: row["datetime"])
-    _ISSUE_HISTORY_CACHE[issue_key] = history
-    return history
 
 
 def calc_time_in_status(changelog: list[dict], target_status: str) -> float:
@@ -844,7 +705,7 @@ def get_status_transitions_today(changelog: list[dict]) -> list[dict]:
     return [e for e in changelog if e["datetime"].astimezone(LOCAL_TZ).date() == today_local]
 
 
-# ——— BURNDOWN ————————————————————————————————————————————————————————————————
+# â”€â”€â”€ BURNDOWN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def build_burndown(issues: list, ss: SprintState) -> dict:
     if not ss.start_str or not ss.end_str: return {}
@@ -856,9 +717,9 @@ def build_burndown(issues: list, ss: SprintState) -> dict:
     total_days    = max(1, (end_dt.date() - start_dt.date()).days)
     elapsed_days  = max(0, (now_dt.date() - start_dt.date()).days)
     effective_days = elapsed_days if ss.state == "extended" else min(elapsed_days, total_days)
-    total_issues  = round(sum(get_issue_weight(issue) for issue in issues), 1)
+    total_issues  = len(issues)
 
-    completions_by_day: dict[int, float] = {}
+    completions_by_day: dict[int, int] = {}
     for issue in issues:
         f       = issue["fields"]
         res_raw = f.get("resolutiondate")
@@ -866,26 +727,24 @@ def build_burndown(issues: list, ss: SprintState) -> dict:
             res_dt = _parse_date_str(res_raw)
             if res_dt and res_dt >= start_dt:
                 day_idx = (res_dt.date() - start_dt.date()).days
-                completions_by_day[day_idx] = round(
-                    completions_by_day.get(day_idx, 0.0) + get_issue_weight(issue), 1
-                )
+                completions_by_day[day_idx] = completions_by_day.get(day_idx, 0) + 1
 
-    actual_line: list[float] = []
+    actual_line: list[int] = []
     remaining = total_issues
     for d in range(effective_days + 1):
         remaining -= completions_by_day.get(d, 0)
-        actual_line.append(round(max(0.0, remaining), 1))
+        actual_line.append(max(0, remaining))
 
     ideal_line = [round(total_issues * (1 - d / total_days), 1) for d in range(total_days + 1)]
     current_remaining = actual_line[-1] if actual_line else total_issues
     ideal_at_today    = ideal_line[min(effective_days, total_days)]
-    done_count = round(total_issues - current_remaining, 1)
+    done_count = total_issues - current_remaining
     velocity   = round(done_count / effective_days, 2) if effective_days > 0 else 0.0
 
     if velocity > 0 and current_remaining > 0:
         projected_end = (now_dt + timedelta(days=current_remaining / velocity)).strftime("%Y-%m-%d")
     elif current_remaining == 0:
-        projected_end = "Done ✓"
+        projected_end = "Done âœ“"
     else:
         projected_end = "N/A"
 
@@ -894,18 +753,17 @@ def build_burndown(issues: list, ss: SprintState) -> dict:
     behind_by    = round(current_remaining - ideal_at_today, 1)
 
     return {
-        "total_issues": total_issues, "total_scope": total_issues, "total_days": total_days,
+        "total_issues": total_issues, "total_days": total_days,
         "elapsed_days": effective_days, "actual_line": actual_line,
         "ideal_line": ideal_line, "day_labels": day_labels,
         "ideal_labels": ideal_labels, "current_remaining": current_remaining,
-        "completed_scope": done_count,
         "ideal_remaining": ideal_at_today, "velocity": velocity,
         "projected_end": projected_end, "on_track": current_remaining <= ideal_at_today,
         "behind_by": behind_by, "is_extended": ss.state == "extended",
     }
 
 
-# ——— CALCULATIONS —————————————————————————————————————————————————————————————
+# â”€â”€â”€ CALCULATIONS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def calc_cycle_time_days(created: str, resolved: str) -> float | None:
     if not created or not resolved: return None
@@ -944,251 +802,7 @@ def updated_today(updated: str) -> bool:
     return dt.astimezone(LOCAL_TZ).date() == datetime.now(LOCAL_TZ).date()
 
 
-def get_issue_weight(issue: dict) -> float:
-    fields = issue.get("fields", {}) if isinstance(issue, dict) else {}
-    story_points = fields.get("customfield_10016")
-    if story_points is None:
-        return 1.0
-    try:
-        points = float(story_points)
-    except (TypeError, ValueError):
-        return 1.0
-    return points if points > 0 else 1.0
-
-
-def get_work_weight(issue: dict, weighting: str = "hybrid_scope") -> float:
-    mode = (weighting or "hybrid_scope").strip().lower()
-    if mode == "item_count":
-        return 1.0
-    return get_issue_weight(issue)
-
-
-def calculate_carryover_metrics(
-    issues: list,
-    sprint_start_dt: datetime | None,
-    include_mid_sprint_added: bool = False,
-    weighting: str = "hybrid_scope",
-) -> dict:
-    committed_work = 0.0
-    completed_work = 0.0
-    carried_over_work = 0.0
-    committed_items = 0
-    completed_items = 0
-    carried_over_items = 0
-
-    for issue in issues:
-        fields = issue.get("fields", {})
-        created_dt = parse_jira_datetime(fields.get("created"))
-        if not include_mid_sprint_added and sprint_start_dt and created_dt and created_dt > sprint_start_dt:
-            continue
-
-        weight = get_work_weight(issue, weighting=weighting)
-        committed_work += weight
-        committed_items += 1
-
-        status_name = ((fields.get("status") or {}).get("name") or "").strip()
-        if is_done(status_name):
-            completed_work += weight
-            completed_items += 1
-        else:
-            carried_over_work += weight
-            carried_over_items += 1
-
-    carryover_rate_pct = round((carried_over_work / committed_work * 100), 1) if committed_work > 0 else 0.0
-    completion_rate_pct = round((completed_work / committed_work * 100), 1) if committed_work > 0 else 0.0
-
-    return {
-        "committed_work": round(committed_work, 1),
-        "completed_work": round(completed_work, 1),
-        "carried_over_work": round(carried_over_work, 1),
-        "carryover_rate_pct": carryover_rate_pct,
-        "completion_rate_pct": completion_rate_pct,
-        "committed_items": committed_items,
-        "completed_items": completed_items,
-        "carried_over_items": carried_over_items,
-        "include_mid_sprint_added": include_mid_sprint_added,
-        "weighting": weighting,
-    }
-
-
-def _parse_sprint_field_date(value) -> datetime | None:
-    if not value:
-        return None
-    return parse_jira_datetime(str(value))
-
-
-def _get_previous_sprints_for_issue(issue: dict, current_sprint: dict | None, current_sprint_start_dt: datetime | None) -> list[dict]:
-    current_sprint = current_sprint or {}
-    current_sprint_id = current_sprint.get("id")
-    issue_sprints = ((issue.get("fields") or {}).get("customfield_10020") or [])
-    previous = []
-    for sprint in issue_sprints:
-        if not isinstance(sprint, dict):
-            continue
-        if current_sprint_id is not None and sprint.get("id") == current_sprint_id:
-            continue
-        sprint_end = _parse_sprint_field_date(sprint.get("completeDate") or sprint.get("endDate") or sprint.get("end_date"))
-        sprint_start = _parse_sprint_field_date(sprint.get("startDate") or sprint.get("start_date"))
-        if current_sprint_start_dt and sprint_end and sprint_end > current_sprint_start_dt:
-            continue
-        if current_sprint_start_dt and sprint_start and sprint_start >= current_sprint_start_dt:
-            continue
-        previous.append(sprint)
-    return previous
-
-
-def calculate_carried_in_work_metrics(
-    issues: list,
-    current_sprint: dict | None,
-    current_sprint_start_dt: datetime | None,
-    weighting: str = "hybrid_scope",
-    include_item_list: bool = False,
-) -> dict:
-    total_work = 0.0
-    carried_in_work = 0.0
-    total_items = 0
-    carried_in_items = 0
-    carried_in_issue_keys: list[str] = []
-
-    for issue in issues:
-        fields = issue.get("fields", {})
-        weight = get_work_weight(issue, weighting=weighting)
-        total_work += weight
-        total_items += 1
-
-        previous_sprints = _get_previous_sprints_for_issue(issue, current_sprint, current_sprint_start_dt)
-        if not previous_sprints:
-            continue
-
-        resolution_dt = parse_jira_datetime(fields.get("resolutiondate"))
-        was_completed_before_current_sprint = bool(
-            current_sprint_start_dt and resolution_dt and resolution_dt <= current_sprint_start_dt
-        )
-        if was_completed_before_current_sprint:
-            continue
-
-        carried_in_work += weight
-        carried_in_items += 1
-        if include_item_list:
-            carried_in_issue_keys.append(issue.get("key", ""))
-
-    carried_in_rate_pct = round((carried_in_work / total_work * 100), 1) if total_work > 0 else 0.0
-    result = {
-        "total_work": round(total_work, 1),
-        "carried_in_work": round(carried_in_work, 1),
-        "carried_in_rate_pct": carried_in_rate_pct,
-        "total_items": total_items,
-        "carried_in_items": carried_in_items,
-        "weighting": weighting,
-    }
-    if include_item_list:
-        result["carried_in_issue_keys"] = carried_in_issue_keys
-    return result
-
-
-def _status_at_datetime(current_status: str, status_events: list[dict], target_dt: datetime | None) -> str:
-    if not target_dt:
-        return (current_status or "").strip()
-    if not status_events:
-        return (current_status or "").strip()
-
-    status_name = (status_events[0].get("from") or current_status or "").strip()
-    for event in status_events:
-        if event["datetime"] <= target_dt:
-            status_name = (event.get("to") or status_name).strip()
-        else:
-            break
-    return status_name
-
-
-def _find_transition_into_current_sprint(sprint_events: list[dict], current_sprint_name: str) -> dict | None:
-    current_name = (current_sprint_name or "").strip()
-    if not current_name:
-        return None
-    matched = None
-    for event in sprint_events:
-        to_name = (event.get("to") or "").strip()
-        if to_name == current_name:
-            matched = event
-    return matched
-
-
-def calculate_sprint_carryover_metrics(
-    issues: list,
-    current_sprint: dict | None,
-    current_sprint_start_dt: datetime | None,
-    weighting: str = "hybrid_scope",
-    include_item_list: bool = False,
-) -> dict:
-    current_sprint = current_sprint or {}
-    current_sprint_name = (current_sprint.get("name") or "").strip()
-    board_id = current_sprint.get("boardId") or get_board_id()
-    sprint_catalog = fetch_board_sprint_catalog(int(board_id)) if board_id else {}
-
-    total_work = 0.0
-    total_items = 0
-
-    historical_work = 0.0
-    historical_items = 0
-    historical_issue_keys: list[str] = []
-
-    official_rollover_work = 0.0
-    official_rollover_items = 0
-    official_rollover_issue_keys: list[str] = []
-
-    for issue in issues:
-        fields = issue.get("fields", {})
-        key = issue.get("key", "")
-        weight = get_work_weight(issue, weighting=weighting)
-        total_work += weight
-        total_items += 1
-
-        history = fetch_issue_history(key)
-        sprint_events = history.get("sprint", [])
-        status_events = history.get("status", [])
-        transition_into_current = _find_transition_into_current_sprint(sprint_events, current_sprint_name)
-        if not transition_into_current:
-            continue
-
-        current_status = ((fields.get("status") or {}).get("name") or "").strip()
-        status_at_current_start = _status_at_datetime(current_status, status_events, current_sprint_start_dt)
-        if not is_done(status_at_current_start):
-            historical_work += weight
-            historical_items += 1
-            if include_item_list:
-                historical_issue_keys.append(key)
-
-        previous_sprint_name = (transition_into_current.get("from") or "").strip()
-        previous_sprint = sprint_catalog.get(previous_sprint_name) or {}
-        previous_sprint_end_dt = _parse_sprint_field_date(
-            previous_sprint.get("completeDate") or previous_sprint.get("endDate") or previous_sprint.get("end_date")
-        )
-        if previous_sprint_end_dt:
-            status_at_previous_close = _status_at_datetime(current_status, status_events, previous_sprint_end_dt)
-            if not is_done(status_at_previous_close):
-                official_rollover_work += weight
-                official_rollover_items += 1
-                if include_item_list:
-                    official_rollover_issue_keys.append(key)
-
-    result = {
-        "total_work": round(total_work, 1),
-        "total_items": total_items,
-        "historical_carried_in_work": round(historical_work, 1),
-        "historical_carried_in_items": historical_items,
-        "historical_carried_in_rate_pct": round((historical_work / total_work * 100), 1) if total_work > 0 else 0.0,
-        "official_rollover_work": round(official_rollover_work, 1),
-        "official_rollover_items": official_rollover_items,
-        "official_rollover_rate_pct": round((official_rollover_work / total_work * 100), 1) if total_work > 0 else 0.0,
-        "weighting": weighting,
-    }
-    if include_item_list:
-        result["historical_carried_in_issue_keys"] = historical_issue_keys
-        result["official_rollover_issue_keys"] = official_rollover_issue_keys
-    return result
-
-
-# ——— SCORING ————————————————————————————————————————————————————————————————
+# â”€â”€â”€ SCORING â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _progress_weight(sprint_pct: float | None) -> float:
     if sprint_pct is None: return 1.0
@@ -1224,6 +838,7 @@ def score_carryover(carried, total, sprint_pct=None, is_extended=False):
     elif pct <= cfg["warning_lte_pct"]: raw = points["warning"]
     else: raw = points["poor"]
     score = _blend(raw, sprint_pct, points["neutral"])
+    if is_extended: score = max(0, score - int(cfg["extended_penalty"]))
     return score, round(pct, 1)
 
 
@@ -1337,7 +952,7 @@ def generate_ai_insights(report: dict) -> dict | None:
                 "summary": f"AI request failed: {e}", "actions": []}
 
 
-# ——— DEVELOPER & QA ACTIVITY ————————————————————————————————————————————————
+# â”€â”€â”€ DEVELOPER & QA ACTIVITY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def build_developer_activity(
     issues: list,
@@ -1347,8 +962,8 @@ def build_developer_activity(
 ) -> tuple[list[dict], list[dict]]:
     """
     Returns:
-      dev_activity — issues updated today grouped by assignee (or Unassigned)
-      qa_activity  — all status transitions today
+      dev_activity â€” issues updated today grouped by assignee (or Unassigned)
+      qa_activity  â€” all status transitions today
     """
     sprint_start = _parse_date_str(sprint_start_str)
     qa_filter = allowed_qa_names or set()
@@ -1367,13 +982,13 @@ def build_developer_activity(
         summary      = f.get("summary", "")
         url          = f"{JIRA_BASE_URL}/browse/{key}"
 
-        # —— Fetch changelog for every sprint issue ———————————————
+        # â”€â”€ Fetch changelog for every sprint issue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         changelog = fetch_issue_changelog(key)
 
         # Time in "Ready for Testing" (cumulative across the sprint)
         time_in_rft = calc_time_in_status(changelog, "Ready for Testing")
 
-        # —— QA Activity — transitions today ———————————————————————
+        # â”€â”€ QA Activity â€” transitions today â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         today_transitions = get_status_transitions_today(changelog)
         for t in today_transitions:
             actor_norm = _normalize_person_name(t.get("actor", ""))
@@ -1389,23 +1004,23 @@ def build_developer_activity(
 
             if to_upper in qa_upper:
                 qa_items.append(_qa_event(key, summary, issue_type, t, "started_testing",
-                                          "▶ Started Testing", "#1a6bff", time_in_rft, url, story_points))
+                                          "â–¶ Started Testing", "#1a6bff", time_in_rft, url, story_points))
             elif from_upper in qa_upper and to_upper in pending_upper:
                 qa_items.append(_qa_event(key, summary, issue_type, t, "pending_fixes",
-                                          "🔄 Pending Fixes", "#fbbf24", time_in_rft, url, story_points))
+                                          "ðŸ”„ Pending Fixes", "#fbbf24", time_in_rft, url, story_points))
             elif from_upper in qa_upper and to_upper in pm_review_upper:
                 qa_items.append(_qa_event(key, summary, issue_type, t, "pm_review",
-                                          "✅ Ready for PM Review", "#00d4aa", time_in_rft, url, story_points))
+                                          "âœ… Ready for PM Review", "#00d4aa", time_in_rft, url, story_points))
             elif from_upper in qa_upper and is_done(t["to"]):
                 qa_items.append(_qa_event(key, summary, issue_type, t, "done",
-                                          "✅ Done", "#00d4aa", time_in_rft, url, story_points))
+                                          "âœ… Done", "#00d4aa", time_in_rft, url, story_points))
             else:
                 qa_items.append(_qa_event(
                     key, summary, issue_type, t, "status_changed",
-                    f"↔ {t['from']} → {t['to']}", "#4a90d9", time_in_rft, url, story_points
+                    f"â†” {t['from']} â†’ {t['to']}", "#4a90d9", time_in_rft, url, story_points
                 ))
 
-        # —— Developer Activity — updated today ——————————————————————
+        # â”€â”€ Developer Activity â€” updated today â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if not updated_today(updated_raw):
             continue
 
@@ -1432,7 +1047,7 @@ def build_developer_activity(
             if not is_dev_action:
                 continue
 
-            transition_label = f"{t['from']} → {t['to']}"
+            transition_label = f"{t['from']} â†’ {t['to']}"
             if transition_label in seen_transitions:
                 continue
             seen_transitions.add(transition_label)
@@ -1469,7 +1084,7 @@ def _qa_event(key, summary, issue_type, transition, event, label, color,
     }
 
 
-# ——— REPORT BUILDER ———————————————————————————————————————————————————————————
+# â”€â”€â”€ REPORT BUILDER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _extract_linked_story_key(fields: dict) -> str:
     parent = fields.get("parent") or {}
@@ -1501,91 +1116,6 @@ def _sprint_placement_label(fields: dict) -> str:
         return active[0]
     named = [s.get("name", "").strip() for s in sprints if s.get("name")]
     return named[-1] if named else "Backlog"
-
-
-def _build_remaining_scope_breakdown(issues: list) -> list[dict]:
-    by_type: dict[str, dict] = {}
-    for issue in issues:
-        fields = issue.get("fields", {})
-        status_name = ((fields.get("status") or {}).get("name") or "").strip()
-        if is_done(status_name):
-            continue
-        issue_type = ((fields.get("issuetype") or {}).get("name") or "Unknown").strip() or "Unknown"
-        row = by_type.setdefault(issue_type, {"type": issue_type, "count": 0, "scope": 0.0})
-        row["count"] += 1
-        row["scope"] = round(row["scope"] + get_issue_weight(issue), 1)
-    return sorted(by_type.values(), key=lambda item: (-item["scope"], -item["count"], item["type"]))
-
-
-def _build_scope_breakdown(issues: list, remaining_only: bool = False) -> list[dict]:
-    by_type: dict[str, dict] = {}
-    for issue in issues:
-        fields = issue.get("fields", {})
-        status_name = ((fields.get("status") or {}).get("name") or "").strip()
-        if remaining_only and is_done(status_name):
-            continue
-        issue_type = ((fields.get("issuetype") or {}).get("name") or "Unknown").strip() or "Unknown"
-        row = by_type.setdefault(issue_type, {"type": issue_type, "count": 0, "scope": 0.0})
-        row["count"] += 1
-        row["scope"] = round(row["scope"] + get_issue_weight(issue), 1)
-    return sorted(by_type.values(), key=lambda item: (-item["scope"], -item["count"], item["type"]))
-
-
-def calculate_bug_ratio_base_work(issues: list, weighting: str = "hybrid_scope") -> dict:
-    included_types = {STORY_TYPE, "Enhancement", "Improvement", "Task"}
-    base_work = 0.0
-    base_items = 0
-    by_type: dict[str, dict] = {}
-
-    for issue in issues:
-        issue_type = ((((issue.get("fields") or {}).get("issuetype")) or {}).get("name") or "").strip()
-        if issue_type not in included_types:
-            continue
-        weight = get_work_weight(issue, weighting=weighting)
-        base_work += weight
-        base_items += 1
-        row = by_type.setdefault(issue_type, {"type": issue_type, "count": 0, "scope": 0.0})
-        row["count"] += 1
-        row["scope"] = round(row["scope"] + weight, 1)
-
-    return {
-        "base_work": round(base_work, 1),
-        "base_items": base_items,
-        "included_types": sorted(included_types),
-        "breakdown": sorted(by_type.values(), key=lambda item: (-item["scope"], -item["count"], item["type"])),
-    }
-
-
-def _is_new_sprint_bug(issue: dict, sprint_start_dt: datetime | None) -> bool:
-    fields = issue.get("fields", {})
-    issue_type = ((fields.get("issuetype") or {}).get("name") or "").strip()
-    if issue_type not in {BUG_TYPE, "Feature Bug"}:
-        return False
-    created_dt = parse_jira_datetime(fields.get("created"))
-    if not sprint_start_dt or not created_dt:
-        return False
-    return created_dt.date() >= sprint_start_dt.date()
-
-
-def _build_planned_scope_metrics(issues: list, sprint_start_dt: datetime | None) -> dict:
-    planned_scope = 0.0
-    completed_scope = 0.0
-    remaining_scope = 0.0
-    for issue in issues:
-        if _is_new_sprint_bug(issue, sprint_start_dt):
-            continue
-        weight = get_issue_weight(issue)
-        planned_scope += weight
-        status_name = (((issue.get("fields") or {}).get("status") or {}).get("name") or "").strip()
-        if is_done(status_name):
-            completed_scope += weight
-        else:
-            remaining_scope += weight
-    return {
-        "planned_scope": round(planned_scope, 1),
-        "completed_scope": round(completed_scope, 1),
-        "remaining_scope": round(remaining_scope, 1),
-    }
 
 
 def build_today_bug_reports() -> list[dict]:
@@ -1684,55 +1214,21 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         if valid: prev_avg_ct = sum(valid) / len(valid)
     prev_bugs = next((s["bugs"] for s in prev_sprints if s.get("bugs") is not None), None)
 
-    bd          = build_burndown(issues, ss)
-    total_scope = bd.get("total_scope", float(total)) if bd else float(total)
-    scope_cfg = _config_scope_calculation()
-    carryover_metrics = calculate_carryover_metrics(
-        issues,
-        sprint_start_dt=sprint_start_dt,
-        include_mid_sprint_added=bool(scope_cfg.get("include_mid_sprint_added", False)),
-        weighting=str(scope_cfg.get("weighting", "hybrid_scope")),
-    )
-    carried_in_metrics = calculate_carried_in_work_metrics(
-        issues,
-        current_sprint=sprint_info,
-        current_sprint_start_dt=sprint_start_dt,
-        weighting=str(scope_cfg.get("weighting", "hybrid_scope")),
-        include_item_list=False,
-    )
-    sprint_carryover_metrics = calculate_sprint_carryover_metrics(
-        issues,
-        current_sprint=sprint_info,
-        current_sprint_start_dt=sprint_start_dt,
-        weighting=str(scope_cfg.get("weighting", "hybrid_scope")),
-        include_item_list=False,
-    )
-    committed_scope = carryover_metrics["committed_work"] or total_scope
-    completed_scope = carryover_metrics["completed_work"]
-    official_rollover_scope = sprint_carryover_metrics["official_rollover_work"]
-    bug_ratio_base = calculate_bug_ratio_base_work(
-        issues,
-        weighting=str(scope_cfg.get("weighting", "hybrid_scope")),
-    )
-    bug_ratio_base_work = bug_ratio_base["base_work"]
-
-    c_score,  c_pct  = score_commitment(completed_scope, committed_scope, sp, is_ex)
-    co_score, co_pct = score_carryover(official_rollover_scope, total_scope, sp, is_ex)
+    c_score,  c_pct  = score_commitment(done, total, sp, is_ex)
+    co_score, co_pct = score_carryover(carried_over, total, sp, is_ex)
     cy_score, cy_pct = score_cycle_time(current_avg_ct, prev_avg_ct, sp)
-    b_score,  b_pct  = score_bug_ratio(new_bugs, bug_ratio_base_work, sp)
+    b_score,  b_pct  = score_bug_ratio(new_bugs, total, sp)
 
-    if bd:
-        bd["total_breakdown"] = _build_scope_breakdown(issues, remaining_only=False)
-        bd["remaining_breakdown"] = _build_scope_breakdown(issues, remaining_only=True)
+    bd          = build_burndown(issues, ss)
     bd_nudge    = score_burndown(bd, sp)
     health_calc = calc_health_score(c_score, co_score, cy_score, b_score, bd_nudge)
     health      = health_calc["score"]
     emoji, label = health_label(health)
 
-    bug_change_pct, bug_change_arrow = None, "→"
+    bug_change_pct, bug_change_arrow = None, "â†’"
     if prev_bugs is not None and prev_bugs > 0:
         bug_change_pct   = round((bugs - prev_bugs) / prev_bugs * 100, 1)
-        bug_change_arrow = "↓" if bug_change_pct < 0 else ("↑" if bug_change_pct > 0 else "→")
+        bug_change_arrow = "â†“" if bug_change_pct < 0 else ("â†‘" if bug_change_pct > 0 else "â†’")
 
     no_data_signals = []
     if total == 0: no_data_signals.extend(["commitment", "carryover", "bug_ratio"])
@@ -1791,27 +1287,16 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         "avg_unfinished_age_days": round(sum(age_values)/len(age_values), 1) if age_values else None,
         "no_data_signals": no_data_signals,
         "signals": {
-            "commitment": {
-                "score": c_score, "pct": c_pct,
-                "raw": f"{_format_decimal(completed_scope)}/{_format_decimal(committed_scope)} committed scope done",
-                "no_data": committed_scope == 0,
-            },
-            "carryover":  {
-                "score": co_score, "pct": co_pct,
-                "raw": f"{_format_decimal(official_rollover_scope)}/{_format_decimal(total_scope)} scope rolled from previous sprint",
-                "no_data": total_scope == 0,
-            },
+            "commitment": {"score": c_score, "pct": c_pct, "raw": f"{done}/{total} issues done", "no_data": total == 0},
+            "carryover":  {"score": co_score, "pct": co_pct, "raw": f"{carried_over}/{total} carried over", "no_data": total == 0},
             "cycle_time": {
                 "score": cy_score, "pct": cy_pct,
                 "raw": f"avg {round(current_avg_ct,1) if current_avg_ct else 'N/A'} days" +
-                       (f" (prev 3 sprints: {round(prev_avg_ct,1)})" if prev_avg_ct else ""),
+                       (f" (prev: {round(prev_avg_ct,1)})" if prev_avg_ct else ""),
                 "no_data": current_avg_ct is None or prev_avg_ct is None,
             },
-            "bug_ratio": {
-                "score": b_score, "pct": b_pct,
-                "raw": f"{new_bugs} new bugs / {_format_decimal(bug_ratio_base_work)} story-enhancement-task scope",
-                "no_data": bug_ratio_base_work == 0 and new_bugs == 0,
-            },
+            "bug_ratio": {"score": b_score, "pct": b_pct, "raw": f"{new_bugs} new bugs / {total} total issues",
+                          "no_data": total == 0 and new_bugs == 0},
         },
         "formula_breakdown": fb, "weights": dict(weights),
         "formula_expression": health_calc["formula"],
@@ -1819,10 +1304,6 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         "signal_thresholds": _signal_threshold_texts(),
         "ai_insights": ai_insights,
         "burndown": bd,
-        "carryover_metrics": carryover_metrics,
-        "carried_in_metrics": carried_in_metrics,
-        "sprint_carryover_metrics": sprint_carryover_metrics,
-        "bug_ratio_base": bug_ratio_base,
         "dev_activity": dev_activity,
         "qa_activity":  qa_activity,
         "today_bug_reports": today_bug_reports,
@@ -1831,7 +1312,7 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         "execution": {"completed": done, "unfinished": carried_over,
                       "completion_pct": c_pct, "carryover_pct": co_pct},
         "formula": (
-            f"({c_score}×0.35) + ({co_score}×0.25) + ({cy_score}×0.20) + ({b_score}×0.20)"
+            f"({c_score}Ã—0.35) + ({co_score}Ã—0.25) + ({cy_score}Ã—0.20) + ({b_score}Ã—0.20)"
             + (f" + burndown nudge ({bd_nudge:+d})" if bd_nudge else "")
             + f" = *{health}*"
         ),
@@ -1839,13 +1320,13 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     }
 
 
-# ——— HTML HELPERS —————————————————————————————————————————————————————————————
+# â”€â”€â”€ HTML HELPERS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _build_burndown_svg(bd: dict) -> str:
     if not bd or not bd.get("actual_line"):
         return "<p style='color:#4a5568;font-style:italic'>No burndown data available.</p>"
-    W, H   = 820, 320
-    PAD_L, PAD_R, PAD_T, PAD_B = 54, 28, 20, 48
+    W, H   = 620, 260
+    PAD_L, PAD_R, PAD_T, PAD_B = 48, 20, 20, 44
     plot_w = W - PAD_L - PAD_R
     plot_h = H - PAD_T - PAD_B
     actual, ideal = bd["actual_line"], bd["ideal_line"]
@@ -1873,7 +1354,7 @@ def _build_burndown_svg(bd: dict) -> str:
         f'<text x="{today_x+4}" y="{PAD_T+12}" font-size="10" fill="#1a6bff">Today</text>'
     )
     track_color = "#00d4aa" if bd.get("on_track") else "#ff4757"
-    return f"""<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
+    return f"""<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:{W}px;height:auto;display:block">
   {grid_lines}
   <line x1="{PAD_L}" y1="{PAD_T}" x2="{PAD_L}" y2="{H-PAD_B}" stroke="#1e3a5f" stroke-width="1.5"/>
   <line x1="{PAD_L}" y1="{H-PAD_B}" x2="{W-PAD_R}" y2="{H-PAD_B}" stroke="#1e3a5f" stroke-width="1.5"/>
@@ -1887,53 +1368,11 @@ def _build_burndown_svg(bd: dict) -> str:
 </svg>"""
 
 
-def _build_burndown_explainer_html(bd: dict) -> str:
-    if not bd:
-        return ""
-    return f"""
-    <div class="burndown-explainer">
-      <div class="burndown-explainer-title">What This Workload Burndown Shows</div>
-      <p class="burndown-explainer-copy">
-        The burndown compares how much scope should be left each day versus how much scope is actually still open.
-      </p>
-      <div class="burndown-scope-note">
-        Scope includes Stories, Bugs, Tasks, Enhancements, and Sub-tasks. Story points are used when available; otherwise each item counts as 1.
-      </div>
-      <div class="burndown-legend">
-        <span><i class="ideal"></i> Ideal line: the expected pace to finish on time</span>
-        <span><i class="actual"></i> Actual line: the real remaining scope day by day</span>
-        <span><i class="today"></i> Today marker: where the sprint stands right now</span>
-      </div>
-      <p class="burndown-explainer-copy">
-        If the actual line stays above the ideal line, the sprint is burning slower than planned. If it reaches zero by the end date, the sprint scope is fully completed.
-      </p>
-    </div>"""
-
-
-def _build_remaining_scope_breakdown_html(bd: dict) -> str:
-    if not bd:
-        return ""
-    remaining_breakdown = bd.get("remaining_breakdown") or []
-    if not remaining_breakdown:
-        return ""
-    remaining_rows = "".join(
-        f"<div class='scope-breakdown-row'><span>{escape(item['type'])}</span><span>{item['count']} item(s)</span><strong>{item['scope']} scope</strong></div>"
-        for item in remaining_breakdown
-    )
-    return f"""
-    <div class="burndown-breakdown-under">
-      <div class="scope-breakdown">
-        <div class="scope-breakdown-title">Remaining Scope Breakdown</div>
-        {remaining_rows}
-      </div>
-    </div>"""
-
-
 def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
     icon, color = ALL_ISSUE_TYPES.get(iss["type"], DEFAULT_ISSUE_ICON)
     done_style  = "opacity:0.6;text-decoration:line-through;" if iss.get("is_done") else ""
     stale_tag   = (
-        f'<span class="issue-stale-tag">🔴 Stale ({iss["active_days"]}d / {iss["stale_threshold"]}d)</span>'
+        f'<span class="issue-stale-tag">ðŸ”´ Stale ({iss["active_days"]}d / {iss["stale_threshold"]}d)</span>'
         if iss.get("is_stale") else ""
     )
     active_tag = (
@@ -1941,9 +1380,9 @@ def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
         if iss.get("active_days", 0) > 1 and not iss.get("is_stale") else ""
     )
     pts_tag  = f'<span class="issue-pts-tag">{iss["story_points"]} pts</span>' if iss.get("story_points") else ""
-    done_tag = '<span class="issue-done-tag">✓ Done</span>' if iss.get("is_done") else ""
+    done_tag = '<span class="issue-done-tag">âœ“ Done</span>' if iss.get("is_done") else ""
     rft_tag  = (
-        f'<span class="issue-active-tag">🕐 {iss["time_in_rft"]}d in testing</span>'
+        f'<span class="issue-active-tag">ðŸ• {iss["time_in_rft"]}d in testing</span>'
         if show_rft and iss.get("time_in_rft", 0) > 0 else ""
     )
     transitions_html = "".join(
@@ -1955,7 +1394,7 @@ def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
       <span class="issue-icon" style="color:{color}">{icon}</span>
       <div class="issue-body">
         <a href="{iss['url']}" target="_blank" class="issue-key">{iss['key']}</a>
-        <span class="issue-summary" style="{done_style}">{escape(iss['summary'][:70])}{'…' if len(iss['summary'])>70 else ''}</span>
+        <span class="issue-summary" style="{done_style}">{escape(iss['summary'][:70])}{'â€¦' if len(iss['summary'])>70 else ''}</span>
         <div class="issue-tags">
           <span class="issue-status-tag">{escape(iss['status'])}</span>
           {pts_tag}{active_tag}{rft_tag}{stale_tag}{done_tag}{transitions_html}
@@ -2002,7 +1441,7 @@ def _build_dev_activity_html(dev_activity: list) -> str:
               <span class="issue-icon" style="color:{icolor}">{icon}</span>
               <div class="issue-body">
                 <a href="{iss['url']}" target="_blank" class="issue-key">{iss['key']}</a>
-                <span class="issue-summary">{escape(iss['summary'][:90])}{'…' if len(iss['summary']) > 90 else ''}</span>
+                <span class="issue-summary">{escape(iss['summary'][:90])}{'â€¦' if len(iss['summary']) > 90 else ''}</span>
                 <div class="issue-tags">{status_tag}{pts_tag}{active_tag}{stale_tag}{transitions_html}</div>
               </div>
             </div>"""
@@ -2081,7 +1520,7 @@ def _build_qa_activity_html(qa_items: list) -> str:
         html += "</div>"
     return html
 
-# ——— SLACK ————————————————————————————————————————————————————————————————
+# â”€â”€â”€ SLACK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _build_todays_bug_reports_html(bugs: list) -> str:
     if not bugs:
@@ -2120,35 +1559,35 @@ def _build_todays_bug_reports_html(bugs: list) -> str:
 
 def format_slack_message(r: dict) -> str:
     score      = r["health_score"]
-    health_dot = "🟢" if score >= 85 else "🟡" if score >= 70 else "🟠" if score >= 50 else "🔴"
+    health_dot = "ðŸŸ¢" if score >= 85 else "ðŸŸ¡" if score >= 70 else "ðŸŸ " if score >= 50 else "ðŸ”´"
     filled     = round(score / 10)
-    bar        = "█" * filled + "░" * (10 - filled)
+    bar        = "â–ˆ" * filled + "â–‘" * (10 - filled)
 
-    def sig_dot(s): return "🟢" if s >= 85 else "🟡" if s >= 70 else "🟠" if s >= 50 else "🔴"
-    def nd(k): return " _— no data yet_" if r["signals"][k].get("no_data") else ""
+    def sig_dot(s): return "ðŸŸ¢" if s >= 85 else "ðŸŸ¡" if s >= 70 else "ðŸŸ " if s >= 50 else "ðŸ”´"
+    def nd(k): return " _â€” no data yet_" if r["signals"][k].get("no_data") else ""
 
     sigs    = r["signals"]
     fb      = r["formula_breakdown"]
     weights = r["weights"]
 
     sig_rows = (
-        f"{sig_dot(sigs['commitment']['score'])}  *Commitment*  {sigs['commitment']['raw']}  →  *{sigs['commitment']['score']} pts*{nd('commitment')}\n"
-        f"{sig_dot(sigs['carryover']['score'])}  *Carryover*   {sigs['carryover']['raw']}  →  *{sigs['carryover']['score']} pts*{nd('carryover')}\n"
-        f"{sig_dot(sigs['cycle_time']['score'])}  *Cycle Time*  {sigs['cycle_time']['raw']}  →  *{sigs['cycle_time']['score']} pts*{nd('cycle_time')}\n"
-        f"{sig_dot(sigs['bug_ratio']['score'])}  *Bug Ratio*   {sigs['bug_ratio']['raw']}  →  *{sigs['bug_ratio']['score']} pts*{nd('bug_ratio')}\n"
-        f"🐛  *New Bugs*  {r['new_bugs']} created ({r['new_bugs_done']} resolved)   |   📦 *Carried* {r['carried_bugs']}"
+        f"{sig_dot(sigs['commitment']['score'])}  *Commitment*  {sigs['commitment']['raw']}  â†’  *{sigs['commitment']['score']} pts*{nd('commitment')}\n"
+        f"{sig_dot(sigs['carryover']['score'])}  *Carryover*   {sigs['carryover']['raw']}  â†’  *{sigs['carryover']['score']} pts*{nd('carryover')}\n"
+        f"{sig_dot(sigs['cycle_time']['score'])}  *Cycle Time*  {sigs['cycle_time']['raw']}  â†’  *{sigs['cycle_time']['score']} pts*{nd('cycle_time')}\n"
+        f"{sig_dot(sigs['bug_ratio']['score'])}  *Bug Ratio*   {sigs['bug_ratio']['raw']}  â†’  *{sigs['bug_ratio']['score']} pts*{nd('bug_ratio')}\n"
+        f"ðŸ›  *New Bugs*  {r['new_bugs']} created ({r['new_bugs_done']} resolved)   |   ðŸ“¦ *Carried* {r['carried_bugs']}"
     )
 
     bd = r.get("burndown", {})
     bd_line = ""
     if bd:
-        track_icon = "✅" if bd.get("on_track") else ("⚠️" if not bd.get("is_extended") else "🔴")
+        track_icon = "âœ…" if bd.get("on_track") else ("âš ï¸" if not bd.get("is_extended") else "ðŸ”´")
         ext_note   = " _(sprint overran)_" if bd.get("is_extended") else ""
         bd_line    = (
-            f"\n*Burndown*  Day {bd['elapsed_days']}/{bd['total_days']}  ·  "
-            f"{bd['current_remaining']} scope remaining  ·  Ideal: {bd['ideal_remaining']}  ·  "
-            f"{track_icon} {'On track' if bd.get('on_track') else 'Behind'}{ext_note}  ·  "
-            f"Velocity: {bd['velocity']}/day  ·  Projected: {bd['projected_end']}\n"
+            f"\n*Burndown*  Day {bd['elapsed_days']}/{bd['total_days']}  Â·  "
+            f"{bd['current_remaining']} remaining  Â·  Ideal: {bd['ideal_remaining']}  Â·  "
+            f"{track_icon} {'On track' if bd.get('on_track') else 'Behind'}{ext_note}  Â·  "
+            f"Velocity: {bd['velocity']}/day  Â·  Projected: {bd['projected_end']}\n"
         )
 
     formula_line = (
@@ -2162,18 +1601,18 @@ def format_slack_message(r: dict) -> str:
     formula_line += f"  =  *{fb['commitment']} + {fb['carryover']} + {fb['cycle_time']} + {fb['bug_ratio']}*  =  *{score}*"
 
     status_lines = "\n".join(
-        f"  • {k}: {v}" for k, v in sorted(r["status_counts"].items(), key=lambda x: -x[1])
-    ) or "  • No issues found"
+        f"  â€¢ {k}: {v}" for k, v in sorted(r["status_counts"].items(), key=lambda x: -x[1])
+    ) or "  â€¢ No issues found"
 
-    no_data_note   = "\n> ℹ️ _No issues yet — neutral score of 70 used._\n" if r["no_data_signals"] else ""
+    no_data_note   = "\n> â„¹ï¸ _No issues yet â€” neutral score of 70 used._\n" if r["no_data_signals"] else ""
     state_banner   = ""
     if r["sprint_state"] == "extended":
-        state_banner = "\n> ⚠️ _Sprint passed end date — not yet closed._\n"
+        state_banner = "\n> âš ï¸ _Sprint passed end date â€” not yet closed._\n"
     elif r["sprint_state"] == "closed":
-        state_banner = "\n> 📋 _Showing last closed sprint._\n"
+        state_banner = "\n> ðŸ“‹ _Showing last closed sprint._\n"
 
-    date_range    = f"{r['sprint_start']} → {r['sprint_end']}" if r["sprint_start"] and r["sprint_end"] else "Dates not set"
-    progress_note = f"   ·   Day {r.get('elapsed_days','?')}/{r.get('total_days','?')} ({r['sprint_progress_pct']}%)" if r.get("sprint_progress_pct") is not None else ""
+    date_range    = f"{r['sprint_start']} â†’ {r['sprint_end']}" if r["sprint_start"] and r["sprint_end"] else "Dates not set"
+    progress_note = f"   Â·   Day {r.get('elapsed_days','?')}/{r.get('total_days','?')} ({r['sprint_progress_pct']}%)" if r.get("sprint_progress_pct") is not None else ""
 
     # Dev activity for Slack
     dev_lines = ""
@@ -2181,14 +1620,14 @@ def format_slack_message(r: dict) -> str:
         dev_lines = "\n*Today's Activity*\n"
         for dev in r["dev_activity"]:
             stale_count = sum(1 for i in dev["issues"] if i["is_stale"])
-            stale_note  = f" ⚠️ {stale_count} stale" if stale_count else ""
-            dev_lines  += f"  👤 *{dev['name']}* — {len(dev['issues'])} issue(s){stale_note}\n"
+            stale_note  = f" âš ï¸ {stale_count} stale" if stale_count else ""
+            dev_lines  += f"  ðŸ‘¤ *{dev['name']}* â€” {len(dev['issues'])} issue(s){stale_note}\n"
             for iss in dev["issues"]:
                 icon, _ = ALL_ISSUE_TYPES.get(iss["type"], DEFAULT_ISSUE_ICON)
-                stale_tag  = " 🔴 _stale_" if iss["is_stale"] else ""
+                stale_tag  = " ðŸ”´ _stale_" if iss["is_stale"] else ""
                 active_tag = f" _(active {iss['active_days']}d)_" if iss["active_days"] > 1 else ""
-                rft_tag    = f" _(🕐 {iss['time_in_rft']}d testing)_" if iss.get("time_in_rft", 0) > 0 else ""
-                dev_lines += f"    {icon} {iss['key']} · {iss['status']}{active_tag}{rft_tag}{stale_tag}\n"
+                rft_tag    = f" _(ðŸ• {iss['time_in_rft']}d testing)_" if iss.get("time_in_rft", 0) > 0 else ""
+                dev_lines += f"    {icon} {iss['key']} Â· {iss['status']}{active_tag}{rft_tag}{stale_tag}\n"
 
     # QA activity for Slack
     qa_lines = ""
@@ -2196,43 +1635,43 @@ def format_slack_message(r: dict) -> str:
         qa_lines = "\n*Today's QA Activity*\n"
         for item in r["qa_activity"]:
             icon, _ = ALL_ISSUE_TYPES.get(item["type"], DEFAULT_ISSUE_ICON)
-            rft_tag  = f" _(🕐 {item['time_in_rft']}d)_" if item.get("time_in_rft", 0) > 0 else ""
-            qa_lines += f"  {icon} *{item['key']}* {item['label']}{rft_tag} · {item['summary'][:50]}\n"
+            rft_tag  = f" _(ðŸ• {item['time_in_rft']}d)_" if item.get("time_in_rft", 0) > 0 else ""
+            qa_lines += f"  {icon} *{item['key']}* {item['label']}{rft_tag} Â· {item['summary'][:50]}\n"
 
     return (
-        f"📊  *Sprint Health Report*  —  Lumofy QA\n"
-        f"*{r['sprint_name']}*   ·   {date_range}{progress_note}\n"
-        f"{'—' * 44}\n\n"
+        f"ðŸ“Š  *Sprint Health Report*  â€”  Lumofy QA\n"
+        f"*{r['sprint_name']}*   Â·   {date_range}{progress_note}\n"
+        f"{'â”€' * 44}\n\n"
         f"{health_dot}  *Health Score:  {score} / 100*\n"
         f"`{bar}`\n_{r['health_label'].title()}_\n"
         f"{state_banner}{no_data_note}\n"
         f"*Signals*\n{sig_rows}\n{bd_line}\n"
         f"*Formula*\n{formula_line}\n\n"
-        f"{'—' * 44}\n"
+        f"{'â”€' * 44}\n"
         f"*Issue Status*\n{status_lines}\n"
         f"{dev_lines}{qa_lines}\n"
-        f"🐛 Bugs: *{r['bugs']}*   |   📦 Scope: *{r['total']}*   |   🚧 Blockers: *{r['blocked_count']}*\n\n"
-        f"_Generated {r['generated_at']}  ·  Lumofy QA Dashboard_"
+        f"ðŸ› Bugs: *{r['bugs']}*   |   ðŸ“¦ Scope: *{r['total']}*   |   ðŸš§ Blockers: *{r['blocked_count']}*\n\n"
+        f"_Generated {r['generated_at']}  Â·  Lumofy QA Dashboard_"
     )
 
 
 def format_slack_site_message(r: dict, site_url: str, pdf_url: str = "") -> str:
     score      = r["health_score"]
-    health_dot = "🟢" if score >= 85 else "🟡" if score >= 70 else "🟠" if score >= 50 else "🔴"
+    health_dot = "ðŸŸ¢" if score >= 85 else "ðŸŸ¡" if score >= 70 else "ðŸŸ " if score >= 50 else "ðŸ”´"
     bugs_line  = f"New Bugs: {r['new_bugs']} | Carried: {r['carried_bugs']}"
     if r.get("bug_change_pct") is not None:
         p = abs(r["bug_change_pct"])
         bugs_line = f"New Bugs: {r['new_bugs']} ({r['bug_change_arrow']} {int(p) if float(p).is_integer() else p}%) | Carried: {r['carried_bugs']}"
     cycle_time = f"{r['current_avg_cycle_time']} days" if r.get("current_avg_cycle_time") is not None else "N/A"
     bd      = r.get("burndown", {})
-    bd_note = f"\nBurndown: {bd['current_remaining']} scope remaining · {'✅ On track' if bd.get('on_track') else '⚠️ Behind'}" if bd else ""
+    bd_note = f"\nBurndown: {bd['current_remaining']} remaining Â· {'âœ… On track' if bd.get('on_track') else 'âš ï¸ Behind'}" if bd else ""
     return (
-        f"🚀 Sprint Health Report Ready — Lumofy QA\n\nScore: {score}/100 {health_dot}\n"
-        f"{bugs_line}\nCycle Time: {cycle_time}{bd_note}\n\n🔗 View Report:\n{site_url}"
+        f"ðŸš€ Sprint Health Report Ready â€” Lumofy QA\n\nScore: {score}/100 {health_dot}\n"
+        f"{bugs_line}\nCycle Time: {cycle_time}{bd_note}\n\nðŸ”— View Report:\n{site_url}"
     )
 
 
-# ——— HTML REPORT ——————————————————————————————————————————————————————————————
+# â”€â”€â”€ HTML REPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -> str:
     score       = r["health_score"]
@@ -2246,7 +1685,7 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
 
     def signal_color(s): return "green" if s >= 85 else "yellow" if s >= 70 else "orange" if s >= 50 else "red"
     def nd_badge(k):
-        return '<span class="no-data-badge">no data — neutral</span>' if r["signals"][k].get("no_data") else ""
+        return '<span class="no-data-badge">no data â€” neutral</span>' if r["signals"][k].get("no_data") else ""
 
     issue_type_rows = "\n".join(
         f"<tr><td>{escape(k)}</td><td>{v}</td><td>{round(v/r['total']*100,1) if r['total'] else 0}%</td></tr>"
@@ -2273,17 +1712,17 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
     signal_defs = [
         {"key": "commitment", "label": "Commitment Reliability", "score": sigs["commitment"]["score"],
          "metric": sigs["commitment"]["raw"], "pct": sigs["commitment"]["pct"],
-         "formula": "Completed committed scope ÷ Total committed sprint scope × 100"},
+         "formula": "Completed Ã· Committed Ã— 100"},
         {"key": "carryover",  "label": "Carryover Rate", "score": sigs["carryover"]["score"],
          "metric": sigs["carryover"]["raw"], "pct": sigs["carryover"]["pct"],
-         "formula": "Official rollover from previous sprint ÷ Total scope in current sprint × 100"},
+         "formula": "Carried Ã· Total Scope Ã— 100"},
         {"key": "cycle_time", "label": "Cycle Time Stability", "score": sigs["cycle_time"]["score"],
          "metric": sigs["cycle_time"]["raw"],
          "pct": f"{sigs['cycle_time']['pct']}% vs 3-sprint avg" if sigs["cycle_time"]["pct"] is not None else "No baseline",
-         "formula": "Current avg cycle time for completed work vs previous 3-sprint avg"},
+         "formula": "Current avg vs Last 3-sprint avg"},
         {"key": "bug_ratio",  "label": "Bug Ratio (New Only)", "score": sigs["bug_ratio"]["score"],
          "metric": sigs["bug_ratio"]["raw"], "pct": sigs["bug_ratio"]["pct"],
-         "formula": "New Bugs created during this sprint ÷ (Stories + Enhancements + Tasks)"},
+         "formula": "New Bugs (created this sprint) Ã· Total Issues"},
     ]
     signals_html = ""
     for sd in signal_defs:
@@ -2292,16 +1731,15 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
         <div class="signal-card">
           <div class="signal-label">{sd['label']}</div>
           <div class="signal-score {sc}">{sd['score']}<span class="signal-unit">/100</span></div>
-          <div class="signal-metric">
-            <span class="signal-metric-main">{sd['metric']}</span>
-            <span class="signal-metric-sep">•</span>
-            <span class="signal-metric-pct">{sd['pct']}%</span>
-          </div>
+          <div class="signal-metric">{sd['metric']} &nbsp;Â·&nbsp; {sd['pct']}%</div>
           {nd_badge(sd['key'])}
+          <div class="signal-explanation">
+            <div class="explanation-title">How it's calculated:</div>
+            {sd['formula']}<br><strong>Scoring:</strong><br>{thresholds[sd['key']]}
+          </div>
         </div>"""
 
-    bug_ratio_base_work = (r.get("bug_ratio_base") or {}).get("base_work", 0.0)
-    new_bug_pct      = round(r["new_bugs"] / bug_ratio_base_work * 100, 1) if bug_ratio_base_work else 0
+    new_bug_pct      = round(r["new_bugs"] / r["total"] * 100, 1) if r["total"] else 0
     new_bugs_res_pct = round(r["new_bugs_done"] / r["new_bugs"] * 100, 1) if r["new_bugs"] else 0
     bug_cards_html   = f"""
     <div class="bug-cards">
@@ -2310,7 +1748,7 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
         <div class="bug-card-title">New Bugs</div>
         <div class="bug-card-count">{r['new_bugs']}</div>
         <div class="bug-card-sub">Created this sprint</div>
-        <div class="bug-card-ratio">Bug Ratio: <strong>{new_bug_pct}%</strong> of story-enhancement-task scope</div>
+        <div class="bug-card-ratio">Bug Ratio: <strong>{new_bug_pct}%</strong> of total issues</div>
         <div class="bug-card-resolved">Resolved: <strong>{r['new_bugs_done']}</strong> ({new_bugs_res_pct}%)</div>
         <div class="bug-card-note">Counts toward Health Score</div>
       </div>
@@ -2324,8 +1762,6 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
     </div>"""
 
     burndown_svg  = _build_burndown_svg(bd)
-    burndown_explainer_html = _build_burndown_explainer_html(bd)
-    burndown_breakdown_html = _build_remaining_scope_breakdown_html(bd)
     bd_track_cls  = "green" if bd.get("on_track") else "red"
     bd_track_txt  = "On track" if bd.get("on_track") else "Behind ideal"
     if bd.get("is_extended"): bd_track_cls, bd_track_txt = "red", "Sprint overran"
@@ -2334,8 +1770,8 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
         burndown_stats = f"""
         <div class="bd-stats">
           <div class="bd-stat"><div class="bd-stat-val">{bd['elapsed_days']}/{bd['total_days']}</div><div class="bd-stat-lbl">Days Elapsed</div></div>
-          <div class="bd-stat"><div class="bd-stat-val">{bd['current_remaining']}</div><div class="bd-stat-lbl">Scope Remaining</div></div>
-          <div class="bd-stat"><div class="bd-stat-val">{bd['ideal_remaining']}</div><div class="bd-stat-lbl">Ideal Scope Remaining</div></div>
+          <div class="bd-stat"><div class="bd-stat-val">{bd['current_remaining']}</div><div class="bd-stat-lbl">Remaining</div></div>
+          <div class="bd-stat"><div class="bd-stat-val">{bd['ideal_remaining']}</div><div class="bd-stat-lbl">Ideal Remaining</div></div>
           <div class="bd-stat"><div class="bd-stat-val {bd_track_cls}">{bd_track_txt}</div><div class="bd-stat-lbl">Status</div></div>
           <div class="bd-stat"><div class="bd-stat-val">{bd['velocity']}/day</div><div class="bd-stat-lbl">Velocity</div></div>
           <div class="bd-stat"><div class="bd-stat-val">{bd['projected_end']}</div><div class="bd-stat-lbl">Projected Finish</div></div>
@@ -2392,15 +1828,6 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .logo-text span{{color:#1a6bff}}
 .header h1{{font-size:30px;font-weight:700;color:#fff;margin-bottom:6px}}
 .header p{{font-size:13px;color:#4a90d9}}
-.header-actions{{display:flex;justify-content:center;margin-top:18px}}
-.admin-cta{{display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;
-  background:linear-gradient(135deg,#1a6bff,#00d4aa);color:#fff;text-decoration:none;font-size:13px;
-  font-weight:700;letter-spacing:.2px;border:1px solid rgba(255,255,255,.12);
-  box-shadow:0 10px 28px rgba(26,107,255,.28),0 4px 12px rgba(0,0,0,.22);
-  transition:transform .2s ease,box-shadow .2s ease,filter .2s ease}}
-.admin-cta:hover{{transform:translateY(-2px);filter:brightness(1.05);
-  box-shadow:0 16px 34px rgba(26,107,255,.34),0 6px 16px rgba(0,0,0,.28)}}
-.admin-cta svg{{width:18px;height:18px;fill:#fff;flex-shrink:0}}
 .progress-bar-wrap{{background:rgba(26,107,255,.15);border-radius:999px;height:4px;width:260px;margin:12px auto 0;border:1px solid rgba(26,107,255,.2)}}
 .progress-bar-fill{{height:4px;border-radius:999px;background:linear-gradient(90deg,#1a6bff,#00d4aa)}}
 .card{{background:rgba(10,20,40,.8);backdrop-filter:blur(20px);border-radius:16px;
@@ -2426,24 +1853,21 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
   text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px}}
 .section-title::after{{content:'';flex:1;height:1px;background:rgba(26,107,255,.2)}}
 .signals-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:24px}}
-.signal-card{{background:linear-gradient(180deg,rgba(12,25,49,.96),rgba(9,19,39,.92));border-radius:18px;padding:22px 18px 18px;
-  border:1px solid rgba(26,107,255,.22);text-align:center;transition:transform .25s,border-color .25s,box-shadow .25s;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}}
-.signal-card:hover{{transform:translateY(-4px);border-color:#1a6bff;box-shadow:0 16px 34px rgba(0,0,0,.22)}}
-.signal-label{{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:#56a0ff;margin-bottom:16px;min-height:28px}}
-.signal-score{{font-size:58px;font-weight:900;margin-bottom:12px;display:flex;align-items:baseline;justify-content:center;gap:6px;line-height:1}}
+.signal-card{{background:rgba(10,20,40,.9);border-radius:14px;padding:22px 16px;
+  border:1px solid rgba(26,107,255,.2);text-align:center;transition:transform .25s,border-color .25s}}
+.signal-card:hover{{transform:translateY(-4px);border-color:#1a6bff}}
+.signal-label{{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#4a90d9;margin-bottom:10px}}
+.signal-score{{font-size:44px;font-weight:900;margin-bottom:6px;display:flex;align-items:baseline;justify-content:center;gap:3px}}
 .signal-score.red{{color:#ff4757}}.signal-score.orange{{color:#fb923c}}
 .signal-score.yellow{{color:#fbbf24}}.signal-score.green{{color:#00d4aa}}
-.signal-unit{{font-size:16px;color:#3b70b4;font-weight:800}}
-.signal-metric{{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:8px;font-size:12px;color:#b4d4ff;
-  font-weight:600;margin:0 0 12px;padding:10px 12px;border-radius:12px;background:rgba(26,107,255,.08);border:1px solid rgba(26,107,255,.12);
-  min-height:48px}}
-.signal-metric-main{{color:#b4d4ff}}
-.signal-metric-sep{{color:#3b70b4;font-weight:900}}
-.signal-metric-pct{{color:#ffffff;font-weight:800}}
+.signal-unit{{font-size:16px;color:#2d5a8e}}
+.signal-metric{{font-size:11px;color:#8ab4d9;font-weight:500;margin-bottom:6px}}
 .no-data-badge{{display:inline-block;background:rgba(251,191,36,.1);color:#fbbf24;
   font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;margin-bottom:8px;
   text-transform:uppercase;letter-spacing:.4px;border:1px solid rgba(251,191,36,.3)}}
+.signal-explanation{{font-size:10px;color:#4a90d9;line-height:1.6;padding:10px;
+  background:rgba(26,107,255,.05);border-radius:7px;border-left:2px solid #1a6bff;text-align:left}}
+.explanation-title{{font-weight:600;color:#8ab4d9;margin-bottom:4px}}
 .bug-cards{{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:8px}}
 @media(max-width:560px){{.bug-cards{{grid-template-columns:1fr}}}}
 .bug-card{{border-radius:14px;padding:24px 20px;border:1px solid;text-align:center}}
@@ -2464,33 +1888,6 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .bd-stat-val{{font-size:16px;font-weight:700;color:#e0eaff;margin-bottom:4px}}
 .bd-stat-val.green{{color:#00d4aa}}.bd-stat-val.red{{color:#ff4757}}
 .bd-stat-lbl{{font-size:10px;color:#4a90d9;text-transform:uppercase;letter-spacing:.5px}}
-.burndown-layout{{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(280px,1fr);gap:22px;align-items:start}}
-.burndown-chart-panel{{min-width:0;display:flex;flex-direction:column;gap:18px}}
-.burndown-explainer{{background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);border-radius:14px;
-  padding:18px 16px;display:flex;flex-direction:column;gap:14px;min-height:320px}}
-.burndown-explainer-title{{font-size:14px;font-weight:800;color:#e0eaff;letter-spacing:.2px}}
-.burndown-explainer-copy{{font-size:12px;line-height:1.7;color:#8ab4d9}}
-.burndown-scope-note{{font-size:11px;color:#c6daf7;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16);
-  border-radius:10px;padding:10px 12px}}
-.burndown-legend{{display:flex;flex-direction:column;gap:10px}}
-.burndown-legend span{{display:flex;align-items:center;gap:10px;font-size:12px;color:#c6daf7}}
-.burndown-legend i{{display:inline-block;flex-shrink:0;border-radius:999px}}
-.burndown-legend .ideal{{width:18px;height:3px;background:#2d5a8e}}
-.burndown-legend .actual{{width:18px;height:3px;background:#ff4757}}
-.burndown-legend .today{{width:3px;height:16px;background:#1a6bff;border-radius:4px}}
-.burndown-summary{{display:grid;gap:10px}}
-.burndown-summary div{{padding:12px;border-radius:12px;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16)}}
-.burndown-summary strong{{display:block;font-size:18px;color:#e0eaff;margin-bottom:4px}}
-.burndown-summary span{{font-size:11px;color:#4a90d9;text-transform:uppercase;letter-spacing:.4px}}
-.scope-breakdown{{display:flex;flex-direction:column;gap:8px}}
-.scope-breakdown-title{{font-size:12px;font-weight:800;color:#e0eaff;letter-spacing:.4px;text-transform:uppercase}}
-.scope-breakdown-row{{display:grid;grid-template-columns:minmax(0,1.4fr) auto auto;gap:10px;align-items:center;
-  padding:10px 12px;border-radius:12px;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16)}}
-.scope-breakdown-row span:first-child{{color:#e0eaff;font-weight:700}}
-.scope-breakdown-row span{{font-size:11px;color:#8ab4d9}}
-.scope-breakdown-row strong{{font-size:12px;color:#00d4aa;white-space:nowrap}}
-.burndown-breakdown-under{{padding:18px 16px;background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);
-  border-radius:14px}}
 .formula-breakdown{{margin-bottom:16px;padding:16px;background:rgba(26,107,255,.06);border-radius:10px;border-left:3px solid #1a6bff}}
 .formula-row{{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:13px;color:#8ab4d9}}
 .formula-row:last-child{{margin-bottom:0}}
@@ -2503,7 +1900,6 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .formula-final .value{{font-size:28px;margin-top:8px;color:#1a6bff}}
 .tables-grid{{display:grid;grid-template-columns:1fr 1fr;gap:20px}}
 @media(max-width:680px){{.tables-grid{{grid-template-columns:1fr}}}}
-@media(max-width:900px){{.burndown-layout{{grid-template-columns:1fr}}.burndown-explainer{{min-height:auto}}}}
 table{{width:100%;border-collapse:collapse;font-size:12px}}
 th,td{{border-bottom:1px solid rgba(26,107,255,.1);padding:8px 10px;text-align:left;color:#8ab4d9}}
 th{{background:rgba(26,107,255,.08);color:#4a90d9;font-size:10px;text-transform:uppercase;letter-spacing:.5px}}
@@ -2566,19 +1962,6 @@ td:first-child{{color:#e0eaff}}
 .ai-actions{{margin:14px 0 0 18px;color:#e0eaff}}
 .ai-actions li{{margin-bottom:8px}}
 .footer{{text-align:center;margin-top:40px;padding:20px;color:#2d5a8e;font-size:11px}}
-.fab-wrapper{{position:fixed;right:24px;bottom:24px;z-index:9999}}
-.fab-dashboard{{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,#1a6bff,#00d4aa);text-decoration:none;border:1px solid rgba(255,255,255,.12);
-  box-shadow:0 10px 28px rgba(26,107,255,.32),0 6px 16px rgba(0,0,0,.28);
-  transition:transform .2s ease,box-shadow .2s ease}}
-.fab-dashboard:hover{{transform:translateY(-2px) scale(1.06);
-  box-shadow:0 16px 34px rgba(26,107,255,.4),0 8px 18px rgba(0,0,0,.3)}}
-.fab-dashboard svg{{width:26px;height:26px;fill:#fff}}
-.fab-tooltip{{position:absolute;right:0;bottom:72px;padding:8px 12px;border-radius:10px;
-  background:rgba(10,20,40,.96);color:#e0eaff;font-size:12px;font-weight:700;
-  border:1px solid rgba(26,107,255,.3);white-space:nowrap;opacity:0;transform:translateY(4px);
-  pointer-events:none;transition:opacity .2s ease,transform .2s ease}}
-.fab-wrapper:hover .fab-tooltip{{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
@@ -2591,14 +1974,6 @@ td:first-child{{color:#e0eaff}}
     <h1>Sprint Health Score</h1>
     <p>{date_range} &nbsp;|&nbsp; Day {r.get('elapsed_days','?')}/{r.get('total_days','?')} ({progress_pct}% through sprint)</p>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:{progress_pct}%"></div></div>
-    <div class="header-actions">
-      <a href="http://127.0.0.1:8765" target="_blank" class="admin-cta" title="Open Admin Dashboard">
-        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-          <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-        </svg>
-        <span>Open Admin Dashboard</span>
-      </a>
-    </div>
   </div>
   {state_banner}{no_data_banner}
   <div class="card score-wrap">
@@ -2613,8 +1988,8 @@ td:first-child{{color:#e0eaff}}
   <div class="signals-grid">{signals_html}</div>
   <div class="section-title">Bug Breakdown</div>
   <div class="card">{bug_cards_html}</div>
-  <div class="section-title">Total Scope Burndown</div>
-  <div class="card">{burndown_stats}<div class="burndown-layout"><div class="burndown-chart-panel">{burndown_svg}{burndown_breakdown_html}</div>{burndown_explainer_html}</div></div>
+  <div class="section-title">Burndown Chart</div>
+  <div class="card">{burndown_stats}{burndown_svg}</div>
   <div class="section-title">Today's Developer Activity</div>
   <div class="card"><div class="dev-grid">{dev_activity_html}</div></div>
   <div class="section-title">Today's QA Activity</div>
@@ -2670,16 +2045,6 @@ td:first-child{{color:#e0eaff}}
       <div class="interp-item red"><div class="interp-range red">&lt;50</div><div class="interp-status">Sprint Breakdown</div><div class="interp-desc">Critical issues, act now</div></div>
     </div>
   </div>
-
-  <!-- Floating Admin Dashboard Button -->
-  <div class="fab-wrapper">
-    <a href="http://127.0.0.1:8765" target="_blank" class="fab-dashboard" title="Open Admin Dashboard">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-      </svg>
-    </a>
-    <div class="fab-tooltip">Admin Dashboard</div>
-  </div>
   <div class="footer">Lumofy QA | Sprint Health Dashboard | {escape(r['generated_at'])}</div>
 </div>
 </body>
@@ -2691,7 +2056,7 @@ td:first-child{{color:#e0eaff}}
     return str(out.resolve())
 
 
-# ——— PDF REPORT ———————————————————————————————————————————————————————————————
+# â”€â”€â”€ PDF REPORT â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def write_pdf_report(r: dict, output_path: str | None = None) -> str | None:
     try:
@@ -2709,18 +2074,18 @@ def write_pdf_report(r: dict, output_path: str | None = None) -> str | None:
     fb   = r["formula_breakdown"]
     bd   = r.get("burndown", {})
     lines = [
-        "Lumofy — Sprint Health Report",
+        "Lumofy â€” Sprint Health Report",
         f"Sprint: {r['sprint_name']}",
-        f"Dates:  {r['sprint_start']} → {r['sprint_end']}",
+        f"Dates:  {r['sprint_start']} â†’ {r['sprint_end']}",
         f"State:  {r['sprint_state'].upper()}",
         "",
-        f"Health Score: {r['health_score']}/100  —  {r['health_label']}",
+        f"Health Score: {r['health_score']}/100  â€”  {r['health_label']}",
         "",
         "Signals:",
-        f"  Commitment:  {r['signals']['commitment']['raw']}  → {r['signals']['commitment']['score']} pts",
-        f"  Carryover:   {r['signals']['carryover']['raw']}   → {r['signals']['carryover']['score']} pts",
-        f"  Cycle Time:  {r['signals']['cycle_time']['raw']}  → {r['signals']['cycle_time']['score']} pts",
-        f"  Bug Ratio:   {r['signals']['bug_ratio']['raw']}   → {r['signals']['bug_ratio']['score']} pts",
+        f"  Commitment:  {r['signals']['commitment']['raw']}  â†’ {r['signals']['commitment']['score']} pts",
+        f"  Carryover:   {r['signals']['carryover']['raw']}   â†’ {r['signals']['carryover']['score']} pts",
+        f"  Cycle Time:  {r['signals']['cycle_time']['raw']}  â†’ {r['signals']['cycle_time']['score']} pts",
+        f"  Bug Ratio:   {r['signals']['bug_ratio']['raw']}   â†’ {r['signals']['bug_ratio']['score']} pts",
         "",
         "Bug Breakdown:",
         f"  New Bugs:     {r['new_bugs']}  ({r['new_bugs_done']} resolved)",
@@ -2730,7 +2095,7 @@ def write_pdf_report(r: dict, output_path: str | None = None) -> str | None:
     if bd:
         lines += [
             "Burndown:",
-            f"  Day {bd['elapsed_days']}/{bd['total_days']}  |  {bd['current_remaining']} scope remaining  |  Ideal: {bd['ideal_remaining']}",
+            f"  Day {bd['elapsed_days']}/{bd['total_days']}  |  {bd['current_remaining']} remaining  |  Ideal: {bd['ideal_remaining']}",
             f"  Velocity: {bd['velocity']}/day  |  Projected: {bd['projected_end']}",
             f"  Status: {'On track' if bd.get('on_track') else 'Behind'}",
             "",
@@ -2759,7 +2124,7 @@ def write_pdf_report(r: dict, output_path: str | None = None) -> str | None:
     return str(out.resolve())
 
 
-# ——— SLACK SEND ———————————————————————————————————————————————————————————————
+# â”€â”€â”€ SLACK SEND â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def send_to_slack(message: str) -> None:
     resp = requests.post(
@@ -2775,7 +2140,7 @@ def send_to_slack(message: str) -> None:
     print(f"[ok] Slack ts={result.get('ts')}")
 
 
-# ——— MAIN RUN ————————————————————————————————————————————————————————————————
+# â”€â”€â”€ MAIN RUN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def run(dry_run=False, export_html=False, export_pdf=False, no_slack=False,
         site_url="", pdf_url="", slack_link_only=False) -> None:
@@ -2790,11 +2155,11 @@ def run(dry_run=False, export_html=False, export_pdf=False, no_slack=False,
     print("[1/3] Fetching sprint issues from Jira...")
     issues, sprint_info = fetch_sprint_issues()
     ss = SprintState(sprint_info)
-    print(f"      → {len(issues)} issues in '{ss.name}' [{ss.state}]")
+    print(f"      â†’ {len(issues)} issues in '{ss.name}' [{ss.state}]")
 
     print("[2/3] Fetching last 3 closed sprints...")
     prev_sprints = fetch_last_n_sprints(n=3)
-    print(f"      → {len(prev_sprints)} closed sprints found")
+    print(f"      â†’ {len(prev_sprints)} closed sprints found")
 
     print("[3/3] Building report (fetching changelogs)...")
     report = build_report(issues, sprint_info, prev_sprints)
@@ -2824,7 +2189,7 @@ def run(dry_run=False, export_html=False, export_pdf=False, no_slack=False,
         print("Sending to Slack...")
         send_to_slack(message)
 
-    print(f"[done] {report['health_score']}/100 — {report['health_label']}")
+    print(f"[done] {report['health_score']}/100 â€” {report['health_label']}")
 
 
 def run_scheduled(hour=9, minute=0) -> None:
