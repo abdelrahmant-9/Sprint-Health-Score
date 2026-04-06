@@ -91,6 +91,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .bd-stat-lbl{font-size:10px;color:#4a90d9;text-transform:uppercase;letter-spacing:.5px}
 .burndown-layout{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(280px,1fr);gap:22px;align-items:start}
 .burndown-chart-panel{min-width:0;display:flex;flex-direction:column;gap:18px}
+.burndown-side-panel{min-width:0;display:flex;flex-direction:column;gap:18px}
 .burndown-explainer{background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);border-radius:14px;
   padding:18px 16px;display:flex;flex-direction:column;gap:14px;min-height:320px}
 .burndown-explainer-title{font-size:14px;font-weight:800;color:#e0eaff;letter-spacing:.2px}
@@ -116,6 +117,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .scope-breakdown-row strong{font-size:12px;color:#00d4aa;white-space:nowrap}
 .burndown-breakdown-under{padding:18px 16px;background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);
   border-radius:14px}
+.burndown-takeaways{padding:18px 16px;background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);
+  border-radius:14px}
+.burndown-takeaways-title{font-size:12px;font-weight:800;color:#e0eaff;letter-spacing:.4px;text-transform:uppercase;margin-bottom:12px}
+.burndown-takeaway-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.burndown-takeaway{padding:12px;border-radius:12px;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16)}
+.burndown-takeaway strong{display:block;font-size:16px;color:#e0eaff;margin-bottom:4px}
+.burndown-takeaway strong.green{color:#00d4aa}
+.burndown-takeaway strong.red{color:#ff4757}
+.burndown-takeaway span{font-size:11px;line-height:1.5;color:#8ab4d9}
 .formula-breakdown{margin-bottom:16px;padding:16px;background:rgba(26,107,255,.06);border-radius:10px;border-left:3px solid #1a6bff}
 .formula-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:13px;color:#8ab4d9}
 .formula-row:last-child{margin-bottom:0}
@@ -126,9 +136,67 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
   border:1px solid rgba(26,107,255,.3);color:#e0eaff;padding:20px;border-radius:10px;
   text-align:center;font-size:14px;font-weight:700;margin-top:16px;font-family:'Monaco','Courier New',monospace}
 .formula-final .value{font-size:28px;margin-top:8px;color:#1a6bff}
+.sprint-details-shell{display:flex;flex-direction:column;gap:16px}
+.details-summary-bar{display:flex;flex-wrap:wrap;gap:18px;align-items:center;padding:14px 18px;border-radius:14px;
+  background:rgba(26,107,255,.08);border:1px solid rgba(26,107,255,.18)}
+.details-summary-main{font-size:16px;font-weight:700;color:#e0eaff}
+.details-state{color:#00d4aa}
+.details-summary-meta{font-size:13px;color:#8ab4d9}
+.sprint-details-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.details-panel{background:linear-gradient(180deg,rgba(15,30,54,.96),rgba(10,20,40,.92));border:1px solid rgba(26,107,255,.18);
+  border-radius:16px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.18)}
+.details-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.details-panel-head h3{font-size:14px;color:#e0eaff}
+.details-panel-head span{font-size:12px;color:#4a90d9}
+.details-subpanel{padding:14px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(26,107,255,.12);margin-bottom:12px}
+.details-subpanel:last-child{margin-bottom:0}
+.details-subtitle{font-size:13px;font-weight:700;color:#e0eaff;margin-bottom:12px}
+.details-subpanel-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.details-subnote{font-size:12px;color:#8ab4d9}
+.details-progress-layout{display:grid;grid-template-columns:130px 1fr;gap:18px;align-items:center}
+.details-donut{width:120px;height:120px}
+.details-donut-value{font-size:20px;font-weight:800;fill:#e0eaff}
+.details-donut-label{font-size:10px;fill:#8ab4d9}
+.details-legend{display:grid;gap:10px}
+.details-legend div{display:flex;align-items:center;gap:10px;font-size:13px;color:#c6daf7}
+.details-legend i{width:10px;height:10px;border-radius:999px;display:inline-block}
+.details-legend .done{background:#00d4aa}
+.details-legend .progress{background:#1a6bff}
+.details-legend .blocked{background:#fbbf24}
+.status-chip-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.status-chip{padding:10px 8px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(26,107,255,.12);text-align:center}
+.status-chip span{display:block;font-size:11px;color:#8ab4d9;margin-bottom:6px}
+.status-chip strong{font-size:26px;color:#e0eaff}
+.details-big-metric{font-size:18px;font-weight:800;color:#e0eaff;margin:4px 0 14px}
+.age-chart{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;align-items:end;height:190px;padding:8px 4px 0}
+.age-bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;height:100%}
+.age-bar-value{font-size:12px;color:#e0eaff}
+.age-bar{width:56px;max-width:100%;border-radius:12px 12px 4px 4px;box-shadow:inset 0 -10px 30px rgba(255,255,255,.08)}
+.age-bar-label{font-size:12px;color:#8ab4d9}
+.issue-type-layout{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center}
+.issue-type-donut-wrap{display:flex;justify-content:center}
+.issue-type-list{display:grid;gap:10px}
+.issue-type-row{display:grid;grid-template-columns:minmax(0,1.4fr) 42px 44px 1fr;gap:10px;align-items:center}
+.issue-type-name{display:flex;align-items:center;gap:8px;font-size:13px;color:#e0eaff}
+.issue-type-name i{width:9px;height:9px;border-radius:999px;display:inline-block}
+.issue-type-count,.issue-type-pct{font-size:12px;color:#8ab4d9}
+.issue-type-track{height:8px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}
+.issue-type-track span{display:block;height:100%;border-radius:999px}
+.assignee-list{display:grid;gap:10px}
+.assignee-row{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(120px,1fr) 36px;gap:12px;align-items:center}
+.assignee-name{font-size:13px;color:#e0eaff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.assignee-load{display:flex;height:10px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}
+.assignee-load .seg{display:block;height:100%}
+.assignee-load .seg-a{background:#00d4aa}
+.assignee-load .seg-b{background:#1a6bff}
+.assignee-load .seg-c{background:#fbbf24}
+.assignee-count{font-size:13px;color:#e0eaff;text-align:right}
+.details-empty{font-size:13px;color:#8ab4d9;padding:12px 0}
 .tables-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
 @media(max-width:680px){.tables-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.burndown-layout{grid-template-columns:1fr}.burndown-explainer{min-height:auto}}
+@media(max-width:900px){.sprint-details-grid{grid-template-columns:1fr}.status-chip-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.issue-type-layout{grid-template-columns:1fr}.details-progress-layout{grid-template-columns:1fr;justify-items:center}}
+@media(max-width:640px){.status-chip-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.issue-type-row{grid-template-columns:minmax(0,1fr) 40px 40px 1fr}.assignee-row{grid-template-columns:1fr}.assignee-count{text-align:left}}
 table{width:100%;border-collapse:collapse;font-size:12px}
 th,td{border-bottom:1px solid rgba(26,107,255,.1);padding:8px 10px;text-align:left;color:#8ab4d9}
 th{background:rgba(26,107,255,.08);color:#4a90d9;font-size:10px;text-transform:uppercase;letter-spacing:.5px}
@@ -175,6 +243,69 @@ td:first-child{color:#e0eaff}
 .qa-group:last-child{margin-bottom:0}
 .qa-group-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
   margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(26,107,255,.15)}
+.bug-report-shell{display:flex;flex-direction:column;gap:20px}
+.bug-report-shell.empty{min-height:140px;justify-content:center}
+.bug-report-empty{text-align:center;padding:28px 20px;border-radius:18px;color:#8ab4d9;
+  border:1px dashed rgba(74,144,217,.28);background:rgba(12,25,49,.55);font-size:14px}
+.bug-report-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.bug-report-title{font-size:28px;font-weight:900;letter-spacing:.4px;color:#f5f8ff;text-transform:uppercase}
+.bug-report-subtitle{font-size:13px;color:#8ab4d9;margin-top:6px}
+.bug-report-meta{padding:10px 16px;border-radius:14px;background:rgba(26,107,255,.08);
+  border:1px solid rgba(74,144,217,.22);font-size:12px;font-weight:700;color:#cfe2ff;text-transform:uppercase;letter-spacing:.6px}
+.bug-report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px}
+.bug-report-metric{padding:16px 18px;border-radius:16px;border:1px solid rgba(74,144,217,.18);
+  background:linear-gradient(180deg,rgba(16,31,58,.96),rgba(10,20,40,.92));box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
+.bug-report-metric-label{display:block;font-size:11px;font-weight:700;color:#8ab4d9;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.bug-report-metric-value{font-size:34px;line-height:1;color:#f5f8ff}
+.bug-report-metric.metric-total{border-color:rgba(74,144,217,.24)}
+.bug-report-metric.metric-total .bug-report-metric-value{color:#9fc8ff}
+.bug-report-metric.metric-open{border-color:rgba(0,212,170,.28)}
+.bug-report-metric.metric-open .bug-report-metric-value{color:#1ce6b3}
+.bug-report-metric.metric-progress{border-color:rgba(251,191,36,.28)}
+.bug-report-metric.metric-progress .bug-report-metric-value{color:#fbbf24}
+.bug-report-metric.metric-reopened{border-color:rgba(255,71,87,.28)}
+.bug-report-metric.metric-reopened .bug-report-metric-value{color:#ff6b7c}
+.bug-report-metric.metric-storyless{border-color:rgba(167,139,250,.28)}
+.bug-report-metric.metric-storyless .bug-report-metric-value{color:#a78bfa}
+.bug-report-groups{display:grid;grid-template-columns:1fr;gap:18px}
+.bug-person-card{padding:22px;border-radius:22px;border:1px solid rgba(74,144,217,.2);
+  background:linear-gradient(180deg,rgba(12,25,49,.96),rgba(9,18,36,.94));box-shadow:0 16px 36px rgba(0,0,0,.2)}
+.bug-person-header{display:flex;align-items:center;gap:14px;margin-bottom:18px}
+.bug-person-avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,rgba(74,144,217,.9),rgba(26,107,255,.55));color:#eaf3ff;font-weight:800;font-size:18px;
+  border:1px solid rgba(159,200,255,.18);flex-shrink:0}
+.bug-person-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.bug-person-name{font-size:20px;font-weight:800;color:#f5f8ff}
+.bug-person-count{padding:8px 12px;border-radius:999px;background:rgba(26,107,255,.14);border:1px solid rgba(74,144,217,.24);
+  font-size:12px;font-weight:700;color:#8fc0ff}
+.bug-person-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.bug-ticket-card{position:relative;padding:18px 18px 16px;border-radius:18px;background:rgba(13,26,49,.96);
+  border:1px solid rgba(74,144,217,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}
+.bug-ticket-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:18px 0 0 18px;background:#4a90d9}
+.bug-ticket-card.open::before{background:#00d4aa}
+.bug-ticket-card.in-progress::before{background:#f59e0b}
+.bug-ticket-card.reopened::before{background:#ff4757}
+.bug-ticket-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.bug-ticket-key{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;text-decoration:none;
+  background:rgba(26,107,255,.16);border:1px solid rgba(74,144,217,.2);color:#8fc0ff;font-size:12px;font-weight:800}
+.bug-ticket-summary{display:block;color:#f5f8ff;text-decoration:none;font-size:17px;font-weight:700;line-height:1.45;margin-bottom:14px}
+.bug-ticket-summary:hover{color:#cfe2ff}
+.bug-ticket-status{padding:7px 12px;border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+  border:1px solid rgba(74,144,217,.2);background:rgba(26,107,255,.12);color:#8fc0ff;white-space:nowrap}
+.bug-ticket-status.open{background:rgba(0,212,170,.12);border-color:rgba(0,212,170,.25);color:#1ce6b3}
+.bug-ticket-status.in-progress{background:rgba(251,191,36,.14);border-color:rgba(251,191,36,.25);color:#fbbf24}
+.bug-ticket-status.reopened{background:rgba(255,71,87,.14);border-color:rgba(255,71,87,.25);color:#ff6b7c}
+.bug-ticket-tags{display:flex;flex-wrap:wrap;gap:10px}
+.bug-tag{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;
+  border:1px solid rgba(74,144,217,.2)}
+.bug-tag-link{background:rgba(26,107,255,.12);color:#8fc0ff}
+.bug-tag-storyless{background:rgba(167,139,250,.12);color:#c1a6ff;border-color:rgba(167,139,250,.24)}
+.bug-tag-sprint{background:rgba(0,212,170,.12);color:#1ce6b3;border-color:rgba(0,212,170,.2)}
+@media(max-width:720px){
+  .bug-report-title{font-size:22px}
+  .bug-person-name{font-size:18px}
+  .bug-ticket-summary{font-size:15px}
+}
 .interp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
 .interp-item{padding:16px;border-radius:10px;border:1px solid;text-align:center}
 .interp-item.green{border-color:rgba(0,212,170,.3);background:rgba(0,212,170,.05)}
@@ -232,7 +363,7 @@ td:first-child{color:#e0eaff}
       <div class="score-label">/100</div>
     </div>
     <div class="health-status">Sprint Breakdown</div>
-    <div class="health-sub">Sprint 15 - PM Sprint 6 &nbsp;|&nbsp; 2026-04-06 12:27 UTC</div>
+    <div class="health-sub">Sprint 15 - PM Sprint 6 &nbsp;|&nbsp; 2026-04-06 13:57 UTC</div>
   </div>
   <div class="section-title">Health Signals</div>
   <div class="signals-grid">
@@ -250,9 +381,9 @@ td:first-child{color:#e0eaff}
           <div class="signal-label">Carryover Rate</div>
           <div class="signal-score yellow">70<span class="signal-unit">/100</span></div>
           <div class="signal-metric">
-            <span class="signal-metric-main">43/338 scope rolled from previous sprint</span>
+            <span class="signal-metric-main">43/340 scope rolled from previous sprint</span>
             <span class="signal-metric-sep">•</span>
-            <span class="signal-metric-pct">12.7%</span>
+            <span class="signal-metric-pct">12.6%</span>
           </div>
           
         </div>
@@ -270,9 +401,9 @@ td:first-child{color:#e0eaff}
           <div class="signal-label">Bug Ratio (New Only)</div>
           <div class="signal-score red">0<span class="signal-unit">/100</span></div>
           <div class="signal-metric">
-            <span class="signal-metric-main">71 new bugs / 67 story-enhancement-task scope</span>
+            <span class="signal-metric-main">72 new bugs / 67 story-enhancement-task scope</span>
             <span class="signal-metric-sep">•</span>
-            <span class="signal-metric-pct">106.0%</span>
+            <span class="signal-metric-pct">107.5%</span>
           </div>
           
         </div></div>
@@ -282,10 +413,10 @@ td:first-child{color:#e0eaff}
       <div class="bug-card new-bugs">
         <div class="bug-card-icon">NEW</div>
         <div class="bug-card-title">New Bugs</div>
-        <div class="bug-card-count">71</div>
+        <div class="bug-card-count">72</div>
         <div class="bug-card-sub">Created this sprint</div>
-        <div class="bug-card-ratio">Bug Ratio: <strong>106.0%</strong> of story-enhancement-task scope</div>
-        <div class="bug-card-resolved">Resolved: <strong>49</strong> (69.0%)</div>
+        <div class="bug-card-ratio">Bug Ratio: <strong>107.5%</strong> of story-enhancement-task scope</div>
+        <div class="bug-card-resolved">Resolved: <strong>49</strong> (68.1%)</div>
         <div class="bug-card-note">Counts toward Health Score</div>
       </div>
       <div class="bug-card carried-bugs">
@@ -300,17 +431,17 @@ td:first-child{color:#e0eaff}
   <div class="card">
         <div class="bd-stats">
           <div class="bd-stat"><div class="bd-stat-val">25/18</div><div class="bd-stat-lbl">Days Elapsed</div></div>
-          <div class="bd-stat"><div class="bd-stat-val">178.0</div><div class="bd-stat-lbl">Scope Remaining</div></div>
+          <div class="bd-stat"><div class="bd-stat-val">180.0</div><div class="bd-stat-lbl">Scope Remaining</div></div>
           <div class="bd-stat"><div class="bd-stat-val">0.0</div><div class="bd-stat-lbl">Ideal Scope Remaining</div></div>
           <div class="bd-stat"><div class="bd-stat-val red">Sprint overran</div><div class="bd-stat-lbl">Status</div></div>
           <div class="bd-stat"><div class="bd-stat-val">6.4/day</div><div class="bd-stat-lbl">Velocity</div></div>
           <div class="bd-stat"><div class="bd-stat-val">2026-05-04</div><div class="bd-stat-lbl">Projected Finish</div></div>
         </div><div class="burndown-layout"><div class="burndown-chart-panel"><svg viewBox="0 0 820 320" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block">
-  <line x1="54" y1="272.0" x2="792" y2="272.0" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="276.0" text-anchor="end" font-size="10" fill="#4a90d9">0</text><line x1="54" y1="221.6" x2="792" y2="221.6" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="225.6" text-anchor="end" font-size="10" fill="#4a90d9">68</text><line x1="54" y1="171.2" x2="792" y2="171.2" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="175.2" text-anchor="end" font-size="10" fill="#4a90d9">135</text><line x1="54" y1="120.8" x2="792" y2="120.8" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="124.8" text-anchor="end" font-size="10" fill="#4a90d9">203</text><line x1="54" y1="70.4" x2="792" y2="70.4" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="74.4" text-anchor="end" font-size="10" fill="#4a90d9">270</text><line x1="54" y1="20.0" x2="792" y2="20.0" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="24.0" text-anchor="end" font-size="10" fill="#4a90d9">338</text>
+  <line x1="54" y1="272.0" x2="792" y2="272.0" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="276.0" text-anchor="end" font-size="10" fill="#4a90d9">0</text><line x1="54" y1="221.6" x2="792" y2="221.6" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="225.6" text-anchor="end" font-size="10" fill="#4a90d9">68</text><line x1="54" y1="171.2" x2="792" y2="171.2" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="175.2" text-anchor="end" font-size="10" fill="#4a90d9">136</text><line x1="54" y1="120.8" x2="792" y2="120.8" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="124.8" text-anchor="end" font-size="10" fill="#4a90d9">204</text><line x1="54" y1="70.4" x2="792" y2="70.4" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="74.4" text-anchor="end" font-size="10" fill="#4a90d9">272</text><line x1="54" y1="20.0" x2="792" y2="20.0" stroke="#1e3a5f" stroke-width="1"/><text x="48" y="24.0" text-anchor="end" font-size="10" fill="#4a90d9">340</text>
   <line x1="54" y1="20" x2="54" y2="272" stroke="#1e3a5f" stroke-width="1.5"/>
   <line x1="54" y1="272" x2="792" y2="272" stroke="#1e3a5f" stroke-width="1.5"/>
-  <polyline points="54.0,20.0 95.0,34.02 136.0,48.03 177.0,61.98 218.0,75.99 259.0,90.01 300.0,104.02 341.0,117.97 382.0,131.98 423.0,146.0 464.0,160.02 505.0,174.03 546.0,187.98 587.0,201.99 628.0,216.01 669.0,230.02 710.0,243.97 751.0,257.98 792.0,272.0" fill="none" stroke="#2d5a8e" stroke-width="2" stroke-dasharray="6,4"/>
-  <polyline points="54.0,25.96 95.0,25.96 136.0,25.96 177.0,34.17 218.0,47.59 259.0,74.43 300.0,83.37 341.0,100.52 382.0,100.52 423.0,100.52 464.0,100.52 505.0,100.52 546.0,100.52 587.0,104.99 628.0,108.72 669.0,108.72 710.0,108.72 751.0,110.96 792.0,114.69 833.0,116.18 874.0,121.4 915.0,125.12 956.0,125.12 997.0,125.12 1038.0,131.83 1079.0,139.29" fill="none" stroke="#ff4757" stroke-width="2.5"/>
+  <polyline points="54.0,20.0 95.0,34.01 136.0,48.02 177.0,62.02 218.0,76.03 259.0,89.97 300.0,103.98 341.0,117.98 382.0,131.99 423.0,146.0 464.0,160.01 505.0,174.02 546.0,188.02 587.0,202.03 628.0,215.97 669.0,229.98 710.0,243.98 751.0,257.99 792.0,272.0" fill="none" stroke="#2d5a8e" stroke-width="2" stroke-dasharray="6,4"/>
+  <polyline points="54.0,25.93 95.0,25.93 136.0,25.93 177.0,34.08 218.0,47.42 259.0,74.11 300.0,83.0 341.0,100.05 382.0,100.05 423.0,100.05 464.0,100.05 505.0,100.05 546.0,100.05 587.0,104.49 628.0,108.2 669.0,108.2 710.0,108.2 751.0,110.42 792.0,114.13 833.0,115.61 874.0,120.8 915.0,124.51 956.0,124.51 997.0,124.51 1038.0,131.18 1079.0,138.59" fill="none" stroke="#ff4757" stroke-width="2.5"/>
   <line x1="792.0" y1="20" x2="792.0" y2="272" stroke="#1a6bff" stroke-width="1.5" stroke-dasharray="4,3"/><text x="796.0" y="32" font-size="10" fill="#1a6bff">Today</text><text x="54.0" y="288" text-anchor="middle" font-size="10" fill="#4a90d9">03/12</text><text x="177.0" y="288" text-anchor="middle" font-size="10" fill="#4a90d9">03/15</text><text x="300.0" y="288" text-anchor="middle" font-size="10" fill="#4a90d9">03/18</text><text x="423.0" y="288" text-anchor="middle" font-size="10" fill="#4a90d9">03/21</text><text x="546.0" y="288" text-anchor="middle" font-size="10" fill="#4a90d9">03/24</text><text x="669.0" y="288" text-anchor="middle" font-size="10" fill="#4a90d9">03/27</text><text x="792.0" y="288" text-anchor="middle" font-size="10" fill="#4a90d9">03/30</text>
   <line x1="62" y1="314" x2="78" y2="314" stroke="#2d5a8e" stroke-width="2" stroke-dasharray="4,3"/>
   <text x="82" y="318" font-size="10" fill="#4a90d9">Ideal</text>
@@ -320,9 +451,9 @@ td:first-child{color:#e0eaff}
     <div class="burndown-breakdown-under">
       <div class="scope-breakdown">
         <div class="scope-breakdown-title">Remaining Scope Breakdown</div>
-        <div class='scope-breakdown-row'><span>Story</span><span>46 item(s)</span><strong>46.0 scope</strong></div><div class='scope-breakdown-row'><span>Bug</span><span>33 item(s)</span><strong>33.0 scope</strong></div><div class='scope-breakdown-row'><span>Sub-task</span><span>18 item(s)</span><strong>18.0 scope</strong></div><div class='scope-breakdown-row'><span>Enhancement</span><span>12 item(s)</span><strong>12.0 scope</strong></div><div class='scope-breakdown-row'><span>Task</span><span>2 item(s)</span><strong>2.0 scope</strong></div><div class='scope-breakdown-row'><span>Feature-Bug</span><span>1 item(s)</span><strong>1.0 scope</strong></div>
+        <div class='scope-breakdown-row'><span>Story</span><span>46 item(s)</span><strong>46.0 scope</strong></div><div class='scope-breakdown-row'><span>Bug</span><span>34 item(s)</span><strong>34.0 scope</strong></div><div class='scope-breakdown-row'><span>Sub-task</span><span>19 item(s)</span><strong>19.0 scope</strong></div><div class='scope-breakdown-row'><span>Enhancement</span><span>12 item(s)</span><strong>12.0 scope</strong></div><div class='scope-breakdown-row'><span>Task</span><span>2 item(s)</span><strong>2.0 scope</strong></div><div class='scope-breakdown-row'><span>Feature-Bug</span><span>1 item(s)</span><strong>1.0 scope</strong></div>
       </div>
-    </div></div>
+    </div></div><div class="burndown-side-panel">
     <div class="burndown-explainer">
       <div class="burndown-explainer-title">What This Workload Burndown Shows</div>
       <p class="burndown-explainer-copy">
@@ -339,7 +470,28 @@ td:first-child{color:#e0eaff}
       <p class="burndown-explainer-copy">
         If the actual line stays above the ideal line, the sprint is burning slower than planned. If it reaches zero by the end date, the sprint scope is fully completed.
       </p>
-    </div></div></div>
+    </div>
+    <div class="burndown-takeaways">
+      <div class="burndown-takeaways-title">Burndown Snapshot</div>
+      <div class="burndown-takeaway-grid">
+        <div class="burndown-takeaway">
+          <strong>Story</strong>
+          <span>Largest remaining work type</span>
+        </div>
+        <div class="burndown-takeaway">
+          <strong>25.6%</strong>
+          <span>Of remaining scope comes from Story</span>
+        </div>
+        <div class="burndown-takeaway">
+          <strong>180.0 scope</strong>
+          <span>Extra scope above ideal pace</span>
+        </div>
+        <div class="burndown-takeaway">
+          <strong class="red">Critical drift</strong>
+          <span>Burndown risk signal right now</span>
+        </div>
+      </div>
+    </div></div></div></div>
   <div class="section-title">Today's Developer Activity</div>
   <div class="card"><div class="dev-grid"><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Ali Husain (8 issues)</div>
             <div class="dev-issue stale">
@@ -405,13 +557,13 @@ td:first-child{color:#e0eaff}
                 <span class="issue-summary">[BE] take participants into consideration in shared competencies filters</span>
                 <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span><span class="issue-status-tag">Open → In Progress</span></div>
               </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Assma Benmussa (6 issues)</div>
+            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Assma Benmussa (7 issues)</div>
             <div class="dev-issue ">
               <span class="issue-icon" style="color:#1a6bff">STORY</span>
               <div class="issue-body">
                 <a href="https://lumofyinc.atlassian.net/browse/PM-1620" target="_blank" class="issue-key">PM-1620</a>
                 <span class="issue-summary">Admin- Talent Goals Details </span>
-                <div class="issue-tags"><span class="issue-status-tag">IN TESTING</span><span class="issue-active-tag">Active 4d</span></div>
+                <div class="issue-tags"><span class="issue-status-tag">Ready for Testing</span><span class="issue-active-tag">Active 4d</span></div>
               </div>
             </div>
             <div class="dev-issue ">
@@ -419,7 +571,7 @@ td:first-child{color:#e0eaff}
               <div class="issue-body">
                 <a href="https://lumofyinc.atlassian.net/browse/PM-1659" target="_blank" class="issue-key">PM-1659</a>
                 <span class="issue-summary">Numerical KPIs for Department &amp; Division Goals</span>
-                <div class="issue-tags"><span class="issue-status-tag">Open</span></div>
+                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
               </div>
             </div>
             <div class="dev-issue ">
@@ -451,6 +603,14 @@ td:first-child{color:#e0eaff}
               <div class="issue-body">
                 <a href="https://lumofyinc.atlassian.net/browse/PM-1934" target="_blank" class="issue-key">PM-1934</a>
                 <span class="issue-summary">[FE]: Fix steps design in AI goals creation</span>
+                <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span><span class="issue-status-tag">Open → In Progress</span></div>
+              </div>
+            </div>
+            <div class="dev-issue ">
+              <span class="issue-icon" style="color:#4a90d9">SUB</span>
+              <div class="issue-body">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1940" target="_blank" class="issue-key">PM-1940</a>
+                <span class="issue-summary">[FE]: make the goal item in admin aligned goal form match the design</span>
                 <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
               </div>
             </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Abdulrahman Al-Tayeb (4 issues)</div>
@@ -581,7 +741,7 @@ td:first-child{color:#e0eaff}
               <div class="issue-body">
                 <a href="https://lumofyinc.atlassian.net/browse/PM-1620" target="_blank" class="issue-key">PM-1620</a>
                 <span class="issue-summary">Admin- Talent Goals Details </span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 5.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span></div>
+                <div class="issue-tags"><span class="issue-active-tag">[clock] 5.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for Testing (Abdelrahman Tarek)</span></div>
               </div>
             </div>
             <div class="dev-issue">
@@ -605,7 +765,7 @@ td:first-child{color:#e0eaff}
               <div class="issue-body">
                 <a href="https://lumofyinc.atlassian.net/browse/PM-1706" target="_blank" class="issue-key">PM-1706</a>
                 <span class="issue-summary">Manager- Add talent goals - Manual</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 7.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for Testing (Abdelrahman Tarek)</span></div>
+                <div class="issue-tags"><span class="issue-active-tag">[clock] 7.1d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for Testing (Abdelrahman Tarek)</span></div>
               </div>
             </div>
             <div class="dev-issue">
@@ -736,48 +896,74 @@ td:first-child{color:#e0eaff}
                 <div class="issue-tags"><span class="issue-active-tag">[clock] 5.3d in testing</span><span class="issue-status-tag">IN TESTING -> Pending Fixes (Mohammad Akram)</span><span class="issue-status-tag">Pending Fixes -> Ready for PM Review (Mohammad Akram)</span></div>
               </div>
             </div></div></div>
-  <div class="section-title">Today's Tester Bugs</div>
-  <div class="card"><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Tester: Abdelrahman Tarek (3 bugs)</div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1926" target="_blank" class="issue-key">PM-1926</a>
-                <span class="issue-summary">502 Status Code Returned When Exporting Competencies</span>
-                <div class="issue-tags"><span class="issue-status-tag">REOPEN</span><span class="issue-stale-tag">Not linked to a Story</span><span class="issue-active-tag">Sprint: Sprint 15 - PM Sprint 6</span></div>
+  <div class="section-title">Today's Bug Reports</div>
+  <div class="card"><div class='bug-report-shell'><div class='bug-report-head'><div><div class='bug-report-title'>Today's Bug Reports</div><div class='bug-report-subtitle'>Grouped by the person who created the bug today.</div></div><div class='bug-report-meta'>4 reporters</div></div><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Bugs</span><strong class='bug-report-metric-value'>6</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>3</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>2</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>1</strong></div><div class='bug-report-metric metric-storyless'><span class='bug-report-metric-label'>No Story</span><strong class='bug-report-metric-value'>4</strong></div></div><div class='bug-report-groups'><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'>AT</div><div class='bug-person-meta'><div class='bug-person-name'>Abdelrahman Tarek</div><div class='bug-person-count'>3 bugs</div></div></div><div class='bug-person-grid'>
+            <article class="bug-ticket-card reopened">
+              <div class="bug-ticket-top">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1926" target="_blank" class="bug-ticket-key">PM-1926</a>
+                <span class="bug-ticket-status reopened">Reopened</span>
               </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1932" target="_blank" class="issue-key">PM-1932</a>
-                <span class="issue-summary">The manager adding department and division goals is not working at all</span>
-                <div class="issue-tags"><span class="issue-status-tag">Open</span><span class="issue-status-tag">Linked Story: PM-1707</span><span class="issue-active-tag">Sprint: Sprint 15 - PM Sprint 6</span></div>
+              <a href="https://lumofyinc.atlassian.net/browse/PM-1926" target="_blank" class="bug-ticket-summary">502 Status Code Returned When Exporting Competencies</a>
+              <div class="bug-ticket-tags">
+                <span class='bug-tag bug-tag-storyless'>No Story</span>
+                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
               </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1933" target="_blank" class="issue-key">PM-1933</a>
-                <span class="issue-summary">All tooltips pictures for Potential Rating not readable</span>
-                <div class="issue-tags"><span class="issue-status-tag">Open</span><span class="issue-status-tag">Linked Story: PM-1650</span><span class="issue-active-tag">Sprint: Sprint 15 - PM Sprint 6</span></div>
+            </article>
+            <article class="bug-ticket-card open">
+              <div class="bug-ticket-top">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1932" target="_blank" class="bug-ticket-key">PM-1932</a>
+                <span class="bug-ticket-status open">Open</span>
               </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Tester: Mohamed Selem (1 bug)</div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="issue-key">PM-1938</a>
-                <span class="issue-summary">Admin Can Add Department Goals Before Configured Start Date</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-stale-tag">Not linked to a Story</span><span class="issue-active-tag">Sprint: Sprint 15 - PM Sprint 6</span></div>
+              <a href="https://lumofyinc.atlassian.net/browse/PM-1932" target="_blank" class="bug-ticket-summary">The manager adding department and division goals is not working at all</a>
+              <div class="bug-ticket-tags">
+                <span class='bug-tag bug-tag-link'>Story: PM-1707</span>
+                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
               </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Tester: Safa AlFulaij (1 bug)</div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="issue-key">PM-1929</a>
-                <span class="issue-summary">When showing competencies valid for a job track/job level, we must only take into consider...</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-stale-tag">Not linked to a Story</span><span class="issue-active-tag">Sprint: Sprint 15 - PM Sprint 6</span></div>
+            </article>
+            <article class="bug-ticket-card open">
+              <div class="bug-ticket-top">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1933" target="_blank" class="bug-ticket-key">PM-1933</a>
+                <span class="bug-ticket-status open">Open</span>
               </div>
-            </div></div></div>
+              <a href="https://lumofyinc.atlassian.net/browse/PM-1933" target="_blank" class="bug-ticket-summary">All tooltips pictures for Potential Rating not readable</a>
+              <div class="bug-ticket-tags">
+                <span class='bug-tag bug-tag-link'>Story: PM-1650</span>
+                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+              </div>
+            </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'>MS</div><div class='bug-person-meta'><div class='bug-person-name'>Mohamed Selem</div><div class='bug-person-count'>1 bug</div></div></div><div class='bug-person-grid'>
+            <article class="bug-ticket-card in-progress">
+              <div class="bug-ticket-top">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="bug-ticket-key">PM-1938</a>
+                <span class="bug-ticket-status in-progress">In Progress</span>
+              </div>
+              <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="bug-ticket-summary">Admin Can Add Department Goals Before Configured Start Date</a>
+              <div class="bug-ticket-tags">
+                <span class='bug-tag bug-tag-storyless'>No Story</span>
+                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+              </div>
+            </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'>MA</div><div class='bug-person-meta'><div class='bug-person-name'>Mohammad Akram</div><div class='bug-person-count'>1 bug</div></div></div><div class='bug-person-grid'>
+            <article class="bug-ticket-card open">
+              <div class="bug-ticket-top">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1939" target="_blank" class="bug-ticket-key">PM-1939</a>
+                <span class="bug-ticket-status open">Open</span>
+              </div>
+              <a href="https://lumofyinc.atlassian.net/browse/PM-1939" target="_blank" class="bug-ticket-summary">Exclude Specific Talents Not Saved When Creating Performance Cycle and Saving as Draft</a>
+              <div class="bug-ticket-tags">
+                <span class='bug-tag bug-tag-storyless'>No Story</span>
+                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+              </div>
+            </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'>SA</div><div class='bug-person-meta'><div class='bug-person-name'>Safa AlFulaij</div><div class='bug-person-count'>1 bug</div></div></div><div class='bug-person-grid'>
+            <article class="bug-ticket-card in-progress">
+              <div class="bug-ticket-top">
+                <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="bug-ticket-key">PM-1929</a>
+                <span class="bug-ticket-status in-progress">In Progress</span>
+              </div>
+              <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="bug-ticket-summary">When showing competencies valid for a job track/job level, we must only take into consideration talents added ...</a>
+              <div class="bug-ticket-tags">
+                <span class='bug-tag bug-tag-storyless'>No Story</span>
+                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+              </div>
+            </article></div></section></div></div></div>
   
   <div class="section-title">Weighted Formula</div>
   <div class="card">
@@ -794,56 +980,72 @@ td:first-child{color:#e0eaff}
       <div class="value">= 26</div>
     </div>
   </div>
-  <div class="section-title">Sprint Details</div>
-  <div class="card">
-    <div class="tables-grid">
-      <div>
-        <strong style="color:#e0eaff">Carryover Breakdown</strong>
-        <table style="margin-top:10px"><thead><tr><th>Status</th><th>Issues</th></tr></thead><tbody><tr><td>Open</td><td>23</td></tr>
-<tr><td>Ready for Testing</td><td>19</td></tr>
-<tr><td>In Progress</td><td>14</td></tr>
-<tr><td>CODE REVIEW</td><td>14</td></tr>
-<tr><td>Ready for PM Review</td><td>14</td></tr>
-<tr><td>Pending Fixes</td><td>9</td></tr>
-<tr><td>ON HOLD</td><td>9</td></tr>
-<tr><td>Ready to Release</td><td>7</td></tr>
-<tr><td>REOPEN</td><td>2</td></tr>
-<tr><td>IN TESTING</td><td>1</td></tr></tbody></table>
-      </div>
-      <div>
-        <strong style="color:#e0eaff">Age of Unfinished Issues</strong>
-        <div style="font-size:12px;color:#4a90d9;margin:6px 0">Avg: 29.8 days</div>
-        <table><thead><tr><th>Bucket</th><th>Issues</th><th>Distribution</th></tr></thead><tbody><tr><td>0-3d</td><td>14</td><td><div class='bar'><span style='width:12.5%'></span></div></td></tr>
-<tr><td>4-7d</td><td>3</td><td><div class='bar'><span style='width:2.7%'></span></div></td></tr>
-<tr><td>8-14d</td><td>1</td><td><div class='bar'><span style='width:0.9%'></span></div></td></tr>
-<tr><td>15+d</td><td>94</td><td><div class='bar'><span style='width:83.9%'></span></div></td></tr></tbody></table>
+  
+    <div class="section-title">Sprint Details</div>
+    <div class="sprint-details-shell">
+      <div class='details-summary-bar'><div class='details-summary-main'>Sprint 15 - PM Sprint 6 <span class='details-state'>(Extended)</span></div><div class='details-summary-meta'>Dates: 2026-03-12 - 2026-03-30</div><div class='details-summary-meta'>Total Issues: 340 (66% complete)</div></div>
+      <div class="sprint-details-grid">
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Carryover Breakdown &amp; Status Summary</h3>
+            <span>Status view</span>
+          </div>
+          <div class="details-subpanel">
+            <div class="details-subtitle">Progress Overview</div>
+            <div class="details-progress-layout">
+              
+    <svg viewBox="0 0 120 120" class="details-donut" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="60" cy="60" r="42" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="14"/>
+      <circle cx="60" cy="60" r="42" fill="none" stroke="#00d4aa" stroke-width="14"
+        stroke-linecap="round" stroke-dasharray="175.41 263.89356" transform="rotate(-90 60 60)"/>
+      <circle cx="60" cy="60" r="42" fill="none" stroke="#1a6bff" stroke-width="14"
+        stroke-linecap="round" stroke-dasharray="88.48 263.89356" stroke-dashoffset="-175.41"
+        transform="rotate(-90 60 60)"/>
+      <circle cx="60" cy="60" r="28" fill="#101d34"/>
+      <text x="60" y="55" text-anchor="middle" class="details-donut-value">66%</text>
+      <text x="60" y="71" text-anchor="middle" class="details-donut-label">Complete</text>
+    </svg>
+              <div class="details-legend">
+                <div><i class="done"></i>Completed</div>
+                <div><i class="progress"></i>Carryover</div>
+                <div><i class="blocked"></i>Blocked / On Hold</div>
+              </div>
+            </div>
+          </div>
+          <div class="details-subpanel">
+            <div class="details-subpanel-top">
+              <div class="details-subtitle">Critical Status List</div>
+              <div class="details-subnote">Average Time in Status</div>
+            </div>
+            <div class="status-chip-grid">
+              <div class='status-chip'><span>Open</span><strong>22</strong></div><div class='status-chip'><span>Ready for Testing</span><strong>19</strong></div><div class='status-chip'><span>In Progress</span><strong>16</strong></div><div class='status-chip'><span>CODE REVIEW</span><strong>15</strong></div><div class='status-chip'><span>Ready for PM Review</span><strong>14</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Age of Unfinished Issues</h3>
+            <span>Avg. 29.4 Days</span>
+          </div>
+          <div class="details-big-metric">Average Age: 29.4 Days</div>
+          <div class='age-chart'><div class='age-bar-col'><div class='age-bar-value'>16</div><div class='age-bar' style='height:24px;background:#00d4aa'></div><div class='age-bar-label'>0-3d</div></div><div class='age-bar-col'><div class='age-bar-value'>1</div><div class='age-bar' style='height:10px;background:#1a6bff'></div><div class='age-bar-label'>4-7d</div></div><div class='age-bar-col'><div class='age-bar-value'>3</div><div class='age-bar' style='height:10px;background:#fbbf24'></div><div class='age-bar-label'>8-14d</div></div><div class='age-bar-col'><div class='age-bar-value'>94</div><div class='age-bar' style='height:140px;background:#4a90d9'></div><div class='age-bar-label'>15+d</div></div></div>
+        </div>
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Issue Type Breakdown</h3>
+            <span>Types</span>
+          </div>
+          <div class='issue-type-layout'><div class='issue-type-donut-wrap'><svg viewBox='0 0 120 120' class='details-donut' xmlns='http://www.w3.org/2000/svg'><circle cx='60' cy='60' r='42' fill='none' stroke='rgba(255,255,255,.07)' stroke-width='14'/><circle cx='60' cy='60' r='42' fill='none' stroke='#00d4aa' stroke-width='14' stroke-dasharray='125.74 263.89356' stroke-dashoffset='-0.0' transform='rotate(-90 60 60)'/><circle cx='60' cy='60' r='42' fill='none' stroke='#ff4757' stroke-width='14' stroke-dasharray='84.6 263.89356' stroke-dashoffset='-125.74' transform='rotate(-90 60 60)'/><circle cx='60' cy='60' r='42' fill='none' stroke='#1a6bff' stroke-width='14' stroke-dasharray='38.81 263.89356' stroke-dashoffset='-210.33999999999997' transform='rotate(-90 60 60)'/><circle cx='60' cy='60' r='42' fill='none' stroke='#4a90d9' stroke-width='14' stroke-dasharray='11.64 263.89356' stroke-dashoffset='-249.14999999999998' transform='rotate(-90 60 60)'/><circle cx='60' cy='60' r='42' fill='none' stroke='#a78bfa' stroke-width='14' stroke-dasharray='1.55 263.89356' stroke-dashoffset='-260.78999999999996' transform='rotate(-90 60 60)'/><circle cx='60' cy='60' r='42' fill='none' stroke='#fbbf24' stroke-width='14' stroke-dasharray='1.55 263.89356' stroke-dashoffset='-262.34' transform='rotate(-90 60 60)'/><circle cx='60' cy='60' r='28' fill='#101d34'/><text x='60' y='64' text-anchor='middle' class='details-donut-value'>340</text></svg></div><div class='issue-type-list'><div class='issue-type-row'><div class='issue-type-name'><i style='background:#00d4aa'></i>Sub-task</div><div class='issue-type-count'>162</div><div class='issue-type-pct'>47.6%</div><div class='issue-type-track'><span style='width:47.6%;background:#00d4aa'></span></div></div><div class='issue-type-row'><div class='issue-type-name'><i style='background:#ff4757'></i>Bug</div><div class='issue-type-count'>109</div><div class='issue-type-pct'>32.1%</div><div class='issue-type-track'><span style='width:32.1%;background:#ff4757'></span></div></div><div class='issue-type-row'><div class='issue-type-name'><i style='background:#1a6bff'></i>Story</div><div class='issue-type-count'>50</div><div class='issue-type-pct'>14.7%</div><div class='issue-type-track'><span style='width:14.7%;background:#1a6bff'></span></div></div><div class='issue-type-row'><div class='issue-type-name'><i style='background:#4a90d9'></i>Enhancement</div><div class='issue-type-count'>15</div><div class='issue-type-pct'>4.4%</div><div class='issue-type-track'><span style='width:4.4%;background:#4a90d9'></span></div></div><div class='issue-type-row'><div class='issue-type-name'><i style='background:#a78bfa'></i>Feature-Bug</div><div class='issue-type-count'>2</div><div class='issue-type-pct'>0.6%</div><div class='issue-type-track'><span style='width:0.6%;background:#a78bfa'></span></div></div><div class='issue-type-row'><div class='issue-type-name'><i style='background:#fbbf24'></i>Task</div><div class='issue-type-count'>2</div><div class='issue-type-pct'>0.6%</div><div class='issue-type-track'><span style='width:0.6%;background:#fbbf24'></span></div></div></div></div>
+        </div>
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Workload by Assignee</h3>
+            <span>Current Load</span>
+          </div>
+          <div class='assignee-list'><div class='assignee-row'><div class='assignee-name'>Assma Benmussa</div><div class='assignee-load'><span class='seg seg-a' style='width:10.0%'></span><span class='seg seg-b' style='width:5.5%'></span><span class='seg seg-c' style='width:2.7%'></span></div><div class='assignee-count'>62</div></div><div class='assignee-row'><div class='assignee-name'>Safa AlFulaij</div><div class='assignee-load'><span class='seg seg-a' style='width:7.9%'></span><span class='seg seg-b' style='width:4.3%'></span><span class='seg seg-c' style='width:2.2%'></span></div><div class='assignee-count'>49</div></div><div class='assignee-row'><div class='assignee-name'>Ali Husain</div><div class='assignee-load'><span class='seg seg-a' style='width:6.8%'></span><span class='seg seg-b' style='width:3.7%'></span><span class='seg seg-c' style='width:1.9%'></span></div><div class='assignee-count'>42</div></div><div class='assignee-row'><div class='assignee-name'>Moses Oderinde</div><div class='assignee-load'><span class='seg seg-a' style='width:5.8%'></span><span class='seg seg-b' style='width:3.2%'></span><span class='seg seg-c' style='width:1.6%'></span></div><div class='assignee-count'>36</div></div><div class='assignee-row'><div class='assignee-name'>Mutasim AlMualimi</div><div class='assignee-load'><span class='seg seg-a' style='width:5.7%'></span><span class='seg seg-b' style='width:3.1%'></span><span class='seg seg-c' style='width:1.5%'></span></div><div class='assignee-count'>35</div></div><div class='assignee-row'><div class='assignee-name'>Abdulrahman Al-Tayeb</div><div class='assignee-load'><span class='seg seg-a' style='width:5.0%'></span><span class='seg seg-b' style='width:2.7%'></span><span class='seg seg-c' style='width:1.4%'></span></div><div class='assignee-count'>31</div></div><div class='assignee-row'><div class='assignee-name'>Abdelrahman Elhassanin</div><div class='assignee-load'><span class='seg seg-a' style='width:4.3%'></span><span class='seg seg-b' style='width:2.4%'></span><span class='seg seg-c' style='width:1.2%'></span></div><div class='assignee-count'>27</div></div><div class='assignee-row'><div class='assignee-name'>Ahmad ElSayed</div><div class='assignee-load'><span class='seg seg-a' style='width:3.7%'></span><span class='seg seg-b' style='width:2.0%'></span><span class='seg seg-c' style='width:1.0%'></span></div><div class='assignee-count'>23</div></div></div>
+        </div>
       </div>
     </div>
-    <div class="tables-grid" style="margin-top:24px">
-      <div>
-        <strong style="color:#e0eaff">Issue Type Distribution</strong>
-        <table style="margin-top:10px"><thead><tr><th>Type</th><th>Issues</th><th>%</th></tr></thead><tbody><tr><td>Sub-task</td><td>161</td><td>47.6%</td></tr>
-<tr><td>Bug</td><td>108</td><td>32.0%</td></tr>
-<tr><td>Story</td><td>50</td><td>14.8%</td></tr>
-<tr><td>Enhancement</td><td>15</td><td>4.4%</td></tr>
-<tr><td>Feature-Bug</td><td>2</td><td>0.6%</td></tr>
-<tr><td>Task</td><td>2</td><td>0.6%</td></tr></tbody></table>
-      </div>
-      <div>
-        <strong style="color:#e0eaff">Workload by Assignee</strong>
-        <table style="margin-top:10px"><thead><tr><th>Assignee</th><th>Issues</th><th>Share</th></tr></thead><tbody><tr><td>Assma Benmussa</td><td>61</td><td><div class='bar'><span style='width:18.0%'></span></div></td></tr>
-<tr><td>Safa AlFulaij</td><td>49</td><td><div class='bar'><span style='width:14.5%'></span></div></td></tr>
-<tr><td>Ali Husain</td><td>42</td><td><div class='bar'><span style='width:12.4%'></span></div></td></tr>
-<tr><td>Moses Oderinde</td><td>36</td><td><div class='bar'><span style='width:10.7%'></span></div></td></tr>
-<tr><td>Mutasim AlMualimi</td><td>35</td><td><div class='bar'><span style='width:10.4%'></span></div></td></tr>
-<tr><td>Abdulrahman Al-Tayeb</td><td>31</td><td><div class='bar'><span style='width:9.2%'></span></div></td></tr>
-<tr><td>Abdelrahman Elhassanin</td><td>27</td><td><div class='bar'><span style='width:8.0%'></span></div></td></tr>
-<tr><td>Ahmad ElSayed</td><td>22</td><td><div class='bar'><span style='width:6.5%'></span></div></td></tr>
-<tr><td>Unassigned</td><td>19</td><td><div class='bar'><span style='width:5.6%'></span></div></td></tr>
-<tr><td>Mohammed Elgohary</td><td>7</td><td><div class='bar'><span style='width:2.1%'></span></div></td></tr></tbody></table>
-      </div>
-    </div>
-  </div>
   <div class="section-title">Score Interpretation</div>
   <div class="card">
     <div class="interp-grid">
@@ -863,7 +1065,7 @@ td:first-child{color:#e0eaff}
     </a>
     <div class="fab-tooltip">Admin Dashboard</div>
   </div>
-  <div class="footer">Lumofy QA | Sprint Health Dashboard | 2026-04-06 12:27 UTC</div>
+  <div class="footer">Lumofy QA | Sprint Health Dashboard | 2026-04-06 13:57 UTC</div>
 </div>
 </body>
 </html>

@@ -1931,6 +1931,232 @@ def _build_remaining_scope_breakdown_html(bd: dict) -> str:
     </div>"""
 
 
+def _build_burndown_takeaways_html(bd: dict) -> str:
+    if not bd:
+        return ""
+    remaining_breakdown = bd.get("remaining_breakdown") or []
+    top_item = remaining_breakdown[0] if remaining_breakdown else None
+    top_type = top_item["type"] if top_item else "N/A"
+    top_scope = float(top_item["scope"]) if top_item else 0.0
+    total_remaining = max(float(bd.get("current_remaining", 0.0) or 0.0), 1.0)
+    top_share = round((top_scope / total_remaining) * 100, 1) if top_item else 0.0
+
+    behind_by = max(0.0, float(bd.get("behind_by", 0.0) or 0.0))
+    risk_label = "Critical drift" if bd.get("is_extended") else ("Healthy pace" if bd.get("on_track") else "Needs catch-up")
+    risk_class = "green" if bd.get("on_track") and not bd.get("is_extended") else "red"
+    return f"""
+    <div class="burndown-takeaways">
+      <div class="burndown-takeaways-title">Burndown Snapshot</div>
+      <div class="burndown-takeaway-grid">
+        <div class="burndown-takeaway">
+          <strong>{escape(top_type)}</strong>
+          <span>Largest remaining work type</span>
+        </div>
+        <div class="burndown-takeaway">
+          <strong>{top_share}%</strong>
+          <span>Of remaining scope comes from {escape(top_type)}</span>
+        </div>
+        <div class="burndown-takeaway">
+          <strong>{behind_by} scope</strong>
+          <span>Extra scope above ideal pace</span>
+        </div>
+        <div class="burndown-takeaway">
+          <strong class="{risk_class}">{escape(risk_label)}</strong>
+          <span>Burndown risk signal right now</span>
+        </div>
+      </div>
+    </div>"""
+
+
+def _build_progress_donut_svg(completed: int, total: int) -> str:
+    total = max(int(total or 0), 1)
+    completed = max(0, min(int(completed or 0), total))
+    remaining = total - completed
+    pct = round((completed / total) * 100)
+
+    r = 42
+    c = 2 * 3.14159 * r
+    completed_len = round(c * (completed / total), 2)
+    remaining_len = round(c * (remaining / total), 2)
+    return f"""
+    <svg viewBox="0 0 120 120" class="details-donut" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="60" cy="60" r="{r}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="14"/>
+      <circle cx="60" cy="60" r="{r}" fill="none" stroke="#00d4aa" stroke-width="14"
+        stroke-linecap="round" stroke-dasharray="{completed_len} {c}" transform="rotate(-90 60 60)"/>
+      <circle cx="60" cy="60" r="{r}" fill="none" stroke="#1a6bff" stroke-width="14"
+        stroke-linecap="round" stroke-dasharray="{remaining_len} {c}" stroke-dashoffset="{-completed_len}"
+        transform="rotate(-90 60 60)"/>
+      <circle cx="60" cy="60" r="28" fill="#101d34"/>
+      <text x="60" y="55" text-anchor="middle" class="details-donut-value">{pct}%</text>
+      <text x="60" y="71" text-anchor="middle" class="details-donut-label">Complete</text>
+    </svg>"""
+
+
+def _build_age_distribution_chart_html(age_buckets: dict) -> str:
+    if not age_buckets:
+        return "<div class='details-empty'>No unfinished issues yet.</div>"
+    max_val = max(age_buckets.values()) if age_buckets else 0
+    max_val = max(max_val, 1)
+    bars = []
+    colors = ["#00d4aa", "#1a6bff", "#fbbf24", "#4a90d9"]
+    for idx, (label, value) in enumerate(age_buckets.items()):
+        height = max(10, round((value / max_val) * 140)) if value else 6
+        bars.append(
+            f"<div class='age-bar-col'>"
+            f"<div class='age-bar-value'>{value}</div>"
+            f"<div class='age-bar' style='height:{height}px;background:{colors[idx % len(colors)]}'></div>"
+            f"<div class='age-bar-label'>{escape(label)}</div>"
+            f"</div>"
+        )
+    return f"<div class='age-chart'>{''.join(bars)}</div>"
+
+
+def _build_issue_type_breakdown_panel(issue_type_counts: dict, total: int) -> str:
+    if not issue_type_counts:
+        return "<div class='details-empty'>No issue type data.</div>"
+    colors = {
+        "Sub-task": "#00d4aa",
+        "Bug": "#ff4757",
+        "Story": "#1a6bff",
+        "Enhancement": "#4a90d9",
+        "Feature-Bug": "#a78bfa",
+        "Task": "#fbbf24",
+    }
+    total = max(int(total or 0), 1)
+    rows = []
+    donut_segments = []
+    offset = 0.0
+    circumference = 2 * 3.14159 * 42
+    sorted_items = list(issue_type_counts.items())[:6]
+    for issue_type, count in sorted_items:
+        pct = round((count / total) * 100, 1)
+        color = colors.get(issue_type, "#4a90d9")
+        seg = round((count / total) * circumference, 2)
+        donut_segments.append(
+            f"<circle cx='60' cy='60' r='42' fill='none' stroke='{color}' stroke-width='14' "
+            f"stroke-dasharray='{seg} {circumference}' stroke-dashoffset='{-offset}' transform='rotate(-90 60 60)'/>"
+        )
+        offset += seg
+        rows.append(
+            f"<div class='issue-type-row'>"
+            f"<div class='issue-type-name'><i style='background:{color}'></i>{escape(issue_type)}</div>"
+            f"<div class='issue-type-count'>{count}</div>"
+            f"<div class='issue-type-pct'>{pct}%</div>"
+            f"<div class='issue-type-track'><span style='width:{pct}%;background:{color}'></span></div>"
+            f"</div>"
+        )
+    donut = (
+        "<svg viewBox='0 0 120 120' class='details-donut' xmlns='http://www.w3.org/2000/svg'>"
+        "<circle cx='60' cy='60' r='42' fill='none' stroke='rgba(255,255,255,.07)' stroke-width='14'/>"
+        + "".join(donut_segments) +
+        f"<circle cx='60' cy='60' r='28' fill='#101d34'/><text x='60' y='64' text-anchor='middle' class='details-donut-value'>{total}</text></svg>"
+    )
+    return (
+        "<div class='issue-type-layout'>"
+        f"<div class='issue-type-donut-wrap'>{donut}</div>"
+        f"<div class='issue-type-list'>{''.join(rows)}</div>"
+        "</div>"
+    )
+
+
+def _build_assignee_workload_panel(assignee_counts: dict, total: int) -> str:
+    if not assignee_counts:
+        return "<div class='details-empty'>No assignee workload data.</div>"
+    total = max(int(total or 0), 1)
+    rows = []
+    for assignee, count in list(assignee_counts.items())[:8]:
+        share = round((count / total) * 100, 1)
+        primary = min(100, round(share * 0.55, 1))
+        secondary = min(100 - primary, round(share * 0.30, 1))
+        tertiary = min(100 - primary - secondary, round(share * 0.15, 1))
+        rows.append(
+            f"<div class='assignee-row'>"
+            f"<div class='assignee-name'>{escape(assignee)}</div>"
+            f"<div class='assignee-load'>"
+            f"<span class='seg seg-a' style='width:{primary}%'></span>"
+            f"<span class='seg seg-b' style='width:{secondary}%'></span>"
+            f"<span class='seg seg-c' style='width:{tertiary}%'></span>"
+            f"</div>"
+            f"<div class='assignee-count'>{count}</div>"
+            f"</div>"
+        )
+    return f"<div class='assignee-list'>{''.join(rows)}</div>"
+
+
+def _build_sprint_details_html(r: dict) -> str:
+    completion_pct = round((r.get("done", 0) / max(r.get("total", 0), 1)) * 100)
+    sprint_state = (r.get("sprint_state") or "").strip()
+    state_label = "Active" if sprint_state == "active" else ("Extended" if sprint_state == "extended" else sprint_state.title())
+    summary = (
+        f"<div class='details-summary-bar'>"
+        f"<div class='details-summary-main'>{escape(r.get('sprint_name', 'Sprint'))} "
+        f"<span class='details-state'>({escape(state_label)})</span></div>"
+        f"<div class='details-summary-meta'>Dates: {escape(r.get('sprint_start') or 'N/A')} - {escape(r.get('sprint_end') or 'N/A')}</div>"
+        f"<div class='details-summary-meta'>Total Issues: {r.get('total', 0)} ({completion_pct}% complete)</div>"
+        f"</div>"
+    )
+    avg_age = r.get("avg_unfinished_age_days")
+    avg_age_label = f"{avg_age} Days" if avg_age is not None else "N/A"
+    return f"""
+    <div class="section-title">Sprint Details</div>
+    <div class="sprint-details-shell">
+      {summary}
+      <div class="sprint-details-grid">
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Carryover Breakdown &amp; Status Summary</h3>
+            <span>Status view</span>
+          </div>
+          <div class="details-subpanel">
+            <div class="details-subtitle">Progress Overview</div>
+            <div class="details-progress-layout">
+              {_build_progress_donut_svg(r.get('done', 0), r.get('total', 0))}
+              <div class="details-legend">
+                <div><i class="done"></i>Completed</div>
+                <div><i class="progress"></i>Carryover</div>
+                <div><i class="blocked"></i>Blocked / On Hold</div>
+              </div>
+            </div>
+          </div>
+          <div class="details-subpanel">
+            <div class="details-subpanel-top">
+              <div class="details-subtitle">Critical Status List</div>
+              <div class="details-subnote">Average Time in Status</div>
+            </div>
+            <div class="status-chip-grid">
+              {''.join(
+                  f"<div class='status-chip'><span>{escape(status)}</span><strong>{count}</strong></div>"
+                  for status, count in list(sorted(r.get('unfinished_status_counts', {}).items(), key=lambda x: -x[1]))[:5]
+              ) or "<div class='details-empty'>No critical statuses.</div>"}
+            </div>
+          </div>
+        </div>
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Age of Unfinished Issues</h3>
+            <span>Avg. {avg_age_label}</span>
+          </div>
+          <div class="details-big-metric">Average Age: {avg_age_label}</div>
+          {_build_age_distribution_chart_html(r.get('age_buckets', {}))}
+        </div>
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Issue Type Breakdown</h3>
+            <span>Types</span>
+          </div>
+          {_build_issue_type_breakdown_panel(r.get('issue_type_counts', {}), r.get('total', 0))}
+        </div>
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Workload by Assignee</h3>
+            <span>Current Load</span>
+          </div>
+          {_build_assignee_workload_panel(r.get('assignee_counts', {}), r.get('total', 0))}
+        </div>
+      </div>
+    </div>"""
+
+
 def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
     icon, color = ALL_ISSUE_TYPES.get(iss["type"], DEFAULT_ISSUE_ICON)
     done_style  = "opacity:0.6;text-decoration:line-through;" if iss.get("is_done") else ""
@@ -2087,37 +2313,106 @@ def _build_qa_activity_html(qa_items: list) -> str:
 
 def _build_todays_bug_reports_html(bugs: list) -> str:
     if not bugs:
-        return "<p style='color:#4a90d9;font-style:italic;text-align:center;padding:20px'>No bug tickets created today.</p>"
+        return (
+            "<div class='bug-report-shell empty'>"
+            "<div class='bug-report-empty'>No bug tickets were created today.</div>"
+            "</div>"
+        )
+
+    def _person_initials(name: str) -> str:
+        parts = [part for part in (name or "Unknown").split() if part]
+        if not parts:
+            return "UN"
+        if len(parts) == 1:
+            return parts[0][:2].upper()
+        return (parts[0][0] + parts[1][0]).upper()
+
+    def _normalize_bug_status(status: str) -> tuple[str, str]:
+        raw = (status or "").strip()
+        lowered = raw.lower()
+        if "reopen" in lowered:
+            return "reopened", "Reopened"
+        if "progress" in lowered:
+            return "in-progress", "In Progress"
+        if lowered in {"open", "to do", "todo", "selected for development", "pending fixes"}:
+            return "open", "Open"
+        return "other", raw.title() if raw else "Unknown"
+
     by_creator: dict[str, list] = {}
+    status_counts = {"open": 0, "in-progress": 0, "reopened": 0}
+    no_story_count = 0
     for bug in bugs:
         creator = bug.get("created_by", "Unknown")
+        status_key, _ = _normalize_bug_status(bug.get("status", ""))
+        if status_key in status_counts:
+            status_counts[status_key] += 1
+        if not bug.get("is_linked_to_story"):
+            no_story_count += 1
         by_creator.setdefault(creator, []).append(bug)
-    html = ""
+
+    metric_specs = [
+        ("Total Bugs", len(bugs), "metric-total"),
+        ("Open", status_counts["open"], "metric-open"),
+        ("In Progress", status_counts["in-progress"], "metric-progress"),
+        ("Reopened", status_counts["reopened"], "metric-reopened"),
+        ("No Story", no_story_count, "metric-storyless"),
+    ]
+
+    html = (
+        "<div class='bug-report-shell'>"
+        "<div class='bug-report-head'>"
+        "<div>"
+        "<div class='bug-report-title'>Today's Bug Reports</div>"
+        "<div class='bug-report-subtitle'>Grouped by the person who created the bug today.</div>"
+        "</div>"
+        f"<div class='bug-report-meta'>{len(by_creator)} reporter{'s' if len(by_creator) != 1 else ''}</div>"
+        "</div>"
+        "<div class='bug-report-metrics'>"
+    )
+
+    for label, value, css_class in metric_specs:
+        html += (
+            f"<div class='bug-report-metric {css_class}'>"
+            f"<span class='bug-report-metric-label'>{escape(label)}</span>"
+            f"<strong class='bug-report-metric-value'>{value}</strong>"
+            "</div>"
+        )
+    html += "</div><div class='bug-report-groups'>"
+
     for creator, creator_bugs in sorted(by_creator.items(), key=lambda x: (-len(x[1]), x[0].lower())):
         html += (
-            f'<div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">'
-            f'Tester: {escape(creator)} ({len(creator_bugs)} bug{"s" if len(creator_bugs) != 1 else ""})'
+            f"<section class='bug-person-card'>"
+            f"<div class='bug-person-header'>"
+            f"<div class='bug-person-avatar'>{escape(_person_initials(creator))}</div>"
+            f"<div class='bug-person-meta'>"
+            f"<div class='bug-person-name'>{escape(creator)}</div>"
+            f"<div class='bug-person-count'>{len(creator_bugs)} bug{'s' if len(creator_bugs) != 1 else ''}</div>"
             f"</div>"
+            f"</div>"
+            f"<div class='bug-person-grid'>"
         )
         for bug in sorted(creator_bugs, key=lambda b: b.get("key", "")):
-            icon, icolor = ALL_ISSUE_TYPES.get(bug["type"], DEFAULT_ISSUE_ICON)
-            link_tag = (
-                f'<span class="issue-status-tag">Linked Story: {escape(bug["linked_story"])}</span>'
+            status_class, status_label = _normalize_bug_status(bug.get("status", ""))
+            story_tag = (
+                f"<span class='bug-tag bug-tag-link'>Story: {escape(bug['linked_story'])}</span>"
                 if bug.get("is_linked_to_story")
-                else '<span class="issue-stale-tag">Not linked to a Story</span>'
+                else "<span class='bug-tag bug-tag-storyless'>No Story</span>"
             )
-            sprint_tag = f'<span class="issue-active-tag">Sprint: {escape(bug.get("sprint_placement", "Backlog"))}</span>'
-            status_tag = f'<span class="issue-status-tag">{escape(bug.get("status", ""))}</span>'
+            sprint_label = escape(bug.get("sprint_placement", "Backlog"))
             html += f"""
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:{icolor}">{icon}</span>
-              <div class="issue-body">
-                <a href="{bug['url']}" target="_blank" class="issue-key">{bug['key']}</a>
-                <span class="issue-summary">{escape(bug['summary'][:90])}{'...' if len(bug['summary']) > 90 else ''}</span>
-                <div class="issue-tags">{status_tag}{link_tag}{sprint_tag}</div>
+            <article class="bug-ticket-card {status_class}">
+              <div class="bug-ticket-top">
+                <a href="{bug['url']}" target="_blank" class="bug-ticket-key">{bug['key']}</a>
+                <span class="bug-ticket-status {status_class}">{escape(status_label)}</span>
               </div>
-            </div>"""
-        html += "</div>"
+              <a href="{bug['url']}" target="_blank" class="bug-ticket-summary">{escape(bug['summary'][:110])}{'...' if len(bug['summary']) > 110 else ''}</a>
+              <div class="bug-ticket-tags">
+                {story_tag}
+                <span class="bug-tag bug-tag-sprint">{sprint_label}</span>
+              </div>
+            </article>"""
+        html += "</div></section>"
+    html += "</div></div>"
     return html
 
 def format_slack_message(r: dict) -> str:
@@ -2328,6 +2623,7 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
     burndown_svg  = _build_burndown_svg(bd)
     burndown_explainer_html = _build_burndown_explainer_html(bd)
     burndown_breakdown_html = _build_remaining_scope_breakdown_html(bd)
+    burndown_takeaways_html = _build_burndown_takeaways_html(bd)
     bd_track_cls  = "green" if bd.get("on_track") else "red"
     bd_track_txt  = "On track" if bd.get("on_track") else "Behind ideal"
     if bd.get("is_extended"): bd_track_cls, bd_track_txt = "red", "Sprint overran"
@@ -2363,6 +2659,7 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
     dev_activity_html = _build_dev_activity_html(r.get("dev_activity", []))
     qa_activity_html  = _build_qa_activity_html(r.get("qa_activity", []))
     today_bug_reports_html = _build_todays_bug_reports_html(r.get("today_bug_reports", []))
+    sprint_details_html = _build_sprint_details_html(r)
 
     ai_html = ""
     if ai_insights and _config_ai().get("include_in_html"):
@@ -2468,6 +2765,7 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .bd-stat-lbl{{font-size:10px;color:#4a90d9;text-transform:uppercase;letter-spacing:.5px}}
 .burndown-layout{{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(280px,1fr);gap:22px;align-items:start}}
 .burndown-chart-panel{{min-width:0;display:flex;flex-direction:column;gap:18px}}
+.burndown-side-panel{{min-width:0;display:flex;flex-direction:column;gap:18px}}
 .burndown-explainer{{background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);border-radius:14px;
   padding:18px 16px;display:flex;flex-direction:column;gap:14px;min-height:320px}}
 .burndown-explainer-title{{font-size:14px;font-weight:800;color:#e0eaff;letter-spacing:.2px}}
@@ -2493,6 +2791,15 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .scope-breakdown-row strong{{font-size:12px;color:#00d4aa;white-space:nowrap}}
 .burndown-breakdown-under{{padding:18px 16px;background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);
   border-radius:14px}}
+.burndown-takeaways{{padding:18px 16px;background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);
+  border-radius:14px}}
+.burndown-takeaways-title{{font-size:12px;font-weight:800;color:#e0eaff;letter-spacing:.4px;text-transform:uppercase;margin-bottom:12px}}
+.burndown-takeaway-grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
+.burndown-takeaway{{padding:12px;border-radius:12px;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16)}}
+.burndown-takeaway strong{{display:block;font-size:16px;color:#e0eaff;margin-bottom:4px}}
+.burndown-takeaway strong.green{{color:#00d4aa}}
+.burndown-takeaway strong.red{{color:#ff4757}}
+.burndown-takeaway span{{font-size:11px;line-height:1.5;color:#8ab4d9}}
 .formula-breakdown{{margin-bottom:16px;padding:16px;background:rgba(26,107,255,.06);border-radius:10px;border-left:3px solid #1a6bff}}
 .formula-row{{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:13px;color:#8ab4d9}}
 .formula-row:last-child{{margin-bottom:0}}
@@ -2503,9 +2810,67 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
   border:1px solid rgba(26,107,255,.3);color:#e0eaff;padding:20px;border-radius:10px;
   text-align:center;font-size:14px;font-weight:700;margin-top:16px;font-family:'Monaco','Courier New',monospace}}
 .formula-final .value{{font-size:28px;margin-top:8px;color:#1a6bff}}
+.sprint-details-shell{{display:flex;flex-direction:column;gap:16px}}
+.details-summary-bar{{display:flex;flex-wrap:wrap;gap:18px;align-items:center;padding:14px 18px;border-radius:14px;
+  background:rgba(26,107,255,.08);border:1px solid rgba(26,107,255,.18)}}
+.details-summary-main{{font-size:16px;font-weight:700;color:#e0eaff}}
+.details-state{{color:#00d4aa}}
+.details-summary-meta{{font-size:13px;color:#8ab4d9}}
+.sprint-details-grid{{display:grid;grid-template-columns:1fr 1fr;gap:18px}}
+.details-panel{{background:linear-gradient(180deg,rgba(15,30,54,.96),rgba(10,20,40,.92));border:1px solid rgba(26,107,255,.18);
+  border-radius:16px;padding:16px;box-shadow:0 8px 24px rgba(0,0,0,.18)}}
+.details-panel-head{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}}
+.details-panel-head h3{{font-size:14px;color:#e0eaff}}
+.details-panel-head span{{font-size:12px;color:#4a90d9}}
+.details-subpanel{{padding:14px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid rgba(26,107,255,.12);margin-bottom:12px}}
+.details-subpanel:last-child{{margin-bottom:0}}
+.details-subtitle{{font-size:13px;font-weight:700;color:#e0eaff;margin-bottom:12px}}
+.details-subpanel-top{{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}}
+.details-subnote{{font-size:12px;color:#8ab4d9}}
+.details-progress-layout{{display:grid;grid-template-columns:130px 1fr;gap:18px;align-items:center}}
+.details-donut{{width:120px;height:120px}}
+.details-donut-value{{font-size:20px;font-weight:800;fill:#e0eaff}}
+.details-donut-label{{font-size:10px;fill:#8ab4d9}}
+.details-legend{{display:grid;gap:10px}}
+.details-legend div{{display:flex;align-items:center;gap:10px;font-size:13px;color:#c6daf7}}
+.details-legend i{{width:10px;height:10px;border-radius:999px;display:inline-block}}
+.details-legend .done{{background:#00d4aa}}
+.details-legend .progress{{background:#1a6bff}}
+.details-legend .blocked{{background:#fbbf24}}
+.status-chip-grid{{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}}
+.status-chip{{padding:10px 8px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(26,107,255,.12);text-align:center}}
+.status-chip span{{display:block;font-size:11px;color:#8ab4d9;margin-bottom:6px}}
+.status-chip strong{{font-size:26px;color:#e0eaff}}
+.details-big-metric{{font-size:18px;font-weight:800;color:#e0eaff;margin:4px 0 14px}}
+.age-chart{{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;align-items:end;height:190px;padding:8px 4px 0}}
+.age-bar-col{{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;height:100%}}
+.age-bar-value{{font-size:12px;color:#e0eaff}}
+.age-bar{{width:56px;max-width:100%;border-radius:12px 12px 4px 4px;box-shadow:inset 0 -10px 30px rgba(255,255,255,.08)}}
+.age-bar-label{{font-size:12px;color:#8ab4d9}}
+.issue-type-layout{{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center}}
+.issue-type-donut-wrap{{display:flex;justify-content:center}}
+.issue-type-list{{display:grid;gap:10px}}
+.issue-type-row{{display:grid;grid-template-columns:minmax(0,1.4fr) 42px 44px 1fr;gap:10px;align-items:center}}
+.issue-type-name{{display:flex;align-items:center;gap:8px;font-size:13px;color:#e0eaff}}
+.issue-type-name i{{width:9px;height:9px;border-radius:999px;display:inline-block}}
+.issue-type-count,.issue-type-pct{{font-size:12px;color:#8ab4d9}}
+.issue-type-track{{height:8px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}}
+.issue-type-track span{{display:block;height:100%;border-radius:999px}}
+.assignee-list{{display:grid;gap:10px}}
+.assignee-row{{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(120px,1fr) 36px;gap:12px;align-items:center}}
+.assignee-name{{font-size:13px;color:#e0eaff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
+.assignee-load{{display:flex;height:10px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}}
+.assignee-load .seg{{display:block;height:100%}}
+.assignee-load .seg-a{{background:#00d4aa}}
+.assignee-load .seg-b{{background:#1a6bff}}
+.assignee-load .seg-c{{background:#fbbf24}}
+.assignee-count{{font-size:13px;color:#e0eaff;text-align:right}}
+.details-empty{{font-size:13px;color:#8ab4d9;padding:12px 0}}
 .tables-grid{{display:grid;grid-template-columns:1fr 1fr;gap:20px}}
 @media(max-width:680px){{.tables-grid{{grid-template-columns:1fr}}}}
 @media(max-width:900px){{.burndown-layout{{grid-template-columns:1fr}}.burndown-explainer{{min-height:auto}}}}
+@media(max-width:900px){{.sprint-details-grid{{grid-template-columns:1fr}}.status-chip-grid{{grid-template-columns:repeat(3,minmax(0,1fr))}}.issue-type-layout{{grid-template-columns:1fr}}.details-progress-layout{{grid-template-columns:1fr;justify-items:center}}}}
+@media(max-width:640px){{.status-chip-grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}.issue-type-row{{grid-template-columns:minmax(0,1fr) 40px 40px 1fr}}.assignee-row{{grid-template-columns:1fr}}.assignee-count{{text-align:left}}}}
 table{{width:100%;border-collapse:collapse;font-size:12px}}
 th,td{{border-bottom:1px solid rgba(26,107,255,.1);padding:8px 10px;text-align:left;color:#8ab4d9}}
 th{{background:rgba(26,107,255,.08);color:#4a90d9;font-size:10px;text-transform:uppercase;letter-spacing:.5px}}
@@ -2552,6 +2917,69 @@ td:first-child{{color:#e0eaff}}
 .qa-group:last-child{{margin-bottom:0}}
 .qa-group-label{{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
   margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(26,107,255,.15)}}
+.bug-report-shell{{display:flex;flex-direction:column;gap:20px}}
+.bug-report-shell.empty{{min-height:140px;justify-content:center}}
+.bug-report-empty{{text-align:center;padding:28px 20px;border-radius:18px;color:#8ab4d9;
+  border:1px dashed rgba(74,144,217,.28);background:rgba(12,25,49,.55);font-size:13px}}
+.bug-report-head{{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}}
+.bug-report-title{{font-size:22px;font-weight:800;letter-spacing:.3px;color:#f5f8ff;text-transform:uppercase}}
+.bug-report-subtitle{{font-size:12px;color:#8ab4d9;margin-top:6px}}
+.bug-report-meta{{padding:10px 16px;border-radius:14px;background:rgba(26,107,255,.08);
+  border:1px solid rgba(74,144,217,.22);font-size:11px;font-weight:700;color:#cfe2ff;text-transform:uppercase;letter-spacing:.6px}}
+.bug-report-metrics{{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px}}
+.bug-report-metric{{padding:16px 18px;border-radius:16px;border:1px solid rgba(74,144,217,.18);
+  background:linear-gradient(180deg,rgba(16,31,58,.96),rgba(10,20,40,.92));box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}}
+.bug-report-metric-label{{display:block;font-size:11px;font-weight:700;color:#8ab4d9;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}}
+.bug-report-metric-value{{font-size:28px;line-height:1;color:#f5f8ff}}
+.bug-report-metric.metric-total{{border-color:rgba(74,144,217,.24)}}
+.bug-report-metric.metric-total .bug-report-metric-value{{color:#9fc8ff}}
+.bug-report-metric.metric-open{{border-color:rgba(0,212,170,.28)}}
+.bug-report-metric.metric-open .bug-report-metric-value{{color:#1ce6b3}}
+.bug-report-metric.metric-progress{{border-color:rgba(251,191,36,.28)}}
+.bug-report-metric.metric-progress .bug-report-metric-value{{color:#fbbf24}}
+.bug-report-metric.metric-reopened{{border-color:rgba(255,71,87,.28)}}
+.bug-report-metric.metric-reopened .bug-report-metric-value{{color:#ff6b7c}}
+.bug-report-metric.metric-storyless{{border-color:rgba(167,139,250,.28)}}
+.bug-report-metric.metric-storyless .bug-report-metric-value{{color:#a78bfa}}
+.bug-report-groups{{display:grid;grid-template-columns:1fr;gap:18px}}
+.bug-person-card{{padding:22px;border-radius:22px;border:1px solid rgba(74,144,217,.2);
+  background:linear-gradient(180deg,rgba(12,25,49,.96),rgba(9,18,36,.94));box-shadow:0 16px 36px rgba(0,0,0,.2)}}
+.bug-person-header{{display:flex;align-items:center;gap:14px;margin-bottom:18px}}
+.bug-person-avatar{{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,rgba(74,144,217,.9),rgba(26,107,255,.55));color:#eaf3ff;font-weight:800;font-size:16px;
+  border:1px solid rgba(159,200,255,.18);flex-shrink:0}}
+.bug-person-meta{{display:flex;align-items:center;gap:12px;flex-wrap:wrap}}
+.bug-person-name{{font-size:16px;font-weight:800;color:#f5f8ff}}
+.bug-person-count{{padding:8px 12px;border-radius:999px;background:rgba(26,107,255,.14);border:1px solid rgba(74,144,217,.24);
+  font-size:11px;font-weight:700;color:#8fc0ff}}
+.bug-person-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}}
+.bug-ticket-card{{position:relative;padding:18px 18px 16px;border-radius:18px;background:rgba(13,26,49,.96);
+  border:1px solid rgba(74,144,217,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}}
+.bug-ticket-card::before{{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:18px 0 0 18px;background:#4a90d9}}
+.bug-ticket-card.open::before{{background:#00d4aa}}
+.bug-ticket-card.in-progress::before{{background:#f59e0b}}
+.bug-ticket-card.reopened::before{{background:#ff4757}}
+.bug-ticket-top{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}}
+.bug-ticket-key{{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;text-decoration:none;
+  background:rgba(26,107,255,.16);border:1px solid rgba(74,144,217,.2);color:#8fc0ff;font-size:11px;font-weight:800}}
+.bug-ticket-summary{{display:block;color:#f5f8ff;text-decoration:none;font-size:14px;font-weight:700;line-height:1.45;margin-bottom:14px}}
+.bug-ticket-summary:hover{{color:#cfe2ff}}
+.bug-ticket-status{{padding:6px 11px;border-radius:999px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
+  border:1px solid rgba(74,144,217,.2);background:rgba(26,107,255,.12);color:#8fc0ff;white-space:nowrap}}
+.bug-ticket-status.open{{background:rgba(0,212,170,.12);border-color:rgba(0,212,170,.25);color:#1ce6b3}}
+.bug-ticket-status.in-progress{{background:rgba(251,191,36,.14);border-color:rgba(251,191,36,.25);color:#fbbf24}}
+.bug-ticket-status.reopened{{background:rgba(255,71,87,.14);border-color:rgba(255,71,87,.25);color:#ff6b7c}}
+.bug-ticket-tags{{display:flex;flex-wrap:wrap;gap:10px}}
+.bug-tag{{display:inline-flex;align-items:center;padding:7px 11px;border-radius:999px;font-size:11px;font-weight:700;
+  border:1px solid rgba(74,144,217,.2)}}
+.bug-tag-link{{background:rgba(26,107,255,.12);color:#8fc0ff}}
+.bug-tag-storyless{{background:rgba(167,139,250,.12);color:#c1a6ff;border-color:rgba(167,139,250,.24)}}
+.bug-tag-sprint{{background:rgba(0,212,170,.12);color:#1ce6b3;border-color:rgba(0,212,170,.2)}}
+@media(max-width:720px){{
+  .bug-report-title{{font-size:19px}}
+  .bug-person-name{{font-size:15px}}
+  .bug-ticket-summary{{font-size:13px}}
+}}
 .interp-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}}
 .interp-item{{padding:16px;border-radius:10px;border:1px solid;text-align:center}}
 .interp-item.green{{border-color:rgba(0,212,170,.3);background:rgba(0,212,170,.05)}}
@@ -2616,12 +3044,12 @@ td:first-child{{color:#e0eaff}}
   <div class="section-title">Bug Breakdown</div>
   <div class="card">{bug_cards_html}</div>
   <div class="section-title">Total Scope Burndown</div>
-  <div class="card">{burndown_stats}<div class="burndown-layout"><div class="burndown-chart-panel">{burndown_svg}{burndown_breakdown_html}</div>{burndown_explainer_html}</div></div>
+  <div class="card">{burndown_stats}<div class="burndown-layout"><div class="burndown-chart-panel">{burndown_svg}{burndown_breakdown_html}</div><div class="burndown-side-panel">{burndown_explainer_html}{burndown_takeaways_html}</div></div></div>
   <div class="section-title">Today's Developer Activity</div>
   <div class="card"><div class="dev-grid">{dev_activity_html}</div></div>
   <div class="section-title">Today's QA Activity</div>
   <div class="card">{qa_activity_html}</div>
-  <div class="section-title">Today's Tester Bugs</div>
+  <div class="section-title">Today's Bug Reports</div>
   <div class="card">{today_bug_reports_html}</div>
   {ai_html}
   <div class="section-title">Weighted Formula</div>
@@ -2639,30 +3067,7 @@ td:first-child{{color:#e0eaff}}
       <div class="value">= {score}</div>
     </div>
   </div>
-  <div class="section-title">Sprint Details</div>
-  <div class="card">
-    <div class="tables-grid">
-      <div>
-        <strong style="color:#e0eaff">Carryover Breakdown</strong>
-        <table style="margin-top:10px"><thead><tr><th>Status</th><th>Issues</th></tr></thead><tbody>{carryover_rows}</tbody></table>
-      </div>
-      <div>
-        <strong style="color:#e0eaff">Age of Unfinished Issues</strong>
-        <div style="font-size:12px;color:#4a90d9;margin:6px 0">Avg: {r['avg_unfinished_age_days'] if r['avg_unfinished_age_days'] is not None else 'N/A'} days</div>
-        <table><thead><tr><th>Bucket</th><th>Issues</th><th>Distribution</th></tr></thead><tbody>{age_rows}</tbody></table>
-      </div>
-    </div>
-    <div class="tables-grid" style="margin-top:24px">
-      <div>
-        <strong style="color:#e0eaff">Issue Type Distribution</strong>
-        <table style="margin-top:10px"><thead><tr><th>Type</th><th>Issues</th><th>%</th></tr></thead><tbody>{issue_type_rows}</tbody></table>
-      </div>
-      <div>
-        <strong style="color:#e0eaff">Workload by Assignee</strong>
-        <table style="margin-top:10px"><thead><tr><th>Assignee</th><th>Issues</th><th>Share</th></tr></thead><tbody>{assignee_rows}</tbody></table>
-      </div>
-    </div>
-  </div>
+  {sprint_details_html}
   <div class="section-title">Score Interpretation</div>
   <div class="card">
     <div class="interp-grid">
@@ -2845,6 +3250,38 @@ def run_scheduled(hour=9, minute=0) -> None:
         time.sleep(30)
 
 
+def run_every_hours(
+    hours: int = 1,
+    html_output_path: str = "sprint_health_report.html",
+    export_pdf: bool = False,
+) -> None:
+    hours = max(1, int(hours))
+    ensure_admin_dashboard_running()
+
+    def job():
+        started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            print(f"[hourly:{started_at}] Running scheduled dashboard refresh...")
+            run(dry_run=True, export_html=True, export_pdf=export_pdf, no_slack=True)
+            print(f"[hourly:{started_at}] Dashboard refresh completed.")
+        except Exception as e:
+            print(f"[hourly:{started_at}] Error while refreshing dashboard: {e}")
+
+    if html_output_path != "sprint_health_report.html":
+        print(
+            f"[hourly] Custom html path '{html_output_path}' requested, "
+            "but hourly mode currently writes the standard report file."
+        )
+
+    job()
+    schedule.every(hours).hours.do(job)
+    print(f"[scheduler] Dashboard will auto-refresh every {hours} hour(s).")
+    print("[scheduler] Press Ctrl+C to stop.")
+    while True:
+        schedule.run_pending()
+        time.sleep(30)
+
+
 def _issues_fingerprint(issues: list, sprint_info: dict) -> str:
     """
     Stable snapshot key to detect Jira changes without rebuilding full report every loop.
@@ -2955,6 +3392,8 @@ if __name__ == "__main__":
     parser.add_argument("--admin-dashboard", action="store_true")
     parser.add_argument("--dry-run",         action="store_true")
     parser.add_argument("--schedule",        action="store_true")
+    parser.add_argument("--hourly",          action="store_true")
+    parser.add_argument("--hourly-every",    type=int, default=1)
     parser.add_argument("--schedule-hour",   type=int, default=9)
     parser.add_argument("--schedule-minute", type=int, default=0)
     parser.add_argument("--html",            action="store_true")
@@ -2973,6 +3412,12 @@ if __name__ == "__main__":
         run_dashboard()
     elif args.watch:
         run_watch(interval_seconds=args.watch_interval, html_output_path=args.watch_html_path)
+    elif args.hourly:
+        run_every_hours(
+            hours=args.hourly_every,
+            html_output_path=args.watch_html_path,
+            export_pdf=args.pdf,
+        )
     elif args.schedule:
         run_scheduled(hour=args.schedule_hour, minute=args.schedule_minute)
     else:
