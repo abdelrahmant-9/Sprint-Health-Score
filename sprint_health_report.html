@@ -29,7 +29,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,san
 .progress-bar-wrap{background:rgba(26,107,255,.15);border-radius:999px;height:4px;width:260px;margin:12px auto 0;border:1px solid rgba(26,107,255,.2)}
 .progress-bar-fill{height:4px;border-radius:999px;background:linear-gradient(90deg,#1a6bff,#00d4aa)}
 .card{background:rgba(10,20,40,.8);backdrop-filter:blur(20px);border-radius:16px;
-  padding:32px 28px;margin-bottom:24px;border:1px solid rgba(26,107,255,.2);box-shadow:0 4px 24px rgba(0,0,0,.4)}
+  padding:32px 28px;margin-bottom:24px;border:1px solid rgba(26,107,255,.2);box-shadow:0 4px 24px rgba(0,0,0,.4);
+  position:relative;z-index:1}
+.card.dropdown-open{z-index:30}
 .score-wrap{text-align:center}
 .score-circle{width:150px;height:150px;border-radius:50%;margin:0 auto 20px;
   display:flex;align-items:center;justify-content:center;flex-direction:column;font-weight:700;border:2px solid rgba(26,107,255,.3)}
@@ -243,24 +245,145 @@ td:first-child{color:#e0eaff}
 .qa-group:last-child{margin-bottom:0}
 .qa-group-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
   margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(26,107,255,.15)}
-.bug-report-shell{display:flex;flex-direction:column;gap:20px}
+.qa-dashboard-shell{display:flex;flex-direction:column;gap:18px;position:relative;z-index:1}
+.qa-dashboard-shell.empty{min-height:140px;justify-content:center}
+.qa-dashboard-empty{text-align:center;padding:28px 20px;border-radius:18px;color:#8ab4d9;
+  border:1px dashed rgba(74,144,217,.28);background:rgba(12,25,49,.55);font-size:13px}
+.qa-dashboard-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.activity-head-controls{display:grid;grid-template-columns:280px 220px;align-items:stretch;gap:12px;
+  width:auto;max-width:100%;margin-left:auto;position:relative;z-index:8}
+.qa-dashboard-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:#f5f8ff;text-transform:uppercase}
+.qa-dashboard-subtitle{font-size:12px;color:#8ab4d9;margin-top:6px}
+.qa-dashboard-search{min-width:0;width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 14px;border-radius:16px;background:rgba(10,20,40,.82);border:1px solid rgba(74,144,217,.24);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);height:48px}
+.activity-date-filter{position:relative;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:7px 14px;
+  border-radius:16px;background:linear-gradient(180deg,rgba(12,25,49,.92),rgba(9,19,38,.96));
+  border:1px solid rgba(74,144,217,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 10px 22px rgba(0,0,0,.12);
+  min-height:48px;cursor:pointer;z-index:6}
+.activity-date-label{font-size:10px;font-weight:700;color:#78aee8;white-space:nowrap;text-transform:uppercase;letter-spacing:.65px;line-height:1}
+.activity-date-trigger{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:transparent;border:none;
+  color:#eef5ff;font-size:13px;font-weight:700;padding:0;cursor:pointer;text-align:left}
+.activity-date-trigger::after{content:'';width:8px;height:8px;border-right:2px solid #8fc0ff;border-bottom:2px solid #8fc0ff;
+  transform:rotate(45deg) translateY(-1px);transform-origin:center;transition:transform .18s ease, border-color .18s ease;flex:0 0 8px}
+.activity-date-filter.open .activity-date-trigger::after{transform:rotate(225deg) translateY(-1px)}
+.activity-date-trigger-text{display:block;min-width:0}
+.activity-date-menu{position:absolute;left:0;right:0;top:calc(100% + 10px);bottom:auto;display:none;flex-direction:column;gap:6px;padding:10px;
+  border-radius:16px;border:1px solid rgba(74,144,217,.24);background:linear-gradient(180deg,rgba(12,25,49,.98),rgba(8,16,31,.98));
+  box-shadow:0 22px 40px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.03);z-index:40;
+  opacity:0;transform:translateY(-8px) scale(.98);transform-origin:top center;
+  transition:opacity .18s ease, transform .18s ease}
+.activity-date-filter.open .activity-date-menu{display:flex;opacity:1;transform:translateY(0) scale(1)}
+.activity-date-option{width:100%;display:flex;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid transparent;
+  background:rgba(255,255,255,.02);color:#dce9ff;font-size:13px;font-weight:700;cursor:pointer;text-align:left}
+.activity-date-option:hover{background:rgba(26,107,255,.12);border-color:rgba(74,144,217,.2)}
+.activity-date-option.active{background:linear-gradient(180deg,rgba(38,72,128,.45),rgba(22,46,86,.75));color:#eef5ff;
+  border-color:rgba(74,144,217,.34);box-shadow:inset 0 -2px 0 #2a82ff}
+.activity-date-filter:hover{border-color:rgba(74,144,217,.34);box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 12px 24px rgba(0,0,0,.16)}
+.activity-date-filter:focus-within{border-color:rgba(88,166,255,.42);box-shadow:0 0 0 3px rgba(26,107,255,.14),inset 0 1px 0 rgba(255,255,255,.03)}
+.activity-date-filter.open{z-index:50}
+.activity-date-pane{display:none}
+.activity-date-pane.active{display:flex;flex-direction:column;gap:20px;position:relative;z-index:1}
+.qa-search-icon,.qa-filter-icon{font-size:16px;color:#8fc0ff;opacity:.9}
+.qa-search-input{flex:1;background:transparent;border:none;outline:none;color:#dce9ff;font-size:12px}
+.qa-search-input::placeholder{color:#7fa6d8;opacity:1}
+.qa-tabs{display:flex;flex-wrap:wrap;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(74,144,217,.16)}
+.qa-tab{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;font-size:12px;font-weight:700;
+  color:#90a8cb;background:rgba(255,255,255,.02);border:1px solid rgba(74,144,217,.12);cursor:pointer}
+.qa-tab strong{color:#d8e6ff;font-size:11px}
+.qa-tab.active{color:#eaf3ff;background:linear-gradient(180deg,rgba(38,72,128,.45),rgba(22,46,86,.75));
+  border-color:rgba(74,144,217,.34);box-shadow:0 8px 22px rgba(26,107,255,.18), inset 0 -2px 0 #2a82ff}
+.qa-tester-list{display:flex;flex-direction:column;gap:16px}
+.qa-tester-section{border-radius:22px;border:1px solid rgba(74,144,217,.2);
+  background:linear-gradient(180deg,rgba(12,25,49,.96),rgba(9,18,36,.94));box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden}
+.qa-tester-summary{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;cursor:pointer}
+.qa-tester-summary::-webkit-details-marker{display:none}
+.qa-tester-summary-left{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.qa-tester-avatar{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,rgba(74,144,217,.9),rgba(26,107,255,.55));color:#eaf3ff;font-weight:800;font-size:16px;
+  border:1px solid rgba(159,200,255,.18);overflow:hidden;position:relative;flex:0 0 42px}
+.qa-tester-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.qa-tester-avatar-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
+.qa-tester-name{font-size:16px;font-weight:800;color:#f5f8ff}
+.qa-tester-count{font-size:12px;color:#8fc0ff}
+.qa-tester-chevron{width:10px;height:10px;position:relative;flex:0 0 10px;transition:transform .2s ease}
+.qa-tester-chevron::before{content:'';position:absolute;inset:0;border-right:2px solid #bfd5f6;border-bottom:2px solid #bfd5f6;
+  transform:rotate(45deg);transform-origin:center}
+.qa-tester-section[open] .qa-tester-chevron{transform:rotate(180deg)}
+.qa-tester-body{padding:0 20px 18px;border-top:1px solid rgba(74,144,217,.14)}
+.qa-issue-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding-top:18px}
+.qa-issue-card{position:relative;padding:16px;border-radius:18px;background:rgba(13,26,49,.96);
+  border:1px solid rgba(74,144,217,.18);box-shadow:0 12px 24px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.02);
+  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}
+.qa-issue-card:hover{transform:translateY(-2px);border-color:rgba(74,144,217,.34);box-shadow:0 16px 30px rgba(0,0,0,.18),0 0 18px rgba(42,130,255,.08)}
+.qa-card-bug{box-shadow:inset 3px 0 0 #ff6b7c,0 12px 24px rgba(0,0,0,.14)}
+.qa-card-story{box-shadow:inset 3px 0 0 #58a6ff,0 12px 24px rgba(0,0,0,.14)}
+.qa-card-task{box-shadow:inset 3px 0 0 #fbbf24,0 12px 24px rgba(0,0,0,.14)}
+.qa-card-sub{box-shadow:inset 3px 0 0 #22d3ee,0 12px 24px rgba(0,0,0,.14)}
+.qa-card-enh{box-shadow:inset 3px 0 0 #8a7dff,0 12px 24px rgba(0,0,0,.14)}
+.qa-issue-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.qa-issue-type{padding:6px 10px;border-radius:10px;font-size:10px;font-weight:800;letter-spacing:.7px;border:1px solid}
+.qa-type-bug{color:#ff7b89;background:rgba(255,107,124,.12);border-color:rgba(255,107,124,.3)}
+.qa-type-story{color:#67b3ff;background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.28)}
+.qa-type-task{color:#ffd66b;background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.28)}
+.qa-type-sub{color:#79d2ff;background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.28)}
+.qa-type-enh{color:#a99cff;background:rgba(138,125,255,.12);border-color:rgba(138,125,255,.28)}
+.qa-issue-key{font-size:11px;font-weight:700;color:#8fc0ff;text-decoration:none}
+.qa-issue-badge{margin-left:auto;padding:6px 11px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}
+.qa-status-testing{background:rgba(251,191,36,.14);border-color:rgba(251,191,36,.24);color:#f7cb6b}
+.qa-status-done{background:rgba(0,212,170,.12);border-color:rgba(0,212,170,.22);color:#76e4ca}
+.qa-status-progress{background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.22);color:#80b8ff}
+.qa-status-passed{background:rgba(72,211,190,.12);border-color:rgba(72,211,190,.22);color:#7cf0d8}
+.qa-status-sentback{background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.22);color:#80b8ff}
+.qa-status-reopened{background:rgba(255,107,124,.14);border-color:rgba(255,107,124,.24);color:#ff94a0}
+.qa-issue-title{display:block;font-size:14px;font-weight:700;line-height:1.45;color:#eef5ff;text-decoration:none;min-height:40px;margin-bottom:12px}
+.qa-issue-title:hover{color:#dbeaff}
+.qa-issue-transition{margin-bottom:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(74,144,217,.12)}
+.qa-issue-transition-main{font-size:11px;font-weight:700;color:#dce9ff;margin-bottom:4px}
+.qa-issue-transition-sub{font-size:10px;color:#8ab4d9;line-height:1.45}
+.qa-issue-tags{display:flex;flex-wrap:wrap;gap:8px}
+.qa-mini-pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid}
+.qa-mini-key{background:rgba(31,67,124,.5);border-color:rgba(74,144,217,.22);color:#8fc0ff}
+.qa-show-more{width:max-content;min-width:180px;margin:16px auto 0;padding:11px 18px;border-radius:14px;text-align:center;
+  font-size:12px;font-weight:700;color:#d9e6ff;border:1px solid rgba(74,144,217,.24);background:rgba(255,255,255,.02);cursor:pointer}
+.qa-show-more span{color:#8fc0ff;margin-left:6px}
+.qa-show-more.hidden{display:none}
+.qa-issue-card.hidden-by-limit,.qa-issue-card.hidden-by-filter{display:none}
+.qa-tester-section.hidden-by-filter{display:none}
+.qa-empty-state{padding:14px 12px;text-align:center;font-size:12px;color:#8ab4d9}
+@media(max-width:980px){
+  .qa-issue-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:720px){
+  .qa-dashboard-title{font-size:19px}
+  .qa-tester-name{font-size:15px}
+  .qa-issue-grid{grid-template-columns:1fr}
+  .qa-dashboard-search{min-width:100%}
+  .activity-head-controls{width:100%;grid-template-columns:1fr}
+  .activity-date-filter{width:100%}
+  .activity-date-select{min-width:0;flex:1}
+}
+.bug-report-shell{display:flex;flex-direction:column;gap:20px;position:relative;z-index:1}
 .bug-report-shell.empty{min-height:140px;justify-content:center}
 .bug-report-empty{text-align:center;padding:28px 20px;border-radius:18px;color:#8ab4d9;
-  border:1px dashed rgba(74,144,217,.28);background:rgba(12,25,49,.55);font-size:14px}
-.bug-report-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.bug-report-title{font-size:28px;font-weight:900;letter-spacing:.4px;color:#f5f8ff;text-transform:uppercase}
-.bug-report-subtitle{font-size:13px;color:#8ab4d9;margin-top:6px}
+  border:1px dashed rgba(74,144,217,.28);background:rgba(12,25,49,.55);font-size:13px}
+.bug-report-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:2px}
+.bug-report-head .activity-date-filter{width:220px;flex:0 0 220px}
+.bug-report-title{font-size:22px;font-weight:800;letter-spacing:.3px;color:#f5f8ff;text-transform:uppercase}
+.bug-report-subtitle{font-size:12px;color:#8ab4d9;margin-top:6px}
 .bug-report-meta{padding:10px 16px;border-radius:14px;background:rgba(26,107,255,.08);
-  border:1px solid rgba(74,144,217,.22);font-size:12px;font-weight:700;color:#cfe2ff;text-transform:uppercase;letter-spacing:.6px}
+  border:1px solid rgba(74,144,217,.22);font-size:11px;font-weight:700;color:#cfe2ff;text-transform:uppercase;letter-spacing:.6px}
 .bug-report-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px}
 .bug-report-metric{padding:16px 18px;border-radius:16px;border:1px solid rgba(74,144,217,.18);
   background:linear-gradient(180deg,rgba(16,31,58,.96),rgba(10,20,40,.92));box-shadow:inset 0 1px 0 rgba(255,255,255,.03)}
 .bug-report-metric-label{display:block;font-size:11px;font-weight:700;color:#8ab4d9;text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
-.bug-report-metric-value{font-size:34px;line-height:1;color:#f5f8ff}
+.bug-report-metric-value{font-size:28px;line-height:1;color:#f5f8ff}
 .bug-report-metric.metric-total{border-color:rgba(74,144,217,.24)}
 .bug-report-metric.metric-total .bug-report-metric-value{color:#9fc8ff}
 .bug-report-metric.metric-open{border-color:rgba(0,212,170,.28)}
 .bug-report-metric.metric-open .bug-report-metric-value{color:#1ce6b3}
+.bug-report-metric.metric-enh{border-color:rgba(138,125,255,.28)}
+.bug-report-metric.metric-enh .bug-report-metric-value{color:#a99cff}
 .bug-report-metric.metric-progress{border-color:rgba(251,191,36,.28)}
 .bug-report-metric.metric-progress .bug-report-metric-value{color:#fbbf24}
 .bug-report-metric.metric-reopened{border-color:rgba(255,71,87,.28)}
@@ -272,39 +395,45 @@ td:first-child{color:#e0eaff}
   background:linear-gradient(180deg,rgba(12,25,49,.96),rgba(9,18,36,.94));box-shadow:0 16px 36px rgba(0,0,0,.2)}
 .bug-person-header{display:flex;align-items:center;gap:14px;margin-bottom:18px}
 .bug-person-avatar{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  background:linear-gradient(135deg,rgba(74,144,217,.9),rgba(26,107,255,.55));color:#eaf3ff;font-weight:800;font-size:18px;
-  border:1px solid rgba(159,200,255,.18);flex-shrink:0}
+  background:linear-gradient(135deg,rgba(74,144,217,.9),rgba(26,107,255,.55));color:#eaf3ff;font-weight:800;font-size:16px;
+  border:1px solid rgba(159,200,255,.18);flex-shrink:0;overflow:hidden;position:relative}
+.bug-person-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+.bug-person-avatar-fallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center}
 .bug-person-meta{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.bug-person-name{font-size:20px;font-weight:800;color:#f5f8ff}
+.bug-person-name{font-size:16px;font-weight:800;color:#f5f8ff}
 .bug-person-count{padding:8px 12px;border-radius:999px;background:rgba(26,107,255,.14);border:1px solid rgba(74,144,217,.24);
-  font-size:12px;font-weight:700;color:#8fc0ff}
+  font-size:11px;font-weight:700;color:#8fc0ff}
 .bug-person-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
 .bug-ticket-card{position:relative;padding:18px 18px 16px;border-radius:18px;background:rgba(13,26,49,.96);
-  border:1px solid rgba(74,144,217,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}
-.bug-ticket-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:18px 0 0 18px;background:#4a90d9}
-.bug-ticket-card.open::before{background:#00d4aa}
-.bug-ticket-card.in-progress::before{background:#f59e0b}
-.bug-ticket-card.reopened::before{background:#ff4757}
+  border:1px solid rgba(74,144,217,.18);box-shadow:inset 3px 0 0 #4a90d9,0 12px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.02)}
+.bug-ticket-card.open{box-shadow:inset 3px 0 0 #00d4aa,0 12px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.02)}
+.bug-ticket-card.in-progress{box-shadow:inset 3px 0 0 #f59e0b,0 12px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.02)}
+.bug-ticket-card.reopened{box-shadow:inset 3px 0 0 #ff4757,0 12px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.02)}
 .bug-ticket-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.bug-ticket-top-left{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bug-ticket-type{display:inline-flex;align-items:center;padding:6px 10px;border-radius:10px;font-size:10px;font-weight:800;
+  letter-spacing:.7px;border:1px solid;text-transform:uppercase}
+.bug-ticket-type-bug{color:#ff7b89;background:rgba(255,107,124,.12);border-color:rgba(255,107,124,.3)}
+.bug-ticket-type-enh{color:#a99cff;background:rgba(138,125,255,.12);border-color:rgba(138,125,255,.28)}
 .bug-ticket-key{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;text-decoration:none;
-  background:rgba(26,107,255,.16);border:1px solid rgba(74,144,217,.2);color:#8fc0ff;font-size:12px;font-weight:800}
-.bug-ticket-summary{display:block;color:#f5f8ff;text-decoration:none;font-size:17px;font-weight:700;line-height:1.45;margin-bottom:14px}
+  background:rgba(26,107,255,.16);border:1px solid rgba(74,144,217,.2);color:#8fc0ff;font-size:11px;font-weight:800}
+.bug-ticket-summary{display:block;color:#f5f8ff;text-decoration:none;font-size:14px;font-weight:700;line-height:1.45;margin-bottom:14px}
 .bug-ticket-summary:hover{color:#cfe2ff}
-.bug-ticket-status{padding:7px 12px;border-radius:999px;font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;
+.bug-ticket-status{padding:6px 11px;border-radius:999px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;
   border:1px solid rgba(74,144,217,.2);background:rgba(26,107,255,.12);color:#8fc0ff;white-space:nowrap}
 .bug-ticket-status.open{background:rgba(0,212,170,.12);border-color:rgba(0,212,170,.25);color:#1ce6b3}
 .bug-ticket-status.in-progress{background:rgba(251,191,36,.14);border-color:rgba(251,191,36,.25);color:#fbbf24}
 .bug-ticket-status.reopened{background:rgba(255,71,87,.14);border-color:rgba(255,71,87,.25);color:#ff6b7c}
 .bug-ticket-tags{display:flex;flex-wrap:wrap;gap:10px}
-.bug-tag{display:inline-flex;align-items:center;padding:8px 12px;border-radius:999px;font-size:12px;font-weight:700;
+.bug-tag{display:inline-flex;align-items:center;padding:7px 11px;border-radius:999px;font-size:11px;font-weight:700;
   border:1px solid rgba(74,144,217,.2)}
 .bug-tag-link{background:rgba(26,107,255,.12);color:#8fc0ff}
 .bug-tag-storyless{background:rgba(167,139,250,.12);color:#c1a6ff;border-color:rgba(167,139,250,.24)}
 .bug-tag-sprint{background:rgba(0,212,170,.12);color:#1ce6b3;border-color:rgba(0,212,170,.2)}
 @media(max-width:720px){
-  .bug-report-title{font-size:22px}
-  .bug-person-name{font-size:18px}
-  .bug-ticket-summary{font-size:15px}
+  .bug-report-title{font-size:19px}
+  .bug-person-name{font-size:15px}
+  .bug-ticket-summary{font-size:13px}
 }
 .interp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
 .interp-item{padding:16px;border-radius:10px;border:1px solid;text-align:center}
@@ -363,7 +492,7 @@ td:first-child{color:#e0eaff}
       <div class="score-label">/100</div>
     </div>
     <div class="health-status">Sprint Breakdown</div>
-    <div class="health-sub">Sprint 15 - PM Sprint 6 &nbsp;|&nbsp; 2026-04-06 13:57 UTC</div>
+    <div class="health-sub">Sprint 15 - PM Sprint 6 &nbsp;|&nbsp; 2026-04-06 16:23 UTC</div>
   </div>
   <div class="section-title">Health Signals</div>
   <div class="signals-grid">
@@ -492,478 +621,880 @@ td:first-child{color:#e0eaff}
         </div>
       </div>
     </div></div></div></div>
-  <div class="section-title">Today's Developer Activity</div>
-  <div class="card"><div class="dev-grid"><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Ali Husain (8 issues)</div>
-            <div class="dev-issue stale">
-              <span class="issue-icon" style="color:#00d4aa">ENH</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1527" target="_blank" class="issue-key">PM-1527</a>
-                <span class="issue-summary">Bulk Upload Competency - Behavioral Indicators sheet ( Optional )</span>
-                <div class="issue-tags"><span class="issue-status-tag">Ready for PM Review</span><span class="issue-active-tag">Active 7d</span><span class="issue-stale-tag">Stale (7d / 4d)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue stale">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1650" target="_blank" class="issue-key">PM-1650</a>
-                <span class="issue-summary">Enabling &quot;Potential Rating&quot; in Cycle Components</span>
-                <div class="issue-tags"><span class="issue-status-tag">Pending Fixes</span><span class="issue-active-tag">Active 12d</span><span class="issue-stale-tag">Stale (12d / 4d)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1652" target="_blank" class="issue-key">PM-1652</a>
-                <span class="issue-summary">Goal Alignment- Numerical KPIs Configuration </span>
-                <div class="issue-tags"><span class="issue-status-tag">Ready for PM Review</span><span class="issue-active-tag">Active 3d</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1921" target="_blank" class="issue-key">PM-1921</a>
-                <span class="issue-summary">Error message appears in Cycle insights page 500 status code</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1927" target="_blank" class="issue-key">PM-1927</a>
-                <span class="issue-summary">[BE] make the export async</span>
-                <div class="issue-tags"><span class="issue-status-tag">Open</span><span class="issue-status-tag">Open → In Progress</span><span class="issue-status-tag">In Progress → CODE REVIEW</span><span class="issue-status-tag">CODE REVIEW → Done</span><span class="issue-status-tag">Done → Open</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1928" target="_blank" class="issue-key">PM-1928</a>
-                <span class="issue-summary">[BE] fix issue</span>
-                <div class="issue-tags"><span class="issue-status-tag">Done</span><span class="issue-status-tag">Open → In Progress</span><span class="issue-status-tag">In Progress → CODE REVIEW</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="issue-key">PM-1929</a>
-                <span class="issue-summary">When showing competencies valid for a job track/job level, we must only take into consider…</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1931" target="_blank" class="issue-key">PM-1931</a>
-                <span class="issue-summary">[BE] take participants into consideration in shared competencies filters</span>
-                <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Assma Benmussa (7 issues)</div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1620" target="_blank" class="issue-key">PM-1620</a>
-                <span class="issue-summary">Admin- Talent Goals Details </span>
-                <div class="issue-tags"><span class="issue-status-tag">Ready for Testing</span><span class="issue-active-tag">Active 4d</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1659" target="_blank" class="issue-key">PM-1659</a>
-                <span class="issue-summary">Numerical KPIs for Department &amp; Division Goals</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1826" target="_blank" class="issue-key">PM-1826</a>
-                <span class="issue-summary">The goal details page does not match the design</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1866" target="_blank" class="issue-key">PM-1866</a>
-                <span class="issue-summary">Fix the steps design in AI Goals Creation</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1925" target="_blank" class="issue-key">PM-1925</a>
-                <span class="issue-summary">[FE]: match goal details design</span>
-                <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1934" target="_blank" class="issue-key">PM-1934</a>
-                <span class="issue-summary">[FE]: Fix steps design in AI goals creation</span>
-                <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1940" target="_blank" class="issue-key">PM-1940</a>
-                <span class="issue-summary">[FE]: make the goal item in admin aligned goal form match the design</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Abdulrahman Al-Tayeb (4 issues)</div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1935" target="_blank" class="issue-key">PM-1935</a>
-                <span class="issue-summary">BE - Add Acknowledge step model and workflow transition after Alignment Goals</span>
-                <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span><span class="issue-status-tag">Open → In Progress</span><span class="issue-status-tag">In Progress → CODE REVIEW</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1936" target="_blank" class="issue-key">PM-1936</a>
-                <span class="issue-summary">BE - Allow Acknowledge step after Talent Goals and Goal Approval</span>
-                <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span><span class="issue-status-tag">Open → In Progress</span><span class="issue-status-tag">In Progress → CODE REVIEW</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1937" target="_blank" class="issue-key">PM-1937</a>
-                <span class="issue-summary">BE - Allow Acknowledge step after Review</span>
-                <div class="issue-tags"><span class="issue-status-tag">CODE REVIEW</span><span class="issue-status-tag">Open → In Progress</span><span class="issue-status-tag">In Progress → CODE REVIEW</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="issue-key">PM-1938</a>
-                <span class="issue-summary">Admin Can Add Department Goals Before Configured Start Date</span>
-                <div class="issue-tags"><span class="issue-status-tag">In Progress</span><span class="issue-status-tag">Open → In Progress</span></div>
-              </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Ahmad ElSayed (4 issues)</div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1700" target="_blank" class="issue-key">PM-1700</a>
-                <span class="issue-summary">Workflow Configuration via Drag &amp; Drop</span>
-                <div class="issue-tags"><span class="issue-status-tag">Open</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#00d4aa">ENH</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1782" target="_blank" class="issue-key">PM-1782</a>
-                <span class="issue-summary">Alert displayed when adding goals while Require Alignment is enabled and no Department Goa…</span>
-                <div class="issue-tags"><span class="issue-status-tag">Pending Fixes</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#00d4aa">ENH</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1924" target="_blank" class="issue-key">PM-1924</a>
-                <span class="issue-summary">Improve Validation Error Message for Rating Label Length</span>
-                <div class="issue-tags"><span class="issue-status-tag">Ready for PM Review</span><span class="issue-status-tag">Open → In Progress</span><span class="issue-status-tag">In Progress → Ready for Testing</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1930" target="_blank" class="issue-key">PM-1930</a>
-                <span class="issue-summary">[FE] Managers Sending The Most Feedback - Cycle Insights</span>
-                <div class="issue-tags"><span class="issue-status-tag">Open</span></div>
-              </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Safa AlFulaij (3 issues)</div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#00d4aa">ENH</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1526" target="_blank" class="issue-key">PM-1526</a>
-                <span class="issue-summary">Competences Generation -  Job role Hover Update </span>
-                <div class="issue-tags"><span class="issue-status-tag">Ready for PM Review</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">ITEM</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1736" target="_blank" class="issue-key">PM-1736</a>
-                <span class="issue-summary">Framework Competencies Causes a Crash</span>
-                <div class="issue-tags"><span class="issue-status-tag">Done</span></div>
-              </div>
-            </div>
-            <div class="dev-issue ">
-              <span class="issue-icon" style="color:#4a90d9">SUB</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1888" target="_blank" class="issue-key">PM-1888</a>
-                <span class="issue-summary">[BE] Expose Most Managers Sending Feedback API</span>
-                <div class="issue-tags"><span class="issue-status-tag">Done</span><span class="issue-active-tag">Active 1d</span></div>
-              </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">Developer: Moses Oderinde (1 issue)</div>
-            <div class="dev-issue stale">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1707" target="_blank" class="issue-key">PM-1707</a>
-                <span class="issue-summary">Manager -Add Department/Division goals</span>
-                <div class="issue-tags"><span class="issue-status-tag">Pending Fixes</span><span class="issue-active-tag">Active 17d</span><span class="issue-stale-tag">Stale (17d / 4d)</span></div>
-              </div>
-            </div></div></div></div>
-  <div class="section-title">Today's QA Activity</div>
-  <div class="card"><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">QA: Abdelrahman Tarek (15 issues)</div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1515" target="_blank" class="issue-key">PM-1515</a>
-                <span class="issue-summary">Manager Check-in Execution Flow</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 28.9d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for PM Review (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#00d4aa">ENH</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1526" target="_blank" class="issue-key">PM-1526</a>
-                <span class="issue-summary">Competences Generation -  Job role Hover Update </span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 27.6d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for PM Review (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#00d4aa">ENH</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1527" target="_blank" class="issue-key">PM-1527</a>
-                <span class="issue-summary">Bulk Upload Competency - Behavioral Indicators sheet ( Optional )</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 27.7d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for PM Review (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1620" target="_blank" class="issue-key">PM-1620</a>
-                <span class="issue-summary">Admin- Talent Goals Details </span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 5.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for Testing (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1650" target="_blank" class="issue-key">PM-1650</a>
-                <span class="issue-summary">Enabling &quot;Potential Rating&quot; in Cycle Components</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 7.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Pending Fixes (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1652" target="_blank" class="issue-key">PM-1652</a>
-                <span class="issue-summary">Goal Alignment- Numerical KPIs Configuration </span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 7.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for PM Review (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1706" target="_blank" class="issue-key">PM-1706</a>
-                <span class="issue-summary">Manager- Add talent goals - Manual</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 7.1d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Ready for Testing (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1707" target="_blank" class="issue-key">PM-1707</a>
-                <span class="issue-summary">Manager -Add Department/Division goals</span>
-                <div class="issue-tags"><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Pending Fixes (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#4a90d9">ITEM</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1736" target="_blank" class="issue-key">PM-1736</a>
-                <span class="issue-summary">Framework Competencies Causes a Crash</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 25.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Done (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#00d4aa">ENH</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1782" target="_blank" class="issue-key">PM-1782</a>
-                <span class="issue-summary">Alert displayed when adding goals while Require Alignment is enabled a...</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 0.6d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Pending Fixes (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1789" target="_blank" class="issue-key">PM-1789</a>
-                <span class="issue-summary">Fix AI Icon Not Updated</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 0.6d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Done (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1839" target="_blank" class="issue-key">PM-1839</a>
-                <span class="issue-summary">Manager Can Return Form to Talent Again Without Adding New Comments</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 5.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> REOPEN (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1864" target="_blank" class="issue-key">PM-1864</a>
-                <span class="issue-summary">The talent form is not reflecting the cycle settings</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 12.1d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Done (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1865" target="_blank" class="issue-key">PM-1865</a>
-                <span class="issue-summary">issue with adding department goals</span>
-                <div class="issue-tags"><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> Done (Abdelrahman Tarek)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1920" target="_blank" class="issue-key">PM-1920</a>
-                <span class="issue-summary">Fix the padding in manual adding goals</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 0.6d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Abdelrahman Tarek)</span><span class="issue-status-tag">IN TESTING -> REOPEN (Abdelrahman Tarek)</span></div>
-              </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">QA: Mohamed Selem (7 issues)</div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1533" target="_blank" class="issue-key">PM-1533</a>
-                <span class="issue-summary">Auto Scores Step – Training Needs Focus</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 5.3d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Mohamed Selem)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1803" target="_blank" class="issue-key">PM-1803</a>
-                <span class="issue-summary">Training needs text is replaced with Auto score</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 4.8d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Mohamed Selem)</span><span class="issue-status-tag">IN TESTING -> Done (Mohamed Selem)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1833" target="_blank" class="issue-key">PM-1833</a>
-                <span class="issue-summary">Editing Department Goal in Admin Changes Linked Department and Display...</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 4.6d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Mohamed Selem)</span><span class="issue-status-tag">IN TESTING -> Done (Mohamed Selem)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1834" target="_blank" class="issue-key">PM-1834</a>
-                <span class="issue-summary">Broken Linking Between Competencies</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 4.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Mohamed Selem)</span><span class="issue-status-tag">IN TESTING -> Done (Mohamed Selem)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1835" target="_blank" class="issue-key">PM-1835</a>
-                <span class="issue-summary">X Button is not working</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 4.0d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Mohamed Selem)</span><span class="issue-status-tag">IN TESTING -> Done (Mohamed Selem)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#ff4757">BUG</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1886" target="_blank" class="issue-key">PM-1886</a>
-                <span class="issue-summary">Review step name duplicates after exceeding 12 reviews</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 0.5d in testing</span><span class="issue-status-tag">Ready for Testing -> IN TESTING (Mohamed Selem)</span><span class="issue-status-tag">IN TESTING -> Done (Mohamed Selem)</span></div>
-              </div>
-            </div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#00d4aa">ENH</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1924" target="_blank" class="issue-key">PM-1924</a>
-                <span class="issue-summary">Improve Validation Error Message for Rating Label Length</span>
-                <div class="issue-tags"><span class="issue-status-tag">Ready for Testing -> IN TESTING (Mohamed Selem)</span><span class="issue-status-tag">IN TESTING -> Ready for PM Review (Mohamed Selem)</span></div>
-              </div>
-            </div></div><div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">QA: Mohammad Akram (1 issue)</div>
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:#1a6bff">STORY</span>
-              <div class="issue-body">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1533" target="_blank" class="issue-key">PM-1533</a>
-                <span class="issue-summary">Auto Scores Step – Training Needs Focus</span>
-                <div class="issue-tags"><span class="issue-active-tag">[clock] 5.3d in testing</span><span class="issue-status-tag">IN TESTING -> Pending Fixes (Mohammad Akram)</span><span class="issue-status-tag">Pending Fixes -> Ready for PM Review (Mohammad Akram)</span></div>
-              </div>
-            </div></div></div>
-  <div class="section-title">Today's Bug Reports</div>
-  <div class="card"><div class='bug-report-shell'><div class='bug-report-head'><div><div class='bug-report-title'>Today's Bug Reports</div><div class='bug-report-subtitle'>Grouped by the person who created the bug today.</div></div><div class='bug-report-meta'>4 reporters</div></div><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Bugs</span><strong class='bug-report-metric-value'>6</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>3</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>2</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>1</strong></div><div class='bug-report-metric metric-storyless'><span class='bug-report-metric-label'>No Story</span><strong class='bug-report-metric-value'>4</strong></div></div><div class='bug-report-groups'><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'>AT</div><div class='bug-person-meta'><div class='bug-person-name'>Abdelrahman Tarek</div><div class='bug-person-count'>3 bugs</div></div></div><div class='bug-person-grid'>
-            <article class="bug-ticket-card reopened">
-              <div class="bug-ticket-top">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1926" target="_blank" class="bug-ticket-key">PM-1926</a>
-                <span class="bug-ticket-status reopened">Reopened</span>
-              </div>
-              <a href="https://lumofyinc.atlassian.net/browse/PM-1926" target="_blank" class="bug-ticket-summary">502 Status Code Returned When Exporting Competencies</a>
-              <div class="bug-ticket-tags">
-                <span class='bug-tag bug-tag-storyless'>No Story</span>
-                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
-              </div>
-            </article>
-            <article class="bug-ticket-card open">
-              <div class="bug-ticket-top">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1932" target="_blank" class="bug-ticket-key">PM-1932</a>
-                <span class="bug-ticket-status open">Open</span>
-              </div>
-              <a href="https://lumofyinc.atlassian.net/browse/PM-1932" target="_blank" class="bug-ticket-summary">The manager adding department and division goals is not working at all</a>
-              <div class="bug-ticket-tags">
-                <span class='bug-tag bug-tag-link'>Story: PM-1707</span>
-                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
-              </div>
-            </article>
-            <article class="bug-ticket-card open">
-              <div class="bug-ticket-top">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1933" target="_blank" class="bug-ticket-key">PM-1933</a>
-                <span class="bug-ticket-status open">Open</span>
-              </div>
-              <a href="https://lumofyinc.atlassian.net/browse/PM-1933" target="_blank" class="bug-ticket-summary">All tooltips pictures for Potential Rating not readable</a>
-              <div class="bug-ticket-tags">
-                <span class='bug-tag bug-tag-link'>Story: PM-1650</span>
-                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
-              </div>
-            </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'>MS</div><div class='bug-person-meta'><div class='bug-person-name'>Mohamed Selem</div><div class='bug-person-count'>1 bug</div></div></div><div class='bug-person-grid'>
-            <article class="bug-ticket-card in-progress">
-              <div class="bug-ticket-top">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="bug-ticket-key">PM-1938</a>
-                <span class="bug-ticket-status in-progress">In Progress</span>
-              </div>
-              <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="bug-ticket-summary">Admin Can Add Department Goals Before Configured Start Date</a>
-              <div class="bug-ticket-tags">
-                <span class='bug-tag bug-tag-storyless'>No Story</span>
-                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
-              </div>
-            </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'>MA</div><div class='bug-person-meta'><div class='bug-person-name'>Mohammad Akram</div><div class='bug-person-count'>1 bug</div></div></div><div class='bug-person-grid'>
-            <article class="bug-ticket-card open">
-              <div class="bug-ticket-top">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1939" target="_blank" class="bug-ticket-key">PM-1939</a>
-                <span class="bug-ticket-status open">Open</span>
-              </div>
-              <a href="https://lumofyinc.atlassian.net/browse/PM-1939" target="_blank" class="bug-ticket-summary">Exclude Specific Talents Not Saved When Creating Performance Cycle and Saving as Draft</a>
-              <div class="bug-ticket-tags">
-                <span class='bug-tag bug-tag-storyless'>No Story</span>
-                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
-              </div>
-            </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'>SA</div><div class='bug-person-meta'><div class='bug-person-name'>Safa AlFulaij</div><div class='bug-person-count'>1 bug</div></div></div><div class='bug-person-grid'>
-            <article class="bug-ticket-card in-progress">
-              <div class="bug-ticket-top">
-                <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="bug-ticket-key">PM-1929</a>
-                <span class="bug-ticket-status in-progress">In Progress</span>
-              </div>
-              <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="bug-ticket-summary">When showing competencies valid for a job track/job level, we must only take into consideration talents added ...</a>
-              <div class="bug-ticket-tags">
-                <span class='bug-tag bug-tag-storyless'>No Story</span>
-                <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
-              </div>
-            </article></div></section></div></div></div>
+  <div class="section-title">Developer Activity</div>
+  <div class="card"><div class="dev-grid"><div class='qa-dashboard-shell dev-dashboard-shell interactive-activity-shell'><div class='qa-dashboard-head'><div><div class='qa-dashboard-title'>Developer Activity</div><div class='qa-dashboard-subtitle'>Developer-owned status changes grouped by developer for the selected day.</div></div><div class='activity-head-controls'><label class='qa-dashboard-search'><span class='qa-search-icon'>⌕</span><input type='search' class='qa-search-input' placeholder='Search issues, PM-XXXX...' aria-label='Search developer issues'><span class='qa-filter-icon'>⌯</span></label><div class='activity-date-filter' data-date-dropdown='true' aria-label='Developer Activity Date'><div class='activity-date-label'>Developer Activity Date</div><button type='button' class='activity-date-trigger' aria-haspopup='listbox' aria-expanded='false'><span class='activity-date-trigger-text' data-date-value>Today · 06 Apr</span></button><div class='activity-date-menu' role='listbox'><button type='button' class='activity-date-option active' data-date-option='2026-04-06'>Today · 06 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-05'>Yesterday · 05 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-04'>Sat · 04 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-03'>Fri · 03 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-02'>Thu · 02 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-01'>Wed · 01 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-03-31'>Tue · 31 Mar</button></div></div></div></div><div class='activity-date-pane active' data-date='2026-04-06'><div class='qa-tabs' role='tablist' aria-label='Developer issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>16</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>5</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>1</strong></button><button type='button' class='qa-tab' data-filter='sub'>Sub-tasks <strong>9</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>1</strong></button></div><div class='qa-tester-list'><details class='qa-tester-section' open><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://secure.gravatar.com/avatar/e397276399aa996281b2e4903bc752fd?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAB-3.png' alt='Assma Benmussa' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AB</span></div><div class='qa-tester-name'>Assma Benmussa</div><div class='qa-tester-count'>6 issues</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-story" data-activity-card="true" data-type="story" data-search="pm-1659 numerical kpis for department &amp; division goals story assma benmussa open → in progress updated today by developer working in progress">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-story" title="Story" aria-label="Story">STORY</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1659" target="_blank" class="qa-issue-key">PM-1659</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1659" target="_blank" class="qa-issue-title">Numerical KPIs for Department &amp; Division Goals</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1826 the goal details page does not match the design bug assma benmussa open → in progress updated today by developer working in progress">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1826" target="_blank" class="qa-issue-key">PM-1826</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1826" target="_blank" class="qa-issue-title">The goal details page does not match the design</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1866 fix the steps design in ai goals creation bug assma benmussa open → in progress updated today by developer working in progress">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1866" target="_blank" class="qa-issue-key">PM-1866</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1866" target="_blank" class="qa-issue-title">Fix the steps design in AI Goals Creation</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1925 [fe]: match goal details design sub-task assma benmussa open → in progress updated today by developer in review code review">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1925" target="_blank" class="qa-issue-key">PM-1925</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1925" target="_blank" class="qa-issue-title">[FE]: match goal details design</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-progress">In Review</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1934 [fe]: fix steps design in ai goals creation sub-task assma benmussa open → in progress updated today by developer in review code review">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1934" target="_blank" class="qa-issue-key">PM-1934</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1934" target="_blank" class="qa-issue-title">[FE]: Fix steps design in AI goals creation</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-progress">In Review</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1940 [fe]: make the goal item in admin aligned goal form match the design sub-task assma benmussa open → in progress updated today by developer working in progress">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1940" target="_blank" class="qa-issue-key">PM-1940</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1940" target="_blank" class="qa-issue-title">[FE]: make the goal item in admin aligned goal form match the design</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article></div></div></details><details class='qa-tester-section' ><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://secure.gravatar.com/avatar/f93f2a3d736b0b97245943dbd30c8ab3?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAH-0.png' alt='Ali Husain' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AH</span></div><div class='qa-tester-name'>Ali Husain</div><div class='qa-tester-count'>5 issues</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1921 error message appears in cycle insights page 500 status code bug ali husain open → in progress updated today by developer working in progress">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1921" target="_blank" class="qa-issue-key">PM-1921</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1921" target="_blank" class="qa-issue-title">Error message appears in Cycle insights page 500 status code</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1927 [be] make the export async sub-task ali husain done → open updated today by developer in review open">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1927" target="_blank" class="qa-issue-key">PM-1927</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1927" target="_blank" class="qa-issue-title">[BE] make the export async</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Done → Open</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-progress">In Review</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1928 [be] fix issue sub-task ali husain in progress → code review updated today by developer done today done">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1928" target="_blank" class="qa-issue-key">PM-1928</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1928" target="_blank" class="qa-issue-title">[BE] fix issue</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">In Progress → CODE REVIEW</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Done Today</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1929 when showing competencies valid for a job track/job level, we must only take into consideration talents added to the cycle bug ali husain open → in progress updated today by developer working in progress">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="qa-issue-key">PM-1929</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="qa-issue-title">When showing competencies valid for a job track/job level, we must o...</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1931 [be] take participants into consideration in shared competencies filters sub-task ali husain open → in progress updated today by developer in review code review">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1931" target="_blank" class="qa-issue-key">PM-1931</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1931" target="_blank" class="qa-issue-title">[BE] take participants into consideration in shared competencies fil...</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-progress">In Review</span>
+                  </div>
+                </article></div></div></details><details class='qa-tester-section' ><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:cf6526b6-fb69-4388-9ee2-3f018744d5db/eacf5957-078a-45a8-b06d-811b45f35ab5/48' alt='Abdulrahman Al-Tayeb' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AA</span></div><div class='qa-tester-name'>Abdulrahman Al-Tayeb</div><div class='qa-tester-count'>4 issues</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1935 be - add acknowledge step model and workflow transition after alignment goals sub-task abdulrahman al-tayeb in progress → code review updated today by developer in review code review">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1935" target="_blank" class="qa-issue-key">PM-1935</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1935" target="_blank" class="qa-issue-title">BE - Add Acknowledge step model and workflow transition after Alignm...</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">In Progress → CODE REVIEW</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-progress">In Review</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1936 be - allow acknowledge step after talent goals and goal approval sub-task abdulrahman al-tayeb in progress → code review updated today by developer in review code review">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1936" target="_blank" class="qa-issue-key">PM-1936</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1936" target="_blank" class="qa-issue-title">BE - Allow Acknowledge step after Talent Goals and Goal Approval</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">In Progress → CODE REVIEW</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-progress">In Review</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-sub" data-activity-card="true" data-type="sub" data-search="pm-1937 be - allow acknowledge step after review sub-task abdulrahman al-tayeb in progress → code review updated today by developer in review code review">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-sub" title="Sub-task" aria-label="Sub-task">SUB</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1937" target="_blank" class="qa-issue-key">PM-1937</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1937" target="_blank" class="qa-issue-title">BE - Allow Acknowledge step after Review</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">In Progress → CODE REVIEW</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-progress">In Review</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1938 admin can add department goals before configured start date bug abdulrahman al-tayeb open → in progress updated today by developer working in progress">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="qa-issue-key">PM-1938</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="qa-issue-title">Admin Can Add Department Goals Before Configured Start Date</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article></div></div></details><details class='qa-tester-section' ><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:86301ea5-ad5f-4a1f-9d1a-eee1fc04dd6d/6715a9ae-dd84-46b7-b5ea-844f43d52a8e/48' alt='Ahmad ElSayed' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AE</span></div><div class='qa-tester-name'>Ahmad ElSayed</div><div class='qa-tester-count'>1 issue</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-enh" data-activity-card="true" data-type="enh" data-search="pm-1924 improve validation error message for rating label length enhancement ahmad elsayed in progress → ready for testing in testing for 6 min ready for pm ready for pm review">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1924" target="_blank" class="qa-issue-key">PM-1924</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1924" target="_blank" class="qa-issue-title">Improve Validation Error Message for Rating Label Length</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">In Progress → Ready for Testing</div>
+                    <div class="qa-issue-transition-sub">In testing for 6 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-passed">Ready For PM</span>
+                  </div>
+                </article></div></div></details></div></div><div class='activity-date-pane' data-date='2026-04-05'><div class='qa-tabs' role='tablist' aria-label='Developer issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>4</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>2</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>2</strong></button></div><div class='qa-tester-list'><details class='qa-tester-section' open><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:86301ea5-ad5f-4a1f-9d1a-eee1fc04dd6d/6715a9ae-dd84-46b7-b5ea-844f43d52a8e/48' alt='Ahmad ElSayed' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AE</span></div><div class='qa-tester-name'>Ahmad ElSayed</div><div class='qa-tester-count'>4 issues</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-enh" data-activity-card="true" data-type="enh" data-search="pm-1447 user can add duplicate clusters enhancement ahmad elsayed open → in progress updated today by developer working in progress">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1447" target="_blank" class="qa-issue-key">PM-1447</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1447" target="_blank" class="qa-issue-title">User can add duplicate clusters</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-enh" data-activity-card="true" data-type="enh" data-search="pm-1782 alert displayed when adding goals while require alignment is enabled and no department goals exist enhancement ahmad elsayed pending fixes → ready for testing in testing for 12 min working pending fixes">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1782" target="_blank" class="qa-issue-key">PM-1782</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1782" target="_blank" class="qa-issue-title">Alert displayed when adding goals while Require Alignment is enabled...</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Pending Fixes → Ready for Testing</div>
+                    <div class="qa-issue-transition-sub">In testing for 12 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1886 review step name duplicates after exceeding 12 reviews bug ahmad elsayed reopen → in progress updated today by developer done today done">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1886" target="_blank" class="qa-issue-key">PM-1886</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1886" target="_blank" class="qa-issue-title">Review step name duplicates after exceeding 12 reviews</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">REOPEN → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Done Today</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1920 fix the padding in manual adding goals bug ahmad elsayed in progress → ready for testing in testing for 6 min working reopen">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1920" target="_blank" class="qa-issue-key">PM-1920</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1920" target="_blank" class="qa-issue-title">Fix the padding in manual adding goals</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">In Progress → Ready for Testing</div>
+                    <div class="qa-issue-transition-sub">In testing for 6 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article></div></div></details></div></div><div class='activity-date-pane' data-date='2026-04-04'><div class='qa-tabs' role='tablist' aria-label='Developer issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>0</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>0</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-dashboard-empty'>No developer activity recorded for this date.</div></div><div class='activity-date-pane' data-date='2026-04-03'><div class='qa-tabs' role='tablist' aria-label='Developer issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>0</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>0</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-dashboard-empty'>No developer activity recorded for this date.</div></div><div class='activity-date-pane' data-date='2026-04-02'><div class='qa-tabs' role='tablist' aria-label='Developer issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>1</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>1</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-tester-list'><details class='qa-tester-section' open><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://secure.gravatar.com/avatar/e397276399aa996281b2e4903bc752fd?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAB-3.png' alt='Assma Benmussa' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AB</span></div><div class='qa-tester-name'>Assma Benmussa</div><div class='qa-tester-count'>1 issue</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1835 x button is not working bug assma benmussa in progress → ready for testing updated today by developer done today done">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1835" target="_blank" class="qa-issue-key">PM-1835</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1835" target="_blank" class="qa-issue-title">X Button is not working</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">In Progress → Ready for Testing</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Done Today</span>
+                  </div>
+                </article></div></div></details></div></div><div class='activity-date-pane' data-date='2026-04-01'><div class='qa-tabs' role='tablist' aria-label='Developer issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>2</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>2</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-tester-list'><details class='qa-tester-section' open><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://secure.gravatar.com/avatar/e397276399aa996281b2e4903bc752fd?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAB-3.png' alt='Assma Benmussa' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AB</span></div><div class='qa-tester-name'>Assma Benmussa</div><div class='qa-tester-count'>2 issues</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1834 broken linking between competencies bug assma benmussa open → in progress updated today by developer done today done">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1834" target="_blank" class="qa-issue-key">PM-1834</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1834" target="_blank" class="qa-issue-title">Broken Linking Between Competencies</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Done Today</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1835 x button is not working bug assma benmussa open → in progress updated today by developer done today done">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1835" target="_blank" class="qa-issue-key">PM-1835</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1835" target="_blank" class="qa-issue-title">X Button is not working</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Updated today by developer</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Done Today</span>
+                  </div>
+                </article></div></div></details></div></div><div class='activity-date-pane' data-date='2026-03-31'><div class='qa-tabs' role='tablist' aria-label='Developer issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>2</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>2</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-tester-list'><details class='qa-tester-section' open><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:cf6526b6-fb69-4388-9ee2-3f018744d5db/eacf5957-078a-45a8-b06d-811b45f35ab5/48' alt='Abdulrahman Al-Tayeb' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AA</span></div><div class='qa-tester-name'>Abdulrahman Al-Tayeb</div><div class='qa-tester-count'>1 issue</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1839 manager can return form to talent again without adding new comments bug abdulrahman al-tayeb open → in progress in testing for 12 min working reopen">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1839" target="_blank" class="qa-issue-key">PM-1839</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1839" target="_blank" class="qa-issue-title">Manager Can Return Form to Talent Again Without Adding New Comments</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">In testing for 12 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Working</span>
+                  </div>
+                </article></div></div></details><details class='qa-tester-section' ><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://secure.gravatar.com/avatar/e397276399aa996281b2e4903bc752fd?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FAB-3.png' alt='Assma Benmussa' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AB</span></div><div class='qa-tester-name'>Assma Benmussa</div><div class='qa-tester-count'>1 issue</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1833 editing department goal in admin changes linked department and displays id without showing other departments bug assma benmussa open → in progress active for 1 day(s) done today done">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1833" target="_blank" class="qa-issue-key">PM-1833</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1833" target="_blank" class="qa-issue-title">Editing Department Goal in Admin Changes Linked Department and Displ...</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">Open → In Progress</div>
+                    <div class="qa-issue-transition-sub">Active for 1 day(s)</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Done Today</span>
+                  </div>
+                </article></div></div></details></div></div></div></div></div>
+  <div class="section-title">QA Activity</div>
+  <div class="card"><div class='qa-dashboard-shell interactive-activity-shell'><div class='qa-dashboard-head'><div><div class='qa-dashboard-title'>QA Activity</div><div class='qa-dashboard-subtitle'>Transitions and testing activity grouped by QA owner for the selected day.</div></div><div class='activity-head-controls'><label class='qa-dashboard-search'><span class='qa-search-icon'>⌕</span><input type='search' class='qa-search-input' placeholder='Search issues, PM-XXXX...' aria-label='Search QA issues'><span class='qa-filter-icon'>⌯</span></label><div class='activity-date-filter' data-date-dropdown='true' aria-label='QA Activity Date'><div class='activity-date-label'>QA Activity Date</div><button type='button' class='activity-date-trigger' aria-haspopup='listbox' aria-expanded='false'><span class='activity-date-trigger-text' data-date-value>Today · 06 Apr</span></button><div class='activity-date-menu' role='listbox'><button type='button' class='activity-date-option active' data-date-option='2026-04-06'>Today · 06 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-05'>Yesterday · 05 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-04'>Sat · 04 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-03'>Fri · 03 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-02'>Thu · 02 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-01'>Wed · 01 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-03-31'>Tue · 31 Mar</button></div></div></div></div><div class='activity-date-pane active' data-date='2026-04-06'><div class='qa-tabs' role='tablist' aria-label='QA issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>16</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>7</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>4</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>5</strong></button></div><div class='qa-tester-list'><details class='qa-tester-section' open><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:34bfe712-94d1-4f47-a328-8c9d057faca6/7000d285-4e28-4761-96db-40d068963756/48' alt='Abdelrahman Tarek' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AT</span></div><div class='qa-tester-name'>Abdelrahman Tarek</div><div class='qa-tester-count'>11 issues</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-enh" data-activity-card="true" data-type="enh" data-search="pm-1526 competences generation -  job role hover update  enhancement abdelrahman tarek in testing -&gt; ready for pm review in testing for 36 min ready for pm">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1526" target="_blank" class="qa-issue-key">PM-1526</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1526" target="_blank" class="qa-issue-title">Competences Generation -  Job role Hover Update </a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Ready for PM Review</div>
+                    <div class="qa-issue-transition-sub">In testing for 36 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-passed">Ready For PM</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-enh" data-activity-card="true" data-type="enh" data-search="pm-1527 bulk upload competency - behavioral indicators sheet ( optional ) enhancement abdelrahman tarek in testing -&gt; ready for pm review in testing for 6 min ready for pm">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1527" target="_blank" class="qa-issue-key">PM-1527</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1527" target="_blank" class="qa-issue-title">Bulk Upload Competency - Behavioral Indicators sheet ( Optional )</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Ready for PM Review</div>
+                    <div class="qa-issue-transition-sub">In testing for 6 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-passed">Ready For PM</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-story" data-activity-card="true" data-type="story" data-search="pm-1620 admin- talent goals details  story abdelrahman tarek in testing -&gt; ready for testing in testing for 24.5 hours still testing">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-story" title="Story" aria-label="Story">STORY</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1620" target="_blank" class="qa-issue-key">PM-1620</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1620" target="_blank" class="qa-issue-title">Admin- Talent Goals Details </a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Ready for Testing</div>
+                    <div class="qa-issue-transition-sub">In testing for 24.5 hours</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-testing">Still Testing</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-story" data-activity-card="true" data-type="story" data-search="pm-1650 enabling &quot;potential rating&quot; in cycle components story abdelrahman tarek in testing -&gt; pending fixes in testing for 18 min sent back to dev">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-story" title="Story" aria-label="Story">STORY</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1650" target="_blank" class="qa-issue-key">PM-1650</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1650" target="_blank" class="qa-issue-title">Enabling &quot;Potential Rating&quot; in Cycle Components</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Pending Fixes</div>
+                    <div class="qa-issue-transition-sub">In testing for 18 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-sentback">Sent Back To Dev</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-story" data-activity-card="true" data-type="story" data-search="pm-1652 goal alignment- numerical kpis configuration  story abdelrahman tarek in testing -&gt; ready for pm review in testing for 12 min ready for pm">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-story" title="Story" aria-label="Story">STORY</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1652" target="_blank" class="qa-issue-key">PM-1652</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1652" target="_blank" class="qa-issue-title">Goal Alignment- Numerical KPIs Configuration </a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Ready for PM Review</div>
+                    <div class="qa-issue-transition-sub">In testing for 12 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-passed">Ready For PM</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-story" data-activity-card="true" data-type="story" data-search="pm-1707 manager -add department/division goals story abdelrahman tarek in testing -&gt; pending fixes in testing for 12 min sent back to dev">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-story" title="Story" aria-label="Story">STORY</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1707" target="_blank" class="qa-issue-key">PM-1707</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1707" target="_blank" class="qa-issue-title">Manager -Add Department/Division goals</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Pending Fixes</div>
+                    <div class="qa-issue-transition-sub">In testing for 12 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-sentback">Sent Back To Dev</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-enh hidden-by-limit" data-activity-card="true" data-type="enh" data-search="pm-1736 framework competencies causes a crash feature-bug abdelrahman tarek in testing -&gt; done updated today by qa passed qa">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1736" target="_blank" class="qa-issue-key">PM-1736</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1736" target="_blank" class="qa-issue-title">Framework Competencies Causes a Crash</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Done</div>
+                    <div class="qa-issue-transition-sub">Updated today by QA</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Passed QA</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-enh hidden-by-limit" data-activity-card="true" data-type="enh" data-search="pm-1782 alert displayed when adding goals while require alignment is enabled and no department goals exist enhancement abdelrahman tarek in testing -&gt; pending fixes in testing for 12 min sent back to dev">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1782" target="_blank" class="qa-issue-key">PM-1782</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1782" target="_blank" class="qa-issue-title">Alert displayed when adding goals while Require Alignment is enabled...</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Pending Fixes</div>
+                    <div class="qa-issue-transition-sub">In testing for 12 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-sentback">Sent Back To Dev</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug hidden-by-limit" data-activity-card="true" data-type="bug" data-search="pm-1839 manager can return form to talent again without adding new comments bug abdelrahman tarek in testing -&gt; reopen in testing for 12 min reopened">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1839" target="_blank" class="qa-issue-key">PM-1839</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1839" target="_blank" class="qa-issue-title">Manager Can Return Form to Talent Again Without Adding New Comments</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; REOPEN</div>
+                    <div class="qa-issue-transition-sub">In testing for 12 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-reopened">Reopened</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug hidden-by-limit" data-activity-card="true" data-type="bug" data-search="pm-1864 the talent form is not reflecting the cycle settings bug abdelrahman tarek in testing -&gt; done updated today by qa passed qa">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1864" target="_blank" class="qa-issue-key">PM-1864</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1864" target="_blank" class="qa-issue-title">The talent form is not reflecting the cycle settings</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Done</div>
+                    <div class="qa-issue-transition-sub">Updated today by QA</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Passed QA</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug hidden-by-limit" data-activity-card="true" data-type="bug" data-search="pm-1920 fix the padding in manual adding goals bug abdelrahman tarek in testing -&gt; reopen in testing for 6 min reopened">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1920" target="_blank" class="qa-issue-key">PM-1920</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1920" target="_blank" class="qa-issue-title">Fix the padding in manual adding goals</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; REOPEN</div>
+                    <div class="qa-issue-transition-sub">In testing for 6 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-reopened">Reopened</span>
+                  </div>
+                </article></div><button type='button' class='qa-show-more' data-expand='6'>Show More <span>+5</span></button></div></details><details class='qa-tester-section' ><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://secure.gravatar.com/avatar/ff420eb0983e3523df8686803ec8e94b?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FMS-6.png' alt='Mohamed Selem' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>MS</span></div><div class='qa-tester-name'>Mohamed Selem</div><div class='qa-tester-count'>5 issues</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1833 editing department goal in admin changes linked department and displays id without showing other departments bug mohamed selem in testing -&gt; done updated today by qa passed qa">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1833" target="_blank" class="qa-issue-key">PM-1833</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1833" target="_blank" class="qa-issue-title">Editing Department Goal in Admin Changes Linked Department and Displ...</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Done</div>
+                    <div class="qa-issue-transition-sub">Updated today by QA</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Passed QA</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1834 broken linking between competencies bug mohamed selem in testing -&gt; done updated today by qa passed qa">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1834" target="_blank" class="qa-issue-key">PM-1834</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1834" target="_blank" class="qa-issue-title">Broken Linking Between Competencies</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Done</div>
+                    <div class="qa-issue-transition-sub">Updated today by QA</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Passed QA</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1835 x button is not working bug mohamed selem in testing -&gt; done updated today by qa passed qa">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1835" target="_blank" class="qa-issue-key">PM-1835</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1835" target="_blank" class="qa-issue-title">X Button is not working</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Done</div>
+                    <div class="qa-issue-transition-sub">Updated today by QA</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Passed QA</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1886 review step name duplicates after exceeding 12 reviews bug mohamed selem in testing -&gt; done updated today by qa passed qa">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1886" target="_blank" class="qa-issue-key">PM-1886</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1886" target="_blank" class="qa-issue-title">Review step name duplicates after exceeding 12 reviews</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Done</div>
+                    <div class="qa-issue-transition-sub">Updated today by QA</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-done">Passed QA</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-enh" data-activity-card="true" data-type="enh" data-search="pm-1924 improve validation error message for rating label length enhancement mohamed selem in testing -&gt; ready for pm review in testing for 6 min ready for pm">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1924" target="_blank" class="qa-issue-key">PM-1924</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1924" target="_blank" class="qa-issue-title">Improve Validation Error Message for Rating Label Length</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Ready for PM Review</div>
+                    <div class="qa-issue-transition-sub">In testing for 6 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-passed">Ready For PM</span>
+                  </div>
+                </article></div></div></details></div></div><div class='activity-date-pane' data-date='2026-04-05'><div class='qa-tabs' role='tablist' aria-label='QA issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>2</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>1</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>1</strong></button></div><div class='qa-tester-list'><details class='qa-tester-section' open><summary class='qa-tester-summary'><div class='qa-tester-summary-left'><div class='qa-tester-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:34bfe712-94d1-4f47-a328-8c9d057faca6/7000d285-4e28-4761-96db-40d068963756/48' alt='Abdelrahman Tarek' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='qa-tester-avatar-fallback' style='display:none'>AT</span></div><div class='qa-tester-name'>Abdelrahman Tarek</div><div class='qa-tester-count'>2 issues</div></div><div class='qa-tester-chevron' aria-hidden='true'></div></summary><div class='qa-tester-body'><div class='qa-issue-grid'>
+                <article class="qa-issue-card qa-card-enh" data-activity-card="true" data-type="enh" data-search="pm-1782 alert displayed when adding goals while require alignment is enabled and no department goals exist enhancement abdelrahman tarek in testing -&gt; pending fixes in testing for 12 min sent back to dev">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-enh" title="Enhancement" aria-label="Enhancement">ENH</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1782" target="_blank" class="qa-issue-key">PM-1782</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1782" target="_blank" class="qa-issue-title">Alert displayed when adding goals while Require Alignment is enabled...</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; Pending Fixes</div>
+                    <div class="qa-issue-transition-sub">In testing for 12 min</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-sentback">Sent Back To Dev</span>
+                  </div>
+                </article>
+                <article class="qa-issue-card qa-card-bug" data-activity-card="true" data-type="bug" data-search="pm-1886 review step name duplicates after exceeding 12 reviews bug abdelrahman tarek in testing -&gt; reopen updated today by qa reopened">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type qa-type-bug" title="Bug" aria-label="Bug">BUG</div>
+                    <a href="https://lumofyinc.atlassian.net/browse/PM-1886" target="_blank" class="qa-issue-key">PM-1886</a>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1886" target="_blank" class="qa-issue-title">Review step name duplicates after exceeding 12 reviews</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">IN TESTING -&gt; REOPEN</div>
+                    <div class="qa-issue-transition-sub">Updated today by QA</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill qa-status-reopened">Reopened</span>
+                  </div>
+                </article></div></div></details></div></div><div class='activity-date-pane' data-date='2026-04-04'><div class='qa-tabs' role='tablist' aria-label='QA issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>0</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>0</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-dashboard-empty'>No QA activity recorded for this date.</div></div><div class='activity-date-pane' data-date='2026-04-03'><div class='qa-tabs' role='tablist' aria-label='QA issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>0</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>0</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-dashboard-empty'>No QA activity recorded for this date.</div></div><div class='activity-date-pane' data-date='2026-04-02'><div class='qa-tabs' role='tablist' aria-label='QA issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>0</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>0</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-dashboard-empty'>No QA activity recorded for this date.</div></div><div class='activity-date-pane' data-date='2026-04-01'><div class='qa-tabs' role='tablist' aria-label='QA issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>0</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>0</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-dashboard-empty'>No QA activity recorded for this date.</div></div><div class='activity-date-pane' data-date='2026-03-31'><div class='qa-tabs' role='tablist' aria-label='QA issue type filter'><button type='button' class='qa-tab active' data-filter='all'>All <strong>0</strong></button><button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>0</strong></button><button type='button' class='qa-tab' data-filter='story'>Stories <strong>0</strong></button><button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>0</strong></button></div><div class='qa-dashboard-empty'>No QA activity recorded for this date.</div></div></div></div>
+  <div class="section-title">Bug & Enhancement Reports</div>
+  <div class="card"><div class='bug-report-shell interactive-activity-shell'><div class='bug-report-head'><div><div class='bug-report-title'>Bug & Enhancement Reports</div><div class='bug-report-subtitle'>Created bugs and enhancements grouped by reporter for the selected day.</div></div><div class='activity-date-filter' data-date-dropdown='true' aria-label='Created Items Date'><div class='activity-date-label'>Created Items Date</div><button type='button' class='activity-date-trigger' aria-haspopup='listbox' aria-expanded='false'><span class='activity-date-trigger-text' data-date-value>Today · 06 Apr</span></button><div class='activity-date-menu' role='listbox'><button type='button' class='activity-date-option active' data-date-option='2026-04-06'>Today · 06 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-05'>Yesterday · 05 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-04'>Sat · 04 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-03'>Fri · 03 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-02'>Thu · 02 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-04-01'>Wed · 01 Apr</button><button type='button' class='activity-date-option' data-date-option='2026-03-31'>Tue · 31 Mar</button></div></div></div><div class='activity-date-pane active' data-date='2026-04-06'><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Items</span><strong class='bug-report-metric-value'>7</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Bugs</span><strong class='bug-report-metric-value'>6</strong></div><div class='bug-report-metric metric-enh'><span class='bug-report-metric-label'>Enhancements</span><strong class='bug-report-metric-value'>1</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>3</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>2</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>1</strong></div></div><div class='bug-report-groups'><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:34bfe712-94d1-4f47-a328-8c9d057faca6/7000d285-4e28-4761-96db-40d068963756/48' alt='Abdelrahman Tarek' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>AT</span></div><div class='bug-person-meta'><div class='bug-person-name'>Abdelrahman Tarek</div><div class='bug-person-count'>3 items</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card reopened" data-activity-card="true" data-type="bug" data-search="pm-1926 502 status code returned when exporting competencies bug abdelrahman tarek reopen  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1926" target="_blank" class="bug-ticket-key">PM-1926</a>
+                    </div>
+                    <span class="bug-ticket-status reopened">Reopened</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1926" target="_blank" class="bug-ticket-summary">502 Status Code Returned When Exporting Competencies</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card open" data-activity-card="true" data-type="bug" data-search="pm-1932 the manager adding department and division goals is not working at all bug abdelrahman tarek open pm-1707 sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1932" target="_blank" class="bug-ticket-key">PM-1932</a>
+                    </div>
+                    <span class="bug-ticket-status open">Open</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1932" target="_blank" class="bug-ticket-summary">The manager adding department and division goals is not working at all</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-link'>Story: PM-1707</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card open" data-activity-card="true" data-type="bug" data-search="pm-1933 all tooltips pictures for potential rating not readable bug abdelrahman tarek open pm-1650 sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1933" target="_blank" class="bug-ticket-key">PM-1933</a>
+                    </div>
+                    <span class="bug-ticket-status open">Open</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1933" target="_blank" class="bug-ticket-summary">All tooltips pictures for Potential Rating not readable</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-link'>Story: PM-1650</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://secure.gravatar.com/avatar/ff420eb0983e3523df8686803ec8e94b?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FMS-6.png' alt='Mohamed Selem' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>MS</span></div><div class='bug-person-meta'><div class='bug-person-name'>Mohamed Selem</div><div class='bug-person-count'>2 items</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card other" data-activity-card="true" data-type="enh" data-search="pm-1924 improve validation error message for rating label length enhancement mohamed selem ready for pm review  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-enh">ENH</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1924" target="_blank" class="bug-ticket-key">PM-1924</a>
+                    </div>
+                    <span class="bug-ticket-status other">Ready For Pm Review</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1924" target="_blank" class="bug-ticket-summary">Improve Validation Error Message for Rating Label Length</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card in-progress" data-activity-card="true" data-type="bug" data-search="pm-1938 admin can add department goals before configured start date bug mohamed selem in progress  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="bug-ticket-key">PM-1938</a>
+                    </div>
+                    <span class="bug-ticket-status in-progress">In Progress</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1938" target="_blank" class="bug-ticket-summary">Admin Can Add Department Goals Before Configured Start Date</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://secure.gravatar.com/avatar/2468153e294b638128213f870d44e8cf?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FMA-0.png' alt='Mohammad Akram' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>MA</span></div><div class='bug-person-meta'><div class='bug-person-name'>Mohammad Akram</div><div class='bug-person-count'>1 item</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card open" data-activity-card="true" data-type="bug" data-search="pm-1939 exclude specific talents not saved when creating performance cycle and saving as draft bug mohammad akram open  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1939" target="_blank" class="bug-ticket-key">PM-1939</a>
+                    </div>
+                    <span class="bug-ticket-status open">Open</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1939" target="_blank" class="bug-ticket-summary">Exclude Specific Talents Not Saved When Creating Performance Cycle and Saving as Draft</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:cc8df296-cc3b-4db7-848b-5cb571dede2f/4df54da5-b939-4d3b-9b0b-31fbac2c0743/48' alt='Safa AlFulaij' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>SA</span></div><div class='bug-person-meta'><div class='bug-person-name'>Safa AlFulaij</div><div class='bug-person-count'>1 item</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card in-progress" data-activity-card="true" data-type="bug" data-search="pm-1929 when showing competencies valid for a job track/job level, we must only take into consideration talents added to the cycle bug safa alfulaij in progress  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="bug-ticket-key">PM-1929</a>
+                    </div>
+                    <span class="bug-ticket-status in-progress">In Progress</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1929" target="_blank" class="bug-ticket-summary">When showing competencies valid for a job track/job level, we must only take into consideration talents added ...</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article></div></section></div></div><div class='activity-date-pane' data-date='2026-04-05'><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Items</span><strong class='bug-report-metric-value'>7</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Bugs</span><strong class='bug-report-metric-value'>6</strong></div><div class='bug-report-metric metric-enh'><span class='bug-report-metric-label'>Enhancements</span><strong class='bug-report-metric-value'>1</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>2</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>2</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>1</strong></div></div><div class='bug-report-groups'><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://secure.gravatar.com/avatar/2468153e294b638128213f870d44e8cf?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FMA-0.png' alt='Mohammad Akram' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>MA</span></div><div class='bug-person-meta'><div class='bug-person-name'>Mohammad Akram</div><div class='bug-person-count'>3 items</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card other" data-activity-card="true" data-type="bug" data-search="pm-1915 exclude specific talents state changes(no auto save for steps) bug mohammad akram done  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1915" target="_blank" class="bug-ticket-key">PM-1915</a>
+                    </div>
+                    <span class="bug-ticket-status other">Done</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1915" target="_blank" class="bug-ticket-summary">Exclude Specific Talents state changes(no auto save for steps)</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card open" data-activity-card="true" data-type="enh" data-search="pm-1918 missing validation when assigning competencies manually (ex: by role or talent, etc) enhancement mohammad akram open  backlog">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-enh">ENH</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1918" target="_blank" class="bug-ticket-key">PM-1918</a>
+                    </div>
+                    <span class="bug-ticket-status open">Open</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1918" target="_blank" class="bug-ticket-summary">Missing Validation When Assigning Competencies Manually (ex: By Role or Talent, etc)</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Backlog</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card in-progress" data-activity-card="true" data-type="bug" data-search="pm-1921 error message appears in cycle insights page 500 status code bug mohammad akram in progress  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1921" target="_blank" class="bug-ticket-key">PM-1921</a>
+                    </div>
+                    <span class="bug-ticket-status in-progress">In Progress</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1921" target="_blank" class="bug-ticket-summary">Error message appears in Cycle insights page 500 status code</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:34bfe712-94d1-4f47-a328-8c9d057faca6/7000d285-4e28-4761-96db-40d068963756/48' alt='Abdelrahman Tarek' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>AT</span></div><div class='bug-person-meta'><div class='bug-person-name'>Abdelrahman Tarek</div><div class='bug-person-count'>2 items</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card reopened" data-activity-card="true" data-type="bug" data-search="pm-1920 fix the padding in manual adding goals bug abdelrahman tarek reopen  backlog">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1920" target="_blank" class="bug-ticket-key">PM-1920</a>
+                    </div>
+                    <span class="bug-ticket-status reopened">Reopened</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1920" target="_blank" class="bug-ticket-summary">Fix the padding in manual adding goals</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Backlog</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card in-progress" data-activity-card="true" data-type="bug" data-search="pm-1922 cannot add new goals in goal approval stage (admin) bug abdelrahman tarek in progress  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1922" target="_blank" class="bug-ticket-key">PM-1922</a>
+                    </div>
+                    <span class="bug-ticket-status in-progress">In Progress</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1922" target="_blank" class="bug-ticket-summary">Cannot Add New Goals in Goal Approval Stage (Admin)</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://secure.gravatar.com/avatar/ff420eb0983e3523df8686803ec8e94b?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FMS-6.png' alt='Mohamed Selem' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>MS</span></div><div class='bug-person-meta'><div class='bug-person-name'>Mohamed Selem</div><div class='bug-person-count'>2 items</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card open" data-activity-card="true" data-type="bug" data-search="pm-1917 if there is no competency in role track doesn&#x27;t send competency  bug mohamed selem open  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1917" target="_blank" class="bug-ticket-key">PM-1917</a>
+                    </div>
+                    <span class="bug-ticket-status open">Open</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1917" target="_blank" class="bug-ticket-summary">if there is no competency in role track doesn&#x27;t send competency </a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card other" data-activity-card="true" data-type="bug" data-search="pm-1919 ai assigns goals from an incorrect department when editing talent form bug mohamed selem done  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1919" target="_blank" class="bug-ticket-key">PM-1919</a>
+                    </div>
+                    <span class="bug-ticket-status other">Done</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1919" target="_blank" class="bug-ticket-summary">AI assigns goals from an incorrect department when editing Talent Form</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article></div></section></div></div><div class='activity-date-pane' data-date='2026-04-04'><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Items</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Bugs</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-enh'><span class='bug-report-metric-label'>Enhancements</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>0</strong></div></div><div class='bug-report-empty'>No bugs or enhancements were created for this date.</div></div><div class='activity-date-pane' data-date='2026-04-03'><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Items</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Bugs</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-enh'><span class='bug-report-metric-label'>Enhancements</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>0</strong></div></div><div class='bug-report-empty'>No bugs or enhancements were created for this date.</div></div><div class='activity-date-pane' data-date='2026-04-02'><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Items</span><strong class='bug-report-metric-value'>2</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Bugs</span><strong class='bug-report-metric-value'>2</strong></div><div class='bug-report-metric metric-enh'><span class='bug-report-metric-label'>Enhancements</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>0</strong></div></div><div class='bug-report-groups'><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:34bfe712-94d1-4f47-a328-8c9d057faca6/7000d285-4e28-4761-96db-40d068963756/48' alt='Abdelrahman Tarek' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>AT</span></div><div class='bug-person-meta'><div class='bug-person-name'>Abdelrahman Tarek</div><div class='bug-person-count'>2 items</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card other" data-activity-card="true" data-type="bug" data-search="pm-1912 smart goals are not optional bug abdelrahman tarek done pm-1698 sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1912" target="_blank" class="bug-ticket-key">PM-1912</a>
+                    </div>
+                    <span class="bug-ticket-status other">Done</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1912" target="_blank" class="bug-ticket-summary">Smart Goals are not optional</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-link'>Story: PM-1698</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card other" data-activity-card="true" data-type="bug" data-search="pm-1913 kpi card does not display assignee avatar for managers bug abdelrahman tarek done  sprint 15 - pm sprint 6">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1913" target="_blank" class="bug-ticket-key">PM-1913</a>
+                    </div>
+                    <span class="bug-ticket-status other">Done</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1913" target="_blank" class="bug-ticket-summary">KPI Card does not display assignee avatar for managers</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Sprint 15 - PM Sprint 6</span>
+                  </div>
+                </article></div></section></div></div><div class='activity-date-pane' data-date='2026-04-01'><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Items</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Bugs</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-enh'><span class='bug-report-metric-label'>Enhancements</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>0</strong></div></div><div class='bug-report-empty'>No bugs or enhancements were created for this date.</div></div><div class='activity-date-pane' data-date='2026-03-31'><div class='bug-report-metrics'><div class='bug-report-metric metric-total'><span class='bug-report-metric-label'>Total Items</span><strong class='bug-report-metric-value'>3</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Bugs</span><strong class='bug-report-metric-value'>3</strong></div><div class='bug-report-metric metric-enh'><span class='bug-report-metric-label'>Enhancements</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-open'><span class='bug-report-metric-label'>Open</span><strong class='bug-report-metric-value'>3</strong></div><div class='bug-report-metric metric-progress'><span class='bug-report-metric-label'>In Progress</span><strong class='bug-report-metric-value'>0</strong></div><div class='bug-report-metric metric-reopened'><span class='bug-report-metric-label'>Reopened</span><strong class='bug-report-metric-value'>0</strong></div></div><div class='bug-report-groups'><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://avatar-management--avatars.us-west-2.prod.public.atl-paas.net/712020:34bfe712-94d1-4f47-a328-8c9d057faca6/7000d285-4e28-4761-96db-40d068963756/48' alt='Abdelrahman Tarek' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>AT</span></div><div class='bug-person-meta'><div class='bug-person-name'>Abdelrahman Tarek</div><div class='bug-person-count'>2 items</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card open" data-activity-card="true" data-type="bug" data-search="pm-1905 incorrect color application – selecting black displays brown theme bug abdelrahman tarek open  backlog">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1905" target="_blank" class="bug-ticket-key">PM-1905</a>
+                    </div>
+                    <span class="bug-ticket-status open">Open</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1905" target="_blank" class="bug-ticket-summary">Incorrect Color Application – Selecting Black Displays Brown Theme</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Backlog</span>
+                  </div>
+                </article>
+                <article class="bug-ticket-card open" data-activity-card="true" data-type="bug" data-search="pm-1906 error in weekly talents activity overview bug abdelrahman tarek open  backlog">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1906" target="_blank" class="bug-ticket-key">PM-1906</a>
+                    </div>
+                    <span class="bug-ticket-status open">Open</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1906" target="_blank" class="bug-ticket-summary">Error in weekly talents activity overview</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Backlog</span>
+                  </div>
+                </article></div></section><section class='bug-person-card'><div class='bug-person-header'><div class='bug-person-avatar'><img src='https://secure.gravatar.com/avatar/ff420eb0983e3523df8686803ec8e94b?d=https%3A%2F%2Favatar-management--avatars.us-west-2.prod.public.atl-paas.net%2Finitials%2FMS-6.png' alt='Mohamed Selem' loading='lazy' referrerpolicy='no-referrer' onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"><span class='bug-person-avatar-fallback' style='display:none'>MS</span></div><div class='bug-person-meta'><div class='bug-person-name'>Mohamed Selem</div><div class='bug-person-count'>1 item</div></div></div><div class='bug-person-grid'>
+                <article class="bug-ticket-card open" data-activity-card="true" data-type="bug" data-search="pm-1907 validation error appears immediately when clicking &quot;ask ai&quot; bug mohamed selem open  backlog">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type bug-ticket-type-bug">BUG</span>
+                      <a href="https://lumofyinc.atlassian.net/browse/PM-1907" target="_blank" class="bug-ticket-key">PM-1907</a>
+                    </div>
+                    <span class="bug-ticket-status open">Open</span>
+                  </div>
+                  <a href="https://lumofyinc.atlassian.net/browse/PM-1907" target="_blank" class="bug-ticket-summary">Validation error appears immediately when clicking &quot;Ask AI&quot;</a>
+                  <div class="bug-ticket-tags">
+                    <span class='bug-tag bug-tag-storyless'>No Story</span>
+                    <span class="bug-tag bug-tag-sprint">Backlog</span>
+                  </div>
+                </article></div></section></div></div></div></div>
   
   <div class="section-title">Weighted Formula</div>
   <div class="card">
@@ -1018,17 +1549,17 @@ td:first-child{color:#e0eaff}
               <div class="details-subnote">Average Time in Status</div>
             </div>
             <div class="status-chip-grid">
-              <div class='status-chip'><span>Open</span><strong>22</strong></div><div class='status-chip'><span>Ready for Testing</span><strong>19</strong></div><div class='status-chip'><span>In Progress</span><strong>16</strong></div><div class='status-chip'><span>CODE REVIEW</span><strong>15</strong></div><div class='status-chip'><span>Ready for PM Review</span><strong>14</strong></div>
+              <div class='status-chip'><span>Open</span><strong>22</strong></div><div class='status-chip'><span>Ready for Testing</span><strong>20</strong></div><div class='status-chip'><span>In Progress</span><strong>16</strong></div><div class='status-chip'><span>CODE REVIEW</span><strong>15</strong></div><div class='status-chip'><span>Ready for PM Review</span><strong>14</strong></div>
             </div>
           </div>
         </div>
         <div class="details-panel">
           <div class="details-panel-head">
             <h3>Age of Unfinished Issues</h3>
-            <span>Avg. 29.4 Days</span>
+            <span>Avg. 29.5 Days</span>
           </div>
-          <div class="details-big-metric">Average Age: 29.4 Days</div>
-          <div class='age-chart'><div class='age-bar-col'><div class='age-bar-value'>16</div><div class='age-bar' style='height:24px;background:#00d4aa'></div><div class='age-bar-label'>0-3d</div></div><div class='age-bar-col'><div class='age-bar-value'>1</div><div class='age-bar' style='height:10px;background:#1a6bff'></div><div class='age-bar-label'>4-7d</div></div><div class='age-bar-col'><div class='age-bar-value'>3</div><div class='age-bar' style='height:10px;background:#fbbf24'></div><div class='age-bar-label'>8-14d</div></div><div class='age-bar-col'><div class='age-bar-value'>94</div><div class='age-bar' style='height:140px;background:#4a90d9'></div><div class='age-bar-label'>15+d</div></div></div>
+          <div class="details-big-metric">Average Age: 29.5 Days</div>
+          <div class='age-chart'><div class='age-bar-col'><div class='age-bar-value'>16</div><div class='age-bar' style='height:24px;background:#00d4aa'></div><div class='age-bar-label'>0-3d</div></div><div class='age-bar-col'><div class='age-bar-value'>0</div><div class='age-bar' style='height:6px;background:#1a6bff'></div><div class='age-bar-label'>4-7d</div></div><div class='age-bar-col'><div class='age-bar-value'>4</div><div class='age-bar' style='height:10px;background:#fbbf24'></div><div class='age-bar-label'>8-14d</div></div><div class='age-bar-col'><div class='age-bar-value'>94</div><div class='age-bar' style='height:140px;background:#4a90d9'></div><div class='age-bar-label'>15+d</div></div></div>
         </div>
         <div class="details-panel">
           <div class="details-panel-head">
@@ -1065,7 +1596,142 @@ td:first-child{color:#e0eaff}
     </a>
     <div class="fab-tooltip">Admin Dashboard</div>
   </div>
-  <div class="footer">Lumofy QA | Sprint Health Dashboard | 2026-04-06 13:57 UTC</div>
+  <div class="footer">Lumofy QA | Sprint Health Dashboard | 2026-04-06 16:23 UTC</div>
 </div>
+<script>
+(() => {
+  const roots = Array.from(document.querySelectorAll('.interactive-activity-shell'));
+  if (!roots.length) return;
+
+  roots.forEach((root) => {
+    const searchInput = root.querySelector('.qa-search-input');
+    const dateDropdown = root.querySelector('[data-date-dropdown="true"]');
+    const dateTrigger = dateDropdown?.querySelector('.activity-date-trigger');
+    const dateValue = dateDropdown?.querySelector('[data-date-value]');
+    const dateOptions = Array.from(dateDropdown?.querySelectorAll('[data-date-option]') || []);
+    const panes = Array.from(root.querySelectorAll('.activity-date-pane'));
+    let activeFilter = 'all';
+    let activeDate = dateOptions.find((option) => option.classList.contains('active'))?.dataset.dateOption || panes[0]?.dataset.date || '';
+
+    function getActivePane() {
+      return panes.find((pane) => pane.dataset.date === activeDate) || panes[0] || null;
+    }
+
+    function applyFilters() {
+      const term = (searchInput?.value || '').trim().toLowerCase();
+      const activePane = getActivePane();
+      panes.forEach((pane) => pane.classList.toggle('active', pane === activePane));
+      if (dateValue) {
+        const activeOption = dateOptions.find((option) => option.dataset.dateOption === activeDate);
+        if (activeOption) dateValue.textContent = activeOption.textContent || '';
+      }
+      dateOptions.forEach((option) => option.classList.toggle('active', option.dataset.dateOption === activeDate));
+      if (!activePane) return;
+
+      const tabs = Array.from(activePane.querySelectorAll('.qa-tab[data-filter]'));
+      tabs.forEach((item) => item.classList.toggle('active', (item.dataset.filter || 'all') === activeFilter));
+
+      const sections = Array.from(activePane.querySelectorAll('.qa-tester-section'));
+      sections.forEach((section) => {
+        const cards = Array.from(section.querySelectorAll('[data-activity-card="true"]'));
+        const showMoreButton = section.querySelector('.qa-show-more');
+        const expandLimit = Number(showMoreButton?.dataset.expand || '6');
+        const expanded = showMoreButton?.dataset.expanded === 'true';
+
+        let visibleCount = 0;
+        cards.forEach((card) => {
+          const matchesFilter = activeFilter === 'all' || card.dataset.type === activeFilter;
+          const matchesSearch = !term || (card.dataset.search || '').includes(term);
+          const matches = matchesFilter && matchesSearch;
+          card.classList.toggle('hidden-by-filter', !matches);
+
+          if (!matches) {
+            card.classList.add('hidden-by-limit');
+            return;
+          }
+
+          visibleCount += 1;
+          card.classList.toggle('hidden-by-limit', !expanded && visibleCount > expandLimit);
+        });
+
+        const hiddenMatching = cards.filter((card) =>
+          !card.classList.contains('hidden-by-filter') && card.classList.contains('hidden-by-limit')
+        ).length;
+
+        if (showMoreButton) {
+          if (hiddenMatching > 0) {
+            showMoreButton.classList.remove('hidden');
+            showMoreButton.innerHTML = `Show More <span>+${hiddenMatching}</span>`;
+          } else {
+            showMoreButton.classList.add('hidden');
+          }
+        }
+
+        section.classList.toggle('hidden-by-filter', visibleCount === 0);
+      });
+    }
+
+    root.addEventListener('click', (event) => {
+      const tab = event.target.closest('.qa-tab[data-filter]');
+      if (tab && root.contains(tab)) {
+        activeFilter = tab.dataset.filter || 'all';
+        applyFilters();
+        return;
+      }
+      const dateOption = event.target.closest('[data-date-option]');
+      if (dateOption && root.contains(dateOption)) {
+        activeDate = dateOption.dataset.dateOption || activeDate;
+        activeFilter = 'all';
+        dateDropdown?.classList.remove('open');
+        root.closest('.card')?.classList.remove('dropdown-open');
+        dateTrigger?.setAttribute('aria-expanded', 'false');
+        applyFilters();
+        return;
+      }
+      const showMore = event.target.closest('.qa-show-more');
+      if (showMore && root.contains(showMore)) {
+        showMore.dataset.expanded = 'true';
+        applyFilters();
+        return;
+      }
+      const dateFilter = event.target.closest('.activity-date-filter');
+      if (dateDropdown && dateFilter === dateDropdown && !dateOption) {
+        const nextOpen = !dateDropdown?.classList.contains('open');
+        dateDropdown?.classList.toggle('open', nextOpen);
+        root.closest('.card')?.classList.toggle('dropdown-open', nextOpen);
+        dateTrigger.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+        return;
+      }
+    });
+
+    if (searchInput) {
+      searchInput.addEventListener('input', applyFilters);
+    }
+
+    applyFilters();
+  });
+
+  document.addEventListener('click', (event) => {
+    document.querySelectorAll('[data-date-dropdown="true"].open').forEach((dropdown) => {
+      if (!dropdown.contains(event.target)) {
+        dropdown.classList.remove('open');
+        dropdown.closest('.card')?.classList.remove('dropdown-open');
+        const trigger = dropdown.querySelector('.activity-date-trigger');
+        trigger?.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    document.querySelectorAll('[data-date-dropdown="true"].open').forEach((dropdown) => {
+      dropdown.classList.remove('open');
+      dropdown.closest('.card')?.classList.remove('dropdown-open');
+      const trigger = dropdown.querySelector('.activity-date-trigger');
+      trigger?.setAttribute('aria-expanded', 'false');
+    });
+  });
+})();
+</script>
 </body>
 </html>

@@ -38,6 +38,9 @@ OPENAI_TIMEOUT  = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
 METRICS_CONFIG_PATH = Path(
     os.getenv("METRICS_CONFIG_PATH", str(Path(__file__).resolve().with_name("health_metrics_config.json")))
 )
+ISSUE_CACHE_PATH = Path(
+    os.getenv("ISSUE_CACHE_PATH", str(Path(__file__).resolve().with_name("issue_history_cache.json")))
+)
 LOCAL_TIMEZONE = os.getenv("REPORT_TIMEZONE", "Africa/Cairo").strip() or "Africa/Cairo"
 try:
     import pytz
@@ -396,6 +399,131 @@ def agile_get(path: str, params: dict = None) -> dict:
 _BOARD_ID_CACHE = None
 _SPRINT_CATALOG_CACHE: dict[int, dict[str, dict]] = {}
 _ISSUE_HISTORY_CACHE: dict[str, dict] = {}
+_ISSUE_CHANGELOG_CACHE: dict[str, dict] = {}
+_ISSUE_CACHE_LOADED = False
+_ISSUE_CACHE_DIRTY = False
+
+
+def _serialize_datetime(value: datetime | None) -> str:
+    if not value:
+        return ""
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def _deserialize_datetime(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value)
+        return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
+    except Exception:
+        return None
+
+
+def _load_issue_cache() -> None:
+    global _ISSUE_CACHE_LOADED, _ISSUE_HISTORY_CACHE, _ISSUE_CHANGELOG_CACHE
+    if _ISSUE_CACHE_LOADED:
+        return
+    _ISSUE_CACHE_LOADED = True
+    if not ISSUE_CACHE_PATH.exists():
+        return
+    try:
+        payload = json.loads(ISSUE_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(f"[warn] Could not load issue cache: {e}")
+        return
+
+    history_cache: dict[str, dict] = {}
+    for issue_key, row in (payload.get("history") or {}).items():
+        history_cache[issue_key] = {
+            "updated": row.get("updated", ""),
+            "data": {
+                "status": [
+                    {
+                        "from": item.get("from", ""),
+                        "to": item.get("to", ""),
+                        "datetime": _deserialize_datetime(item.get("datetime", "")),
+                    }
+                    for item in (row.get("data", {}) or {}).get("status", [])
+                    if _deserialize_datetime(item.get("datetime", "")) is not None
+                ],
+                "sprint": [
+                    {
+                        "from": item.get("from", ""),
+                        "to": item.get("to", ""),
+                        "datetime": _deserialize_datetime(item.get("datetime", "")),
+                    }
+                    for item in (row.get("data", {}) or {}).get("sprint", [])
+                    if _deserialize_datetime(item.get("datetime", "")) is not None
+                ],
+            },
+        }
+    changelog_cache: dict[str, dict] = {}
+    for issue_key, row in (payload.get("changelog") or {}).items():
+        changelog_cache[issue_key] = {
+            "updated": row.get("updated", ""),
+            "data": [
+                {
+                    "from": item.get("from", ""),
+                    "to": item.get("to", ""),
+                    "datetime": _deserialize_datetime(item.get("datetime", "")),
+                    "actor": item.get("actor", "Unknown"),
+                    "actor_account_id": item.get("actor_account_id", ""),
+                }
+                for item in (row.get("data") or [])
+                if _deserialize_datetime(item.get("datetime", "")) is not None
+            ],
+        }
+    _ISSUE_HISTORY_CACHE = history_cache
+    _ISSUE_CHANGELOG_CACHE = changelog_cache
+
+
+def _save_issue_cache() -> None:
+    global _ISSUE_CACHE_DIRTY
+    if not _ISSUE_CACHE_DIRTY:
+        return
+    payload = {"history": {}, "changelog": {}}
+    for issue_key, row in _ISSUE_HISTORY_CACHE.items():
+        payload["history"][issue_key] = {
+            "updated": row.get("updated", ""),
+            "data": {
+                "status": [
+                    {
+                        "from": item.get("from", ""),
+                        "to": item.get("to", ""),
+                        "datetime": _serialize_datetime(item.get("datetime")),
+                    }
+                    for item in (row.get("data", {}) or {}).get("status", [])
+                ],
+                "sprint": [
+                    {
+                        "from": item.get("from", ""),
+                        "to": item.get("to", ""),
+                        "datetime": _serialize_datetime(item.get("datetime")),
+                    }
+                    for item in (row.get("data", {}) or {}).get("sprint", [])
+                ],
+            },
+        }
+    for issue_key, row in _ISSUE_CHANGELOG_CACHE.items():
+        payload["changelog"][issue_key] = {
+            "updated": row.get("updated", ""),
+            "data": [
+                {
+                    "from": item.get("from", ""),
+                    "to": item.get("to", ""),
+                    "datetime": _serialize_datetime(item.get("datetime")),
+                    "actor": item.get("actor", "Unknown"),
+                    "actor_account_id": item.get("actor_account_id", ""),
+                }
+                for item in (row.get("data") or [])
+            ],
+        }
+    try:
+        ISSUE_CACHE_PATH.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        _ISSUE_CACHE_DIRTY = False
+    except Exception as e:
+        print(f"[warn] Could not save issue cache: {e}")
 
 
 def get_board_id():
@@ -614,15 +742,16 @@ def fetch_sprint_issues() -> tuple[list, dict]:
     return all_issues, sprint_info
 
 
-def fetch_today_project_issues() -> list:
+def fetch_recent_project_issues(days: int = 7) -> list:
     """
-    Fetch all project issues updated today (not limited to active sprint).
+    Fetch all project issues updated in the last N days (not limited to active sprint).
     """
     all_issues = []
     start_at = 0
     page_size = 50
     seen_pages: set[tuple[str, str, int]] = set()
-    jql = f"project = {JIRA_PROJECT} AND updated >= startOfDay() ORDER BY updated DESC"
+    start_date = (datetime.now(LOCAL_TZ).date() - timedelta(days=max(0, days - 1))).strftime("%Y-%m-%d")
+    jql = f'project = {JIRA_PROJECT} AND updated >= "{start_date}" ORDER BY updated DESC'
     while True:
         data = jira_get("search/jql", {
             "jql": jql,
@@ -649,18 +778,19 @@ def fetch_today_project_issues() -> list:
     return all_issues
 
 
-def fetch_today_created_bugs() -> list:
+def fetch_recent_created_bugs(days: int = 7) -> list:
     """
-    Fetch bugs created today across the whole project.
+    Fetch bugs and enhancements created in the last N days across the whole project.
     """
     all_issues = []
     start_at = 0
     page_size = 50
     seen_pages: set[tuple[str, str, int]] = set()
+    start_date = (datetime.now(LOCAL_TZ).date() - timedelta(days=max(0, days - 1))).strftime("%Y-%m-%d")
     jql = (
         f"project = {JIRA_PROJECT} "
-        f"AND issuetype in (\"{BUG_TYPE}\", \"Feature Bug\") "
-        "AND created >= startOfDay() "
+        "AND issuetype in (\"Bug\", \"Feature Bug\", \"Enhancement\", \"Improvement\") "
+        f'AND created >= "{start_date}" '
         "ORDER BY created DESC"
     )
     while True:
@@ -679,7 +809,7 @@ def fetch_today_created_bugs() -> list:
             break
         signature = _page_signature(issues)
         if signature in seen_pages:
-            print("[warn] Jira returned a repeated bug page; stopping pagination early.")
+            print("[warn] Jira returned a repeated created-items page; stopping pagination early.")
             break
         seen_pages.add(signature)
         all_issues.extend(issues)
@@ -724,8 +854,20 @@ def fetch_last_n_sprints(n: int = 3) -> list[dict]:
 
 # ——— CHANGELOG & STATUS HISTORY ————————————————————————————————————————————————
 
-def fetch_issue_changelog(issue_key: str) -> list[dict]:
+def fetch_issue_changelog(issue_key: str, updated_hint: str = "") -> list[dict]:
     """Returns status change events for an issue, oldest first."""
+    global _ISSUE_CACHE_DIRTY
+    _load_issue_cache()
+    cached = _ISSUE_CHANGELOG_CACHE.get(issue_key)
+    if cached is not None and (not updated_hint or cached.get("updated") == updated_hint):
+        cached_events = cached.get("data", [])
+        cache_has_avatar_shape = all(
+            isinstance(event, dict) and "actor_avatar" in event
+            for event in cached_events
+        )
+        if cache_has_avatar_shape:
+            return cached_events
+
     events = []
     try:
         start_at = 0
@@ -736,6 +878,7 @@ def fetch_issue_changelog(issue_key: str) -> list[dict]:
                 created_raw = entry.get("created")
                 actor_name = ((entry.get("author") or {}).get("displayName") or "Unknown")
                 actor_account_id = ((entry.get("author") or {}).get("accountId") or "")
+                actor_avatar = ((entry.get("author") or {}).get("avatarUrls") or {}).get("48x48", "")
                 for item in entry.get("items", []):
                     if item.get("field") == "status":
                         dt = parse_jira_datetime(created_raw)
@@ -746,19 +889,25 @@ def fetch_issue_changelog(issue_key: str) -> list[dict]:
                                 "datetime": dt,
                                 "actor":    actor_name,
                                 "actor_account_id": actor_account_id,
+                                "actor_avatar": actor_avatar,
                             })
             total = data.get("total", 0)
             start_at += len(data.get("values", []))
             if start_at >= total: break
     except Exception as e:
         print(f"[warn] changelog failed for {issue_key}: {e}")
-    return sorted(events, key=lambda x: x["datetime"])
+    events = sorted(events, key=lambda x: x["datetime"])
+    _ISSUE_CHANGELOG_CACHE[issue_key] = {"updated": updated_hint or "", "data": events}
+    _ISSUE_CACHE_DIRTY = True
+    return events
 
 
-def fetch_issue_history(issue_key: str) -> dict:
+def fetch_issue_history(issue_key: str, updated_hint: str = "") -> dict:
+    global _ISSUE_CACHE_DIRTY
+    _load_issue_cache()
     cached = _ISSUE_HISTORY_CACHE.get(issue_key)
-    if cached is not None:
-        return cached
+    if cached is not None and (not updated_hint or cached.get("updated") == updated_hint):
+        return cached.get("data", {})
 
     history = {"status": [], "sprint": []}
     try:
@@ -794,12 +943,13 @@ def fetch_issue_history(issue_key: str) -> dict:
 
     history["status"].sort(key=lambda row: row["datetime"])
     history["sprint"].sort(key=lambda row: row["datetime"])
-    _ISSUE_HISTORY_CACHE[issue_key] = history
+    _ISSUE_HISTORY_CACHE[issue_key] = {"updated": updated_hint or "", "data": history}
+    _ISSUE_CACHE_DIRTY = True
     return history
 
 
 def calc_time_in_status(changelog: list[dict], target_status: str) -> float:
-    """Total days spent in target_status across all periods."""
+    """Total hours spent in target_status across all periods."""
     target_upper  = target_status.strip().upper()
     total_seconds = 0.0
     entered_at    = None
@@ -812,7 +962,49 @@ def calc_time_in_status(changelog: list[dict], target_status: str) -> float:
             entered_at = None
     if entered_at is not None:
         total_seconds += (now - entered_at).total_seconds()
-    return round(total_seconds / 86400, 1)
+    return round(total_seconds / 3600, 1)
+
+
+def format_duration_hours(hours_value: float | int | None) -> str:
+    if hours_value is None:
+        return "0 min"
+    try:
+        hours_float = float(hours_value)
+    except (TypeError, ValueError):
+        return "0 min"
+    if hours_float <= 0:
+        return "0 min"
+    if hours_float < 1:
+        minutes = max(1, round(hours_float * 60))
+        return f"{minutes} min"
+    whole = int(hours_float)
+    if abs(hours_float - whole) < 1e-9:
+        return f"{whole} hour" if whole == 1 else f"{whole} hours"
+    return f"{hours_float:.1f} hours"
+
+
+def _person_initials(name: str) -> str:
+    parts = [part for part in (name or "Unknown").split() if part]
+    if not parts:
+        return "UN"
+    if len(parts) == 1:
+        return parts[0][:2].upper()
+    return (parts[0][0] + parts[1][0]).upper()
+
+
+def _person_avatar_html(name: str, avatar_url: str | None, class_name: str = "qa-tester-avatar") -> str:
+    initials = escape(_person_initials(name))
+    safe_name = escape(name or "Unknown")
+    safe_url = escape(avatar_url or "")
+    if safe_url:
+        return (
+            f"<div class='{class_name}'>"
+            f"<img src='{safe_url}' alt='{safe_name}' loading='lazy' referrerpolicy='no-referrer' "
+            f"onerror=\"this.style.display='none';this.nextElementSibling.style.display='flex';\">"
+            f"<span class='{class_name}-fallback' style='display:none'>{initials}</span>"
+            f"</div>"
+        )
+    return f"<div class='{class_name}'><span class='{class_name}-fallback'>{initials}</span></div>"
 
 
 def calc_dev_progress_days(changelog: list[dict]) -> int:
@@ -844,6 +1036,33 @@ def calc_dev_progress_days(changelog: list[dict]) -> int:
 def get_status_transitions_today(changelog: list[dict]) -> list[dict]:
     today_local = datetime.now(LOCAL_TZ).date()
     return [e for e in changelog if e["datetime"].astimezone(LOCAL_TZ).date() == today_local]
+
+
+def get_status_transitions_on_date(changelog: list[dict], target_date) -> list[dict]:
+    return [e for e in changelog if e["datetime"].astimezone(LOCAL_TZ).date() == target_date]
+
+
+def updated_on_date(updated: str, target_date) -> bool:
+    dt = parse_jira_datetime(updated)
+    return bool(dt and dt.astimezone(LOCAL_TZ).date() == target_date)
+
+
+def _activity_date_key(target_date) -> str:
+    return target_date.isoformat()
+
+
+def _activity_date_label(target_date) -> str:
+    today_local = datetime.now(LOCAL_TZ).date()
+    if target_date == today_local:
+        return f"Today · {target_date.strftime('%d %b')}"
+    if target_date == today_local - timedelta(days=1):
+        return f"Yesterday · {target_date.strftime('%d %b')}"
+    return target_date.strftime("%a · %d %b")
+
+
+def _recent_activity_dates(days: int = 7) -> list:
+    today_local = datetime.now(LOCAL_TZ).date()
+    return [today_local - timedelta(days=offset) for offset in range(max(1, days))]
 
 
 # ——— BURNDOWN ————————————————————————————————————————————————————————————————
@@ -1145,7 +1364,7 @@ def calculate_sprint_carryover_metrics(
         total_work += weight
         total_items += 1
 
-        history = fetch_issue_history(key)
+        history = fetch_issue_history(key, fields.get("updated", "") or "")
         sprint_events = history.get("sprint", [])
         status_events = history.get("status", [])
         transition_into_current = _find_transition_into_current_sprint(sprint_events, current_sprint_name)
@@ -1346,17 +1565,21 @@ def build_developer_activity(
     sprint_start_str: str,
     allowed_qa_names: set[str] | None = None,
     allowed_dev_names: set[str] | None = None,
-) -> tuple[list[dict], list[dict]]:
+) -> tuple[dict[str, list[dict]], dict[str, list[dict]]]:
     """
     Returns:
-      dev_activity — issues updated today grouped by assignee (or Unassigned)
-      qa_activity  — all status transitions today
+      dev_activity — developer-owned status transitions grouped by date then assignee
+      qa_activity  — QA status transitions grouped by date then actor
     """
-    sprint_start = _parse_date_str(sprint_start_str)
     qa_filter = allowed_qa_names or set()
     dev_filter = allowed_dev_names or set()
-    dev_map: dict[str, dict] = {}
-    qa_items: list[dict]     = []
+    target_dates = _recent_activity_dates(7)
+    date_keys = [_activity_date_key(target_date) for target_date in target_dates]
+    dev_maps: dict[str, dict[str, dict]] = {date_key: {} for date_key in date_keys}
+    qa_items_by_date: dict[str, list[dict]] = {date_key: [] for date_key in date_keys}
+    qa_upper = {s.upper() for s in QA_STATUSES}
+    pending_upper = {s.upper() for s in QA_PENDING_STATUSES}
+    pm_review_upper = {s.upper() for s in QA_PM_REVIEW}
 
     for issue in issues:
         f            = issue["fields"]
@@ -1370,47 +1593,12 @@ def build_developer_activity(
         url          = f"{JIRA_BASE_URL}/browse/{key}"
 
         # —— Fetch changelog for every sprint issue ———————————————
-        changelog = fetch_issue_changelog(key)
+        changelog = fetch_issue_changelog(key, updated_raw or "")
 
-        # Time in "Ready for Testing" (cumulative across the sprint)
-        time_in_rft = calc_time_in_status(changelog, "Ready for Testing")
+        # Time in "IN TESTING" from entry until it exits to the next QA outcome.
+        time_in_rft = calc_time_in_status(changelog, "IN TESTING")
 
-        # —— QA Activity — transitions today ———————————————————————
-        today_transitions = get_status_transitions_today(changelog)
-        for t in today_transitions:
-            actor_norm = _normalize_person_name(t.get("actor", ""))
-            if qa_filter and actor_norm not in qa_filter:
-                continue
-
-            to_upper   = t["to"].strip().upper()
-            from_upper = t["from"].strip().upper()
-
-            qa_upper         = {s.upper() for s in QA_STATUSES}
-            pending_upper    = {s.upper() for s in QA_PENDING_STATUSES}
-            pm_review_upper  = {s.upper() for s in QA_PM_REVIEW}
-
-            if to_upper in qa_upper:
-                qa_items.append(_qa_event(key, summary, issue_type, t, "started_testing",
-                                          "▶ Started Testing", "#1a6bff", time_in_rft, url, story_points))
-            elif from_upper in qa_upper and to_upper in pending_upper:
-                qa_items.append(_qa_event(key, summary, issue_type, t, "pending_fixes",
-                                          "🔄 Pending Fixes", "#fbbf24", time_in_rft, url, story_points))
-            elif from_upper in qa_upper and to_upper in pm_review_upper:
-                qa_items.append(_qa_event(key, summary, issue_type, t, "pm_review",
-                                          "✅ Ready for PM Review", "#00d4aa", time_in_rft, url, story_points))
-            elif from_upper in qa_upper and is_done(t["to"]):
-                qa_items.append(_qa_event(key, summary, issue_type, t, "done",
-                                          "✅ Done", "#00d4aa", time_in_rft, url, story_points))
-            else:
-                qa_items.append(_qa_event(
-                    key, summary, issue_type, t, "status_changed",
-                    f"↔ {t['from']} → {t['to']}", "#4a90d9", time_in_rft, url, story_points
-                ))
-
-        # —— Developer Activity — updated today ——————————————————————
-        if not updated_today(updated_raw):
-            continue
-
+        # —— Developer Activity — developer-owned transitions today ———————————
         dev_name   = (assignee or {}).get("displayName", "Unassigned")
         dev_avatar = (assignee or {}).get("avatarUrls", {}).get("48x48", "")
         dev_name_norm = _normalize_person_name(dev_name)
@@ -1423,41 +1611,88 @@ def build_developer_activity(
         is_stale        = active_days > stale_threshold and not is_done(status_name)
 
         assignee_account_id = (assignee or {}).get("accountId", "")
-        transitions_today = []
-        seen_transitions = set()
-        for t in today_transitions:
-            is_dev_action = False
-            if assignee_account_id and t.get("actor_account_id"):
-                is_dev_action = t.get("actor_account_id") == assignee_account_id
-            elif dev_name and dev_name != "Unassigned":
-                is_dev_action = (t.get("actor", "") or "").strip().lower() == dev_name.strip().lower()
-            if not is_dev_action:
+        for target_date in target_dates:
+            date_key = _activity_date_key(target_date)
+            day_transitions = get_status_transitions_on_date(changelog, target_date)
+
+            for t in day_transitions:
+                actor_norm = _normalize_person_name(t.get("actor", ""))
+                if qa_filter and actor_norm not in qa_filter:
+                    continue
+
+                to_upper = t["to"].strip().upper()
+                from_upper = t["from"].strip().upper()
+
+                if to_upper in qa_upper:
+                    qa_items_by_date[date_key].append(_qa_event(
+                        key, summary, issue_type, t, "started_testing",
+                        "▶ Started Testing", "#1a6bff", time_in_rft, url, story_points
+                    ))
+                elif from_upper in qa_upper and to_upper in pending_upper:
+                    qa_items_by_date[date_key].append(_qa_event(
+                        key, summary, issue_type, t, "pending_fixes",
+                        "🔄 Pending Fixes", "#fbbf24", time_in_rft, url, story_points
+                    ))
+                elif from_upper in qa_upper and to_upper in pm_review_upper:
+                    qa_items_by_date[date_key].append(_qa_event(
+                        key, summary, issue_type, t, "pm_review",
+                        "✅ Ready for PM Review", "#00d4aa", time_in_rft, url, story_points
+                    ))
+                elif from_upper in qa_upper and is_done(t["to"]):
+                    qa_items_by_date[date_key].append(_qa_event(
+                        key, summary, issue_type, t, "done",
+                        "✅ Done", "#00d4aa", time_in_rft, url, story_points
+                    ))
+                else:
+                    qa_items_by_date[date_key].append(_qa_event(
+                        key, summary, issue_type, t, "status_changed",
+                        f"↔ {t['from']} → {t['to']}", "#4a90d9", time_in_rft, url, story_points
+                    ))
+
+            if not day_transitions:
                 continue
 
-            transition_label = f"{t['from']} → {t['to']}"
-            if transition_label in seen_transitions:
+            seen_transitions = set()
+            transitions_for_day: list[str] = []
+            for t in day_transitions:
+                is_dev_action = False
+                if assignee_account_id and t.get("actor_account_id"):
+                    is_dev_action = t.get("actor_account_id") == assignee_account_id
+                elif dev_name and dev_name != "Unassigned":
+                    is_dev_action = (t.get("actor", "") or "").strip().lower() == dev_name.strip().lower()
+                if not is_dev_action:
+                    continue
+
+                transition_label = f"{t['from']} → {t['to']}"
+                if transition_label in seen_transitions:
+                    continue
+                seen_transitions.add(transition_label)
+                transitions_for_day.append(transition_label)
+
+            if not transitions_for_day:
                 continue
-            seen_transitions.add(transition_label)
-            transitions_today.append(transition_label)
 
-        # For bugs, only show in Developer Activity if the developer
-        # actually changed its status today.
-        if issue_type in {BUG_TYPE, "Feature Bug"} and not transitions_today:
-            continue
+            if dev_name not in dev_maps[date_key]:
+                dev_maps[date_key][dev_name] = {"name": dev_name, "avatar": dev_avatar, "issues": []}
 
-        if dev_name not in dev_map:
-            dev_map[dev_name] = {"name": dev_name, "avatar": dev_avatar, "issues": []}
+            dev_maps[date_key][dev_name]["issues"].append({
+                "key": key, "summary": summary, "type": issue_type,
+                "status": status_name, "story_points": story_points,
+                "active_days": active_days, "is_stale": is_stale,
+                "stale_threshold": stale_threshold, "is_done": is_done(status_name),
+                "time_in_rft": time_in_rft, "transitions_today": transitions_for_day,
+                "url": url,
+            })
 
-        dev_map[dev_name]["issues"].append({
-            "key": key, "summary": summary, "type": issue_type,
-            "status": status_name, "story_points": story_points,
-            "active_days": active_days, "is_stale": is_stale,
-            "stale_threshold": stale_threshold, "is_done": is_done(status_name),
-            "time_in_rft": time_in_rft, "transitions_today": transitions_today,
-            "url": url,
-        })
-
-    return sorted(dev_map.values(), key=lambda d: d["name"]), qa_items
+    dev_history = {
+        date_key: sorted(dev_maps[date_key].values(), key=lambda d: d["name"])
+        for date_key in date_keys
+    }
+    qa_history = {
+        date_key: qa_items_by_date[date_key]
+        for date_key in date_keys
+    }
+    return dev_history, qa_history
 
 
 def _qa_event(key, summary, issue_type, transition, event, label, color,
@@ -1467,6 +1702,7 @@ def _qa_event(key, summary, issue_type, transition, event, label, color,
         "status": transition["to"], "from_status": transition["from"],
         "event": event, "label": label, "color": color,
         "actor": transition.get("actor", "Unknown"),
+        "actor_avatar": transition.get("actor_avatar", ""),
         "time_in_rft": time_in_rft, "url": url, "story_points": story_points,
     }
 
@@ -1590,30 +1826,46 @@ def _build_planned_scope_metrics(issues: list, sprint_start_dt: datetime | None)
     }
 
 
-def build_today_bug_reports() -> list[dict]:
-    bug_issues = fetch_today_created_bugs()
-    rows = []
+def build_today_bug_reports() -> dict[str, list[dict]]:
+    target_dates = _recent_activity_dates(7)
+    date_keys = [_activity_date_key(target_date) for target_date in target_dates]
+    bug_issues = fetch_recent_created_bugs(days=len(target_dates))
+    rows_by_date: dict[str, list[dict]] = {date_key: [] for date_key in date_keys}
     for issue in bug_issues:
         f = issue.get("fields", {})
         key = issue.get("key", "")
+        creator_user = f.get("creator") or {}
+        reporter_user = f.get("reporter") or {}
         creator = (
-            (f.get("creator") or {}).get("displayName")
-            or (f.get("reporter") or {}).get("displayName")
+            creator_user.get("displayName")
+            or reporter_user.get("displayName")
             or "Unknown"
         )
+        creator_avatar = (
+            (creator_user.get("avatarUrls") or {}).get("48x48")
+            or (reporter_user.get("avatarUrls") or {}).get("48x48")
+            or ""
+        )
         linked_story = _extract_linked_story_key(f)
-        rows.append({
+        created_dt = parse_jira_datetime(f.get("created"))
+        if not created_dt:
+            continue
+        date_key = _activity_date_key(created_dt.astimezone(LOCAL_TZ).date())
+        if date_key not in rows_by_date:
+            continue
+        rows_by_date[date_key].append({
             "key": key,
             "summary": f.get("summary", ""),
             "status": ((f.get("status") or {}).get("name") or ""),
             "type": ((f.get("issuetype") or {}).get("name") or ""),
             "created_by": creator,
+            "created_by_avatar": creator_avatar,
             "linked_story": linked_story,
             "is_linked_to_story": bool(linked_story),
             "sprint_placement": _sprint_placement_label(f),
             "url": f"{JIRA_BASE_URL}/browse/{key}",
         })
-    return rows
+    return rows_by_date
 
 
 def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
@@ -1755,7 +2007,12 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         if _normalize_person_name(str(name))
     }
 
-    activity_issues = fetch_today_project_issues()
+    activity_dates = _recent_activity_dates(7)
+    activity_date_options = [
+        {"key": _activity_date_key(target_date), "label": _activity_date_label(target_date)}
+        for target_date in activity_dates
+    ]
+    activity_issues = fetch_recent_project_issues(days=len(activity_dates))
     dev_activity, qa_activity = build_developer_activity(
         activity_issues,
         ss.start_str,
@@ -1828,6 +2085,7 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         "dev_activity": dev_activity,
         "qa_activity":  qa_activity,
         "today_bug_reports": today_bug_reports,
+        "activity_date_options": activity_date_options,
         "bug_change_pct": bug_change_pct, "bug_change_arrow": bug_change_arrow,
         "current_avg_cycle_time": round(current_avg_ct, 1) if current_avg_ct is not None else None,
         "execution": {"completed": done, "unfinished": carried_over,
@@ -2171,7 +2429,7 @@ def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
     pts_tag  = f'<span class="issue-pts-tag">{iss["story_points"]} pts</span>' if iss.get("story_points") else ""
     done_tag = '<span class="issue-done-tag">✓ Done</span>' if iss.get("is_done") else ""
     rft_tag  = (
-        f'<span class="issue-active-tag">🕐 {iss["time_in_rft"]}d in testing</span>'
+        f'<span class="issue-active-tag">🕐 {format_duration_hours(iss["time_in_rft"])} in testing</span>'
         if show_rft and iss.get("time_in_rft", 0) > 0 else ""
     )
     transitions_html = "".join(
@@ -2192,140 +2450,437 @@ def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
     </div>"""
 
 
-def _build_dev_activity_html(dev_activity: list) -> str:
-    if not dev_activity:
-        return "<p style='color:#4a90d9;font-style:italic;text-align:center;padding:20px'>No activity recorded today.</p>"
-    html = ""
-    has_any = False
-    sorted_devs = sorted(
-        dev_activity,
-        key=lambda d: (-len(d.get("issues", [])), d.get("name", "")),
+def _render_activity_date_select(date_options: list[dict], select_label: str) -> str:
+    if not date_options:
+        return ""
+    initial = date_options[0]
+    options_html = "".join(
+        f"<button type='button' class='activity-date-option{' active' if index == 0 else ''}' "
+        f"data-date-option='{escape(option['key'])}'>{escape(option['label'])}</button>"
+        for index, option in enumerate(date_options)
     )
-    for dev in sorted_devs:
-        dev_name = dev.get("name", "Unknown")
-        issues = sorted(dev.get("issues", []), key=lambda x: x.get("key", ""))
-        if not issues:
-            continue
-        has_any = True
-        html += (
-            f'<div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">'
-            f'Developer: {escape(dev_name)} ({len(issues)} issue{"s" if len(issues) != 1 else ""})'
-            f"</div>"
-        )
-        for iss in issues:
-            icon, icolor = ALL_ISSUE_TYPES.get(iss["type"], DEFAULT_ISSUE_ICON)
-            status_tag = f'<span class="issue-status-tag">{escape(iss.get("status", ""))}</span>'
-            pts_tag = f'<span class="issue-pts-tag">{iss["story_points"]} pts</span>' if iss.get("story_points") else ""
-            active_tag = f'<span class="issue-active-tag">Active {iss["active_days"]}d</span>' if iss.get("active_days", 0) > 0 else ""
-            stale_tag = (
-                f'<span class="issue-stale-tag">Stale ({iss["active_days"]}d / {iss["stale_threshold"]}d)</span>'
-                if iss.get("is_stale") else ""
-            )
-            transitions_html = "".join(
-                f'<span class="issue-status-tag">{escape(tr)}</span>'
-                for tr in (iss.get("transitions_today") or [])
-            )
-            html += f"""
-            <div class="dev-issue {'stale' if iss.get('is_stale') else ''}">
-              <span class="issue-icon" style="color:{icolor}">{icon}</span>
-              <div class="issue-body">
-                <a href="{iss['url']}" target="_blank" class="issue-key">{iss['key']}</a>
-                <span class="issue-summary">{escape(iss['summary'][:90])}{'…' if len(iss['summary']) > 90 else ''}</span>
-                <div class="issue-tags">{status_tag}{pts_tag}{active_tag}{stale_tag}{transitions_html}</div>
-              </div>
-            </div>"""
-        html += "</div>"
+    return (
+        f"<div class='activity-date-filter' data-date-dropdown='true' aria-label='{escape(select_label)}'>"
+        f"<div class='activity-date-label'>{escape(select_label)}</div>"
+        f"<button type='button' class='activity-date-trigger' aria-haspopup='listbox' aria-expanded='false'>"
+        f"<span class='activity-date-trigger-text' data-date-value>{escape(initial['label'])}</span>"
+        f"</button>"
+        f"<div class='activity-date-menu' role='listbox'>{options_html}</div>"
+        "</div>"
+    )
 
-    if not has_any:
-        return "<p style='color:#4a90d9;font-style:italic;text-align:center;padding:20px'>No activity recorded today.</p>"
+
+def _build_dev_activity_html(dev_activity: dict[str, list], date_options: list[dict]) -> str:
+    if not any(dev_activity.get(option["key"], []) for option in date_options):
+        return (
+            "<div class='qa-dashboard-shell dev-dashboard-shell interactive-activity-shell empty'>"
+            "<div class='qa-dashboard-empty'>No developer activity recorded in the last 7 days.</div>"
+            "</div>"
+        )
+
+    def _type_meta(issue_type: str) -> tuple[str, str, str, str]:
+        normalized = (issue_type or "").strip().lower()
+        if normalized == "bug":
+            return "BUG", "qa-type-bug", "qa-card-bug", "Bug"
+        if normalized == "story":
+            return "STORY", "qa-type-story", "qa-card-story", "Story"
+        if normalized == "task":
+            return "TASK", "qa-type-task", "qa-card-task", "Task"
+        if normalized == "sub-task":
+            return "SUB", "qa-type-sub", "qa-card-sub", "Sub-task"
+        return "ENH", "qa-type-enh", "qa-card-enh", "Enhancement"
+
+    def _dev_transition_copy(issue: dict) -> tuple[str, str]:
+        transitions = issue.get("transitions_today") or []
+        if transitions:
+            main = transitions[-1]
+        else:
+            main = (issue.get("status") or "Updated today").strip()
+        if issue.get("is_stale"):
+            sub = f"Active {issue.get('active_days', 0)} day(s) - stale after {issue.get('stale_threshold', 0)}"
+        elif issue.get("time_in_rft", 0) > 0:
+            sub = f"In testing for {format_duration_hours(issue['time_in_rft'])}"
+        elif issue.get("active_days", 0) > 0:
+            sub = f"Active for {issue['active_days']} day(s)"
+        else:
+            sub = "Updated today by developer"
+        return main, sub
+
+    def _dev_outcome_meta(issue: dict) -> tuple[str, str]:
+        status = ((issue.get("status") or "").strip()).lower()
+        transitions = " | ".join(issue.get("transitions_today") or []).lower()
+        if issue.get("is_stale"):
+            return "Needs Attention", "qa-status-reopened"
+        if issue.get("is_done"):
+            return "Done Today", "qa-status-done"
+        if "code review" in status or "code review" in transitions:
+            return "In Review", "qa-status-progress"
+        if "ready for testing" in status:
+            return "Ready For QA", "qa-status-passed"
+        if "ready for pm review" in status:
+            return "Ready For PM", "qa-status-passed"
+        if "ready to release" in status:
+            return "Ready To Release", "qa-status-passed"
+        if "open" in status or "progress" in status or "pending" in status:
+            return "Working", "qa-status-testing"
+        return "Updated Today", "qa-status-progress"
+
+    def _activity_tabs_html(issue_type_counts: dict, aria_label: str) -> str:
+        tabs = [
+            f"<button type='button' class='qa-tab active' data-filter='all'>All <strong>{issue_type_counts['all']}</strong></button>",
+            f"<button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>{issue_type_counts['bug']}</strong></button>",
+            f"<button type='button' class='qa-tab' data-filter='story'>Stories <strong>{issue_type_counts['story']}</strong></button>",
+        ]
+        if issue_type_counts["task"] > 0:
+            tabs.append(f"<button type='button' class='qa-tab' data-filter='task'>Tasks <strong>{issue_type_counts['task']}</strong></button>")
+        if issue_type_counts["sub"] > 0:
+            tabs.append(f"<button type='button' class='qa-tab' data-filter='sub'>Sub-tasks <strong>{issue_type_counts['sub']}</strong></button>")
+        tabs.append(f"<button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>{issue_type_counts['enh']}</strong></button>")
+        return f"<div class='qa-tabs' role='tablist' aria-label='{escape(aria_label)}'>{''.join(tabs)}</div>"
+
+    html = (
+        "<div class='qa-dashboard-shell dev-dashboard-shell interactive-activity-shell'>"
+        "<div class='qa-dashboard-head'>"
+        "<div>"
+        "<div class='qa-dashboard-title'>Developer Activity</div>"
+        "<div class='qa-dashboard-subtitle'>Developer-owned status changes grouped by developer for the selected day.</div>"
+        "</div>"
+        "<div class='activity-head-controls'>"
+        "<label class='qa-dashboard-search'>"
+        "<span class='qa-search-icon'>⌕</span>"
+        "<input type='search' class='qa-search-input' placeholder='Search issues, PM-XXXX...' aria-label='Search developer issues'>"
+        "<span class='qa-filter-icon'>⌯</span>"
+        "</label>"
+        f"{_render_activity_date_select(date_options, 'Developer Activity Date')}"
+        "</div>"
+        "</div>"
+    )
+
+    for option_index, option in enumerate(date_options):
+        day_items = dev_activity.get(option["key"], []) or []
+        issue_type_counts = {"all": 0, "bug": 0, "story": 0, "enh": 0, "task": 0, "sub": 0}
+        sorted_devs = sorted(day_items, key=lambda d: (-len(d.get("issues", [])), d.get("name", "")))
+        for dev in sorted_devs:
+            for iss in dev.get("issues", []):
+                issue_type_counts["all"] += 1
+                normalized = (iss.get("type") or "").strip().lower()
+                if normalized == "bug":
+                    issue_type_counts["bug"] += 1
+                elif normalized == "story":
+                    issue_type_counts["story"] += 1
+                elif normalized == "task":
+                    issue_type_counts["task"] += 1
+                elif normalized == "sub-task":
+                    issue_type_counts["sub"] += 1
+                else:
+                    issue_type_counts["enh"] += 1
+
+        html += (
+            f"<div class='activity-date-pane{' active' if option_index == 0 else ''}' data-date='{escape(option['key'])}'>"
+            f"{_activity_tabs_html(issue_type_counts, 'Developer issue type filter')}"
+        )
+
+        if not sorted_devs:
+            html += "<div class='qa-dashboard-empty'>No developer activity recorded for this date.</div></div>"
+            continue
+
+        html += "<div class='qa-tester-list'>"
+        for index, dev in enumerate(sorted_devs):
+            dev_name = dev.get("name", "Unknown")
+            issues = sorted(dev.get("issues", []), key=lambda x: x.get("key", ""))
+            if not issues:
+                continue
+            html += (
+                f"<details class='qa-tester-section' {'open' if index == 0 else ''}>"
+                f"<summary class='qa-tester-summary'>"
+                f"<div class='qa-tester-summary-left'>"
+                f"{_person_avatar_html(dev_name, dev.get('avatar', ''), 'qa-tester-avatar')}"
+                f"<div class='qa-tester-name'>{escape(dev_name)}</div>"
+                f"<div class='qa-tester-count'>{len(issues)} issue{'s' if len(issues) != 1 else ''}</div>"
+                f"</div>"
+                f"<div class='qa-tester-chevron' aria-hidden='true'></div>"
+                f"</summary>"
+                f"<div class='qa-tester-body'>"
+                f"<div class='qa-issue-grid'>"
+            )
+            hidden_count = max(0, len(issues) - 6)
+            for issue_index, iss in enumerate(issues):
+                type_label, type_class, card_class, type_full = _type_meta(iss["type"])
+                type_filter = (
+                    "bug" if type_label == "BUG"
+                    else "story" if type_label == "STORY"
+                    else "task" if type_label == "TASK"
+                    else "sub" if type_label == "SUB"
+                    else "enh"
+                )
+                transition_main, transition_sub = _dev_transition_copy(iss)
+                compact_status_label, compact_status_class = _dev_outcome_meta(iss)
+                search_blob = " ".join([
+                    iss.get("key", ""),
+                    iss.get("summary", ""),
+                    iss.get("type", ""),
+                    dev_name,
+                    transition_main,
+                    transition_sub,
+                    compact_status_label,
+                    iss.get("status", ""),
+                ]).lower()
+                html += f"""
+                <article class="qa-issue-card {card_class}{' hidden-by-limit' if issue_index >= 6 else ''}" data-activity-card="true" data-type="{type_filter}" data-search="{escape(search_blob)}">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type {type_class}" title="{escape(type_full)}" aria-label="{escape(type_full)}">{type_label}</div>
+                    <a href="{iss['url']}" target="_blank" class="qa-issue-key">{iss['key']}</a>
+                  </div>
+                  <a href="{iss['url']}" target="_blank" class="qa-issue-title">{escape(iss['summary'][:68])}{'...' if len(iss['summary']) > 68 else ''}</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">{escape(transition_main)}</div>
+                    <div class="qa-issue-transition-sub">{escape(transition_sub)}</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill {compact_status_class}">{escape(compact_status_label)}</span>
+                  </div>
+                </article>"""
+            html += "</div>"
+            if hidden_count > 0:
+                html += f"<button type='button' class='qa-show-more' data-expand='6'>Show More <span>+{hidden_count}</span></button>"
+            html += "</div></details>"
+        html += "</div></div>"
+    html += "</div>"
     return html
 
 
-def _build_qa_activity_html(qa_items: list) -> str:
-    if not qa_items:
-        return "<p style='color:#4a90d9;font-style:italic;text-align:center;padding:20px'>No QA activity recorded today.</p>"
-    by_tester: dict[str, dict] = {}
-    for item in qa_items:
-        tester = item.get("actor", "Unknown")
-        if tester not in by_tester:
-            by_tester[tester] = {"name": tester, "issues": {}}
-        key = item.get("key", "")
-        tester_issues = by_tester[tester]["issues"]
-        if key not in tester_issues:
-            tester_issues[key] = {
-                "key": key,
-                "summary": item.get("summary", ""),
-                "type": item.get("type", ""),
-                "url": item.get("url", ""),
-                "story_points": item.get("story_points"),
-                "time_in_rft": item.get("time_in_rft", 0),
-                "transitions": [],
-                "seen": set(),
-            }
-        transition = (
-            item.get("from_status", ""),
-            item.get("status", ""),
-            item.get("actor", "Unknown"),
+def _build_qa_activity_html(qa_items: dict[str, list], date_options: list[dict]) -> str:
+    if not any(qa_items.get(option["key"], []) for option in date_options):
+        return (
+            "<div class='qa-dashboard-shell interactive-activity-shell empty'>"
+            "<div class='qa-dashboard-empty'>No QA activity recorded in the last 7 days.</div>"
+            "</div>"
         )
-        if transition not in tester_issues[key]["seen"]:
-            tester_issues[key]["seen"].add(transition)
-            tester_issues[key]["transitions"].append({
-                "from": transition[0],
-                "to": transition[1],
-                "actor": transition[2],
-            })
-    sorted_testers = sorted(
-        by_tester.values(),
-        key=lambda t: (-len(t["issues"]), t["name"].lower()),
+
+    def _type_meta(issue_type: str) -> tuple[str, str, str, str]:
+        normalized = (issue_type or "").strip().lower()
+        if normalized == "bug":
+            return "BUG", "qa-type-bug", "qa-card-bug", "Bug"
+        if normalized == "story":
+            return "STORY", "qa-type-story", "qa-card-story", "Story"
+        if normalized == "task":
+            return "TASK", "qa-type-task", "qa-card-task", "Task"
+        if normalized == "sub-task":
+            return "SUB", "qa-type-sub", "qa-card-sub", "Sub-task"
+        return "ENH", "qa-type-enh", "qa-card-enh", "Enhancement"
+
+    def _status_meta(status: str) -> tuple[str, str]:
+        lowered = (status or "").strip().lower()
+        if "done" in lowered or "review" in lowered or "release" in lowered:
+            return "Done", "qa-status-done"
+        if "testing" in lowered:
+            return "Testing", "qa-status-testing"
+        if "progress" in lowered or "pending" in lowered or "open" in lowered:
+            return "In Progress", "qa-status-progress"
+        return ((status or "Ready").strip().title(), "qa-status-progress")
+
+    def _transition_tag(issue: dict) -> str:
+        if issue.get("time_in_rft", 0) > 0:
+            return f"{format_duration_hours(issue['time_in_rft'])} in testing"
+        transitions = issue.get("transitions") or []
+        if transitions:
+            last = transitions[-1]
+            to_status = (last.get("to") or "").strip()
+            if to_status:
+                return to_status
+        return "Activity today"
+
+    def _transition_copy(issue: dict) -> tuple[str, str]:
+        transitions = issue.get("transitions") or []
+        if transitions:
+            last = transitions[-1]
+            from_status = (last.get("from") or "").strip() or "Unknown"
+            to_status = (last.get("to") or "").strip() or "Updated"
+            if from_status.lower() == to_status.lower():
+                main = f"Status touched: {to_status}"
+            else:
+                main = f"{from_status} -> {to_status}"
+        else:
+            main = (issue.get("status") or "Activity today").strip()
+        if issue.get("time_in_rft", 0) > 0:
+            sub = f"In testing for {format_duration_hours(issue['time_in_rft'])}"
+        else:
+            sub = "Updated today by QA"
+        return main, sub
+
+    def _outcome_meta(issue: dict) -> tuple[str, str]:
+        transitions = issue.get("transitions") or []
+        last_to = ((transitions[-1].get("to") if transitions else issue.get("status")) or "").strip().lower()
+        if "reopen" in last_to:
+            return "Reopened", "qa-status-reopened"
+        if "pending" in last_to or "progress" in last_to or "open" in last_to:
+            return "Sent Back To Dev", "qa-status-sentback"
+        if "done" in last_to:
+            return "Passed QA", "qa-status-done"
+        if "review" in last_to or "release" in last_to:
+            return "Ready For PM", "qa-status-passed"
+        if "testing" in last_to:
+            return "Still Testing", "qa-status-testing"
+        if issue.get("time_in_rft", 0) > 0:
+            return "Still Testing", "qa-status-testing"
+        return "Updated In QA", "qa-status-progress"
+
+    def _activity_tabs_html(issue_type_counts: dict, aria_label: str) -> str:
+        tabs = [
+            f"<button type='button' class='qa-tab active' data-filter='all'>All <strong>{issue_type_counts['all']}</strong></button>",
+            f"<button type='button' class='qa-tab' data-filter='bug'>Bugs <strong>{issue_type_counts['bug']}</strong></button>",
+            f"<button type='button' class='qa-tab' data-filter='story'>Stories <strong>{issue_type_counts['story']}</strong></button>",
+        ]
+        if issue_type_counts["task"] > 0:
+            tabs.append(f"<button type='button' class='qa-tab' data-filter='task'>Tasks <strong>{issue_type_counts['task']}</strong></button>")
+        if issue_type_counts["sub"] > 0:
+            tabs.append(f"<button type='button' class='qa-tab' data-filter='sub'>Sub-tasks <strong>{issue_type_counts['sub']}</strong></button>")
+        tabs.append(f"<button type='button' class='qa-tab' data-filter='enh'>Enhancements <strong>{issue_type_counts['enh']}</strong></button>")
+        return f"<div class='qa-tabs' role='tablist' aria-label='{escape(aria_label)}'>{''.join(tabs)}</div>"
+
+    html = (
+        "<div class='qa-dashboard-shell interactive-activity-shell'>"
+        "<div class='qa-dashboard-head'>"
+        "<div>"
+        "<div class='qa-dashboard-title'>QA Activity</div>"
+        "<div class='qa-dashboard-subtitle'>Transitions and testing activity grouped by QA owner for the selected day.</div>"
+        "</div>"
+        "<div class='activity-head-controls'>"
+        "<label class='qa-dashboard-search'>"
+        "<span class='qa-search-icon'>⌕</span>"
+        "<input type='search' class='qa-search-input' placeholder='Search issues, PM-XXXX...' aria-label='Search QA issues'>"
+        "<span class='qa-filter-icon'>⌯</span>"
+        "</label>"
+        f"{_render_activity_date_select(date_options, 'QA Activity Date')}"
+        "</div>"
+        "</div>"
     )
-    html = ""
-    for tester in sorted_testers:
-        issues = sorted(tester["issues"].values(), key=lambda x: x["key"])
+
+    for option_index, option in enumerate(date_options):
+        day_items = qa_items.get(option["key"], []) or []
+        by_tester: dict[str, dict] = {}
+        issue_type_counts = {"all": 0, "bug": 0, "story": 0, "enh": 0, "task": 0, "sub": 0}
+        for item in day_items:
+            tester = item.get("actor", "Unknown")
+            if tester not in by_tester:
+                by_tester[tester] = {"name": tester, "avatar": item.get("actor_avatar", ""), "issues": {}}
+            elif item.get("actor_avatar") and not by_tester[tester].get("avatar"):
+                by_tester[tester]["avatar"] = item.get("actor_avatar", "")
+            key = item.get("key", "")
+            tester_issues = by_tester[tester]["issues"]
+            if key not in tester_issues:
+                tester_issues[key] = {
+                    "key": key,
+                    "summary": item.get("summary", ""),
+                    "type": item.get("type", ""),
+                    "url": item.get("url", ""),
+                    "story_points": item.get("story_points"),
+                    "time_in_rft": item.get("time_in_rft", 0),
+                    "transitions": [],
+                    "seen": set(),
+                }
+            transition = (item.get("from_status", ""), item.get("status", ""), item.get("actor", "Unknown"))
+            if transition not in tester_issues[key]["seen"]:
+                tester_issues[key]["seen"].add(transition)
+                tester_issues[key]["transitions"].append({
+                    "from": transition[0],
+                    "to": transition[1],
+                    "actor": transition[2],
+                })
+        for tester in by_tester.values():
+            for issue in tester["issues"].values():
+                issue_type_counts["all"] += 1
+                normalized = (issue.get("type") or "").strip().lower()
+                if normalized == "bug":
+                    issue_type_counts["bug"] += 1
+                elif normalized == "story":
+                    issue_type_counts["story"] += 1
+                elif normalized == "task":
+                    issue_type_counts["task"] += 1
+                elif normalized == "sub-task":
+                    issue_type_counts["sub"] += 1
+                else:
+                    issue_type_counts["enh"] += 1
+        sorted_testers = sorted(by_tester.values(), key=lambda t: (-len(t["issues"]), t["name"].lower()))
+
         html += (
-            f'<div class="qa-group"><div class="qa-group-label" style="color:#4a90d9">'
-            f'QA: {escape(tester["name"])} ({len(issues)} issue{"s" if len(issues) != 1 else ""})'
-            f"</div>"
+            f"<div class='activity-date-pane{' active' if option_index == 0 else ''}' data-date='{escape(option['key'])}'>"
+            f"{_activity_tabs_html(issue_type_counts, 'QA issue type filter')}"
         )
-        for issue in issues:
-            icon, icolor = ALL_ISSUE_TYPES.get(issue["type"], DEFAULT_ISSUE_ICON)
-            pts_tag = f'<span class="issue-pts-tag">{issue["story_points"]} pts</span>' if issue.get("story_points") else ""
-            rft_tag = (
-                f'<span class="issue-active-tag">[clock] {issue["time_in_rft"]}d in testing</span>'
-                if issue.get("time_in_rft", 0) > 0 else ""
+
+        if not sorted_testers:
+            html += "<div class='qa-dashboard-empty'>No QA activity recorded for this date.</div></div>"
+            continue
+
+        html += "<div class='qa-tester-list'>"
+        for index, tester in enumerate(sorted_testers):
+            issues = sorted(tester["issues"].values(), key=lambda x: x["key"])
+            html += (
+                f"<details class='qa-tester-section' {'open' if index == 0 else ''}>"
+                f"<summary class='qa-tester-summary'>"
+                f"<div class='qa-tester-summary-left'>"
+                f"{_person_avatar_html(tester['name'], tester.get('avatar', ''), 'qa-tester-avatar')}"
+                f"<div class='qa-tester-name'>{escape(tester['name'])}</div>"
+                f"<div class='qa-tester-count'>{len(issues)} issue{'s' if len(issues) != 1 else ''}</div>"
+                f"</div>"
+                f"<div class='qa-tester-chevron' aria-hidden='true'></div>"
+                f"</summary>"
+                f"<div class='qa-tester-body'>"
+                f"<div class='qa-issue-grid'>"
             )
-            transitions_html = "".join(
-                f'<span class="issue-status-tag">{escape(t["from"])} -> {escape(t["to"])} ({escape(t["actor"])})</span>'
-                for t in issue["transitions"]
-            )
-            html += f"""
-            <div class="dev-issue">
-              <span class="issue-icon" style="color:{icolor}">{icon}</span>
-              <div class="issue-body">
-                <a href="{issue['url']}" target="_blank" class="issue-key">{issue['key']}</a>
-                <span class="issue-summary">{escape(issue['summary'][:70])}{'...' if len(issue['summary'])>70 else ''}</span>
-                <div class="issue-tags">{pts_tag}{rft_tag}{transitions_html}</div>
-              </div>
-            </div>"""
-        html += "</div>"
+            hidden_count = max(0, len(issues) - 6)
+            for issue_index, issue in enumerate(issues):
+                type_label, type_class, card_class, type_full = _type_meta(issue["type"])
+                type_filter = (
+                    "bug" if type_label == "BUG"
+                    else "story" if type_label == "STORY"
+                    else "task" if type_label == "TASK"
+                    else "sub" if type_label == "SUB"
+                    else "enh"
+                )
+                compact_status_label, compact_status_class = _outcome_meta(issue)
+                transition_main, transition_sub = _transition_copy(issue)
+                search_blob = " ".join([
+                    issue.get("key", ""),
+                    issue.get("summary", ""),
+                    issue.get("type", ""),
+                    tester["name"],
+                    transition_main,
+                    transition_sub,
+                    compact_status_label,
+                ]).lower()
+                html += f"""
+                <article class="qa-issue-card {card_class}{' hidden-by-limit' if issue_index >= 6 else ''}" data-activity-card="true" data-type="{type_filter}" data-search="{escape(search_blob)}">
+                  <div class="qa-issue-top">
+                    <div class="qa-issue-type {type_class}" title="{escape(type_full)}" aria-label="{escape(type_full)}">{type_label}</div>
+                    <a href="{issue['url']}" target="_blank" class="qa-issue-key">{issue['key']}</a>
+                  </div>
+                  <a href="{issue['url']}" target="_blank" class="qa-issue-title">{escape(issue['summary'][:68])}{'...' if len(issue['summary']) > 68 else ''}</a>
+                  <div class="qa-issue-transition">
+                    <div class="qa-issue-transition-main">{escape(transition_main)}</div>
+                    <div class="qa-issue-transition-sub">{escape(transition_sub)}</div>
+                  </div>
+                  <div class="qa-issue-tags">
+                    <span class="qa-mini-pill {compact_status_class}">{escape(compact_status_label)}</span>
+                  </div>
+                </article>"""
+            html += "</div>"
+            if hidden_count > 0:
+                html += f"<button type='button' class='qa-show-more' data-expand='6'>Show More <span>+{hidden_count}</span></button>"
+            html += "</div></details>"
+        html += "</div></div>"
+    html += "</div>"
     return html
 
 # ——— SLACK ————————————————————————————————————————————————————————————————
 
-def _build_todays_bug_reports_html(bugs: list) -> str:
-    if not bugs:
+def _build_todays_bug_reports_html(bugs: dict[str, list], date_options: list[dict]) -> str:
+    if not any(bugs.get(option["key"], []) for option in date_options):
         return (
             "<div class='bug-report-shell empty'>"
-            "<div class='bug-report-empty'>No bug tickets were created today.</div>"
+            "<div class='bug-report-empty'>No bugs or enhancements were created in the last 7 days.</div>"
             "</div>"
         )
-
-    def _person_initials(name: str) -> str:
-        parts = [part for part in (name or "Unknown").split() if part]
-        if not parts:
-            return "UN"
-        if len(parts) == 1:
-            return parts[0][:2].upper()
-        return (parts[0][0] + parts[1][0]).upper()
 
     def _normalize_bug_status(status: str) -> tuple[str, str]:
         raw = (status or "").strip()
@@ -2338,81 +2893,114 @@ def _build_todays_bug_reports_html(bugs: list) -> str:
             return "open", "Open"
         return "other", raw.title() if raw else "Unknown"
 
-    by_creator: dict[str, list] = {}
-    status_counts = {"open": 0, "in-progress": 0, "reopened": 0}
-    no_story_count = 0
-    for bug in bugs:
-        creator = bug.get("created_by", "Unknown")
-        status_key, _ = _normalize_bug_status(bug.get("status", ""))
-        if status_key in status_counts:
-            status_counts[status_key] += 1
-        if not bug.get("is_linked_to_story"):
-            no_story_count += 1
-        by_creator.setdefault(creator, []).append(bug)
-
-    metric_specs = [
-        ("Total Bugs", len(bugs), "metric-total"),
-        ("Open", status_counts["open"], "metric-open"),
-        ("In Progress", status_counts["in-progress"], "metric-progress"),
-        ("Reopened", status_counts["reopened"], "metric-reopened"),
-        ("No Story", no_story_count, "metric-storyless"),
-    ]
+    def _created_item_type_meta(issue_type: str) -> tuple[str, str]:
+        normalized = (issue_type or "").strip().lower()
+        if normalized in {"bug", "feature bug"}:
+            return "BUG", "bug-ticket-type-bug"
+        return "ENH", "bug-ticket-type-enh"
 
     html = (
-        "<div class='bug-report-shell'>"
+        "<div class='bug-report-shell interactive-activity-shell'>"
         "<div class='bug-report-head'>"
         "<div>"
-        "<div class='bug-report-title'>Today's Bug Reports</div>"
-        "<div class='bug-report-subtitle'>Grouped by the person who created the bug today.</div>"
+        "<div class='bug-report-title'>Bug & Enhancement Reports</div>"
+        "<div class='bug-report-subtitle'>Created bugs and enhancements grouped by reporter for the selected day.</div>"
         "</div>"
-        f"<div class='bug-report-meta'>{len(by_creator)} reporter{'s' if len(by_creator) != 1 else ''}</div>"
+        f"{_render_activity_date_select(date_options, 'Created Items Date')}"
         "</div>"
-        "<div class='bug-report-metrics'>"
     )
 
-    for label, value, css_class in metric_specs:
-        html += (
-            f"<div class='bug-report-metric {css_class}'>"
-            f"<span class='bug-report-metric-label'>{escape(label)}</span>"
-            f"<strong class='bug-report-metric-value'>{value}</strong>"
-            "</div>"
-        )
-    html += "</div><div class='bug-report-groups'>"
+    for option_index, option in enumerate(date_options):
+        day_bugs = bugs.get(option["key"], []) or []
+        by_creator: dict[str, dict] = {}
+        status_counts = {"open": 0, "in-progress": 0, "reopened": 0}
+        type_counts = {"bug": 0, "enh": 0}
+        for bug in day_bugs:
+            creator = bug.get("created_by", "Unknown")
+            if creator not in by_creator:
+                by_creator[creator] = {
+                    "name": creator,
+                    "avatar": bug.get("created_by_avatar", ""),
+                    "bugs": [],
+                }
+            elif bug.get("created_by_avatar") and not by_creator[creator].get("avatar"):
+                by_creator[creator]["avatar"] = bug.get("created_by_avatar", "")
+            status_key, _ = _normalize_bug_status(bug.get("status", ""))
+            if status_key in status_counts:
+                status_counts[status_key] += 1
+            issue_type_normalized = (bug.get("type") or "").strip().lower()
+            if issue_type_normalized in {"bug", "feature bug"}:
+                type_counts["bug"] += 1
+            else:
+                type_counts["enh"] += 1
+            by_creator[creator]["bugs"].append(bug)
 
-    for creator, creator_bugs in sorted(by_creator.items(), key=lambda x: (-len(x[1]), x[0].lower())):
-        html += (
-            f"<section class='bug-person-card'>"
-            f"<div class='bug-person-header'>"
-            f"<div class='bug-person-avatar'>{escape(_person_initials(creator))}</div>"
-            f"<div class='bug-person-meta'>"
-            f"<div class='bug-person-name'>{escape(creator)}</div>"
-            f"<div class='bug-person-count'>{len(creator_bugs)} bug{'s' if len(creator_bugs) != 1 else ''}</div>"
-            f"</div>"
-            f"</div>"
-            f"<div class='bug-person-grid'>"
-        )
-        for bug in sorted(creator_bugs, key=lambda b: b.get("key", "")):
-            status_class, status_label = _normalize_bug_status(bug.get("status", ""))
-            story_tag = (
-                f"<span class='bug-tag bug-tag-link'>Story: {escape(bug['linked_story'])}</span>"
-                if bug.get("is_linked_to_story")
-                else "<span class='bug-tag bug-tag-storyless'>No Story</span>"
+        metric_specs = [
+            ("Total Items", len(day_bugs), "metric-total"),
+            ("Bugs", type_counts["bug"], "metric-open"),
+            ("Enhancements", type_counts["enh"], "metric-enh"),
+            ("Open", status_counts["open"], "metric-open"),
+            ("In Progress", status_counts["in-progress"], "metric-progress"),
+            ("Reopened", status_counts["reopened"], "metric-reopened"),
+        ]
+
+        html += f"<div class='activity-date-pane{' active' if option_index == 0 else ''}' data-date='{escape(option['key'])}'>"
+        html += "<div class='bug-report-metrics'>"
+        for label, value, css_class in metric_specs:
+            html += (
+                f"<div class='bug-report-metric {css_class}'>"
+                f"<span class='bug-report-metric-label'>{escape(label)}</span>"
+                f"<strong class='bug-report-metric-value'>{value}</strong>"
+                "</div>"
             )
-            sprint_label = escape(bug.get("sprint_placement", "Backlog"))
-            html += f"""
-            <article class="bug-ticket-card {status_class}">
-              <div class="bug-ticket-top">
-                <a href="{bug['url']}" target="_blank" class="bug-ticket-key">{bug['key']}</a>
-                <span class="bug-ticket-status {status_class}">{escape(status_label)}</span>
-              </div>
-              <a href="{bug['url']}" target="_blank" class="bug-ticket-summary">{escape(bug['summary'][:110])}{'...' if len(bug['summary']) > 110 else ''}</a>
-              <div class="bug-ticket-tags">
-                {story_tag}
-                <span class="bug-tag bug-tag-sprint">{sprint_label}</span>
-              </div>
-            </article>"""
-        html += "</div></section>"
-    html += "</div></div>"
+        html += "</div>"
+
+        if not by_creator:
+            html += "<div class='bug-report-empty'>No bugs or enhancements were created for this date.</div></div>"
+            continue
+
+        html += "<div class='bug-report-groups'>"
+        for creator_info in sorted(by_creator.values(), key=lambda x: (-len(x["bugs"]), x["name"].lower())):
+            creator = creator_info["name"]
+            creator_bugs = creator_info["bugs"]
+            html += (
+                f"<section class='bug-person-card'>"
+                f"<div class='bug-person-header'>"
+                f"{_person_avatar_html(creator, creator_info.get('avatar', ''), 'bug-person-avatar')}"
+                f"<div class='bug-person-meta'>"
+                f"<div class='bug-person-name'>{escape(creator)}</div>"
+                f"<div class='bug-person-count'>{len(creator_bugs)} item{'s' if len(creator_bugs) != 1 else ''}</div>"
+                f"</div>"
+                f"</div>"
+                f"<div class='bug-person-grid'>"
+            )
+            for bug in sorted(creator_bugs, key=lambda b: b.get("key", "")):
+                status_class, status_label = _normalize_bug_status(bug.get("status", ""))
+                type_label, type_class = _created_item_type_meta(bug.get("type", ""))
+                story_tag = (
+                    f"<span class='bug-tag bug-tag-link'>Story: {escape(bug['linked_story'])}</span>"
+                    if bug.get("is_linked_to_story")
+                    else "<span class='bug-tag bug-tag-storyless'>No Story</span>"
+                )
+                sprint_label = escape(bug.get("sprint_placement", "Backlog"))
+                html += f"""
+                <article class="bug-ticket-card {status_class}" data-activity-card="true" data-type="{'bug' if type_label == 'BUG' else 'enh'}" data-search="{escape(' '.join([bug.get('key', ''), bug.get('summary', ''), bug.get('type', ''), creator, bug.get('status', ''), bug.get('linked_story', ''), sprint_label]).lower())}">
+                  <div class="bug-ticket-top">
+                    <div class="bug-ticket-top-left">
+                      <span class="bug-ticket-type {type_class}">{type_label}</span>
+                      <a href="{bug['url']}" target="_blank" class="bug-ticket-key">{bug['key']}</a>
+                    </div>
+                    <span class="bug-ticket-status {status_class}">{escape(status_label)}</span>
+                  </div>
+                  <a href="{bug['url']}" target="_blank" class="bug-ticket-summary">{escape(bug['summary'][:110])}{'...' if len(bug['summary']) > 110 else ''}</a>
+                  <div class="bug-ticket-tags">
+                    {story_tag}
+                    <span class="bug-tag bug-tag-sprint">{sprint_label}</span>
+                  </div>
+                </article>"""
+            html += "</div></section>"
+        html += "</div></div>"
+    html += "</div>"
     return html
 
 def format_slack_message(r: dict) -> str:
@@ -2472,11 +3060,16 @@ def format_slack_message(r: dict) -> str:
     date_range    = f"{r['sprint_start']} → {r['sprint_end']}" if r["sprint_start"] and r["sprint_end"] else "Dates not set"
     progress_note = f"   ·   Day {r.get('elapsed_days','?')}/{r.get('total_days','?')} ({r['sprint_progress_pct']}%)" if r.get("sprint_progress_pct") is not None else ""
 
+    selected_activity_key = ((r.get("activity_date_options") or [{}])[0].get("key") or "")
+    selected_activity_label = ((r.get("activity_date_options") or [{}])[0].get("label") or "Today")
+    dev_activity_for_slack = (r.get("dev_activity") or {}).get(selected_activity_key, [])
+    qa_activity_for_slack = (r.get("qa_activity") or {}).get(selected_activity_key, [])
+
     # Dev activity for Slack
     dev_lines = ""
-    if r.get("dev_activity"):
-        dev_lines = "\n*Today's Activity*\n"
-        for dev in r["dev_activity"]:
+    if dev_activity_for_slack:
+        dev_lines = f"\n*Developer Activity — {selected_activity_label}*\n"
+        for dev in dev_activity_for_slack:
             stale_count = sum(1 for i in dev["issues"] if i["is_stale"])
             stale_note  = f" ⚠️ {stale_count} stale" if stale_count else ""
             dev_lines  += f"  👤 *{dev['name']}* — {len(dev['issues'])} issue(s){stale_note}\n"
@@ -2484,16 +3077,16 @@ def format_slack_message(r: dict) -> str:
                 icon, _ = ALL_ISSUE_TYPES.get(iss["type"], DEFAULT_ISSUE_ICON)
                 stale_tag  = " 🔴 _stale_" if iss["is_stale"] else ""
                 active_tag = f" _(active {iss['active_days']}d)_" if iss["active_days"] > 1 else ""
-                rft_tag    = f" _(🕐 {iss['time_in_rft']}d testing)_" if iss.get("time_in_rft", 0) > 0 else ""
+                rft_tag    = f" _(🕐 {format_duration_hours(iss['time_in_rft'])} testing)_" if iss.get("time_in_rft", 0) > 0 else ""
                 dev_lines += f"    {icon} {iss['key']} · {iss['status']}{active_tag}{rft_tag}{stale_tag}\n"
 
     # QA activity for Slack
     qa_lines = ""
-    if r.get("qa_activity"):
-        qa_lines = "\n*Today's QA Activity*\n"
-        for item in r["qa_activity"]:
+    if qa_activity_for_slack:
+        qa_lines = f"\n*QA Activity — {selected_activity_label}*\n"
+        for item in qa_activity_for_slack:
             icon, _ = ALL_ISSUE_TYPES.get(item["type"], DEFAULT_ISSUE_ICON)
-            rft_tag  = f" _(🕐 {item['time_in_rft']}d)_" if item.get("time_in_rft", 0) > 0 else ""
+            rft_tag  = f" _(🕐 {format_duration_hours(item['time_in_rft'])})_" if item.get("time_in_rft", 0) > 0 else ""
             qa_lines += f"  {icon} *{item['key']}* {item['label']}{rft_tag} · {item['summary'][:50]}\n"
 
     return (
@@ -2656,9 +3249,9 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
             f"<strong>{'bonus' if r['bd_nudge'] > 0 else 'penalty'}</strong></div>"
         )
 
-    dev_activity_html = _build_dev_activity_html(r.get("dev_activity", []))
-    qa_activity_html  = _build_qa_activity_html(r.get("qa_activity", []))
-    today_bug_reports_html = _build_todays_bug_reports_html(r.get("today_bug_reports", []))
+    dev_activity_html = _build_dev_activity_html(r.get("dev_activity", {}), r.get("activity_date_options", []))
+    qa_activity_html  = _build_qa_activity_html(r.get("qa_activity", {}), r.get("activity_date_options", []))
+    today_bug_reports_html = _build_todays_bug_reports_html(r.get("today_bug_reports", {}), r.get("activity_date_options", []))
     sprint_details_html = _build_sprint_details_html(r)
 
     ai_html = ""
@@ -2703,7 +3296,9 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .progress-bar-wrap{{background:rgba(26,107,255,.15);border-radius:999px;height:4px;width:260px;margin:12px auto 0;border:1px solid rgba(26,107,255,.2)}}
 .progress-bar-fill{{height:4px;border-radius:999px;background:linear-gradient(90deg,#1a6bff,#00d4aa)}}
 .card{{background:rgba(10,20,40,.8);backdrop-filter:blur(20px);border-radius:16px;
-  padding:32px 28px;margin-bottom:24px;border:1px solid rgba(26,107,255,.2);box-shadow:0 4px 24px rgba(0,0,0,.4)}}
+  padding:32px 28px;margin-bottom:24px;border:1px solid rgba(26,107,255,.2);box-shadow:0 4px 24px rgba(0,0,0,.4);
+  position:relative;z-index:1}}
+.card.dropdown-open{{z-index:30}}
 .score-wrap{{text-align:center}}
 .score-circle{{width:150px;height:150px;border-radius:50%;margin:0 auto 20px;
   display:flex;align-items:center;justify-content:center;flex-direction:column;font-weight:700;border:2px solid rgba(26,107,255,.3)}}
@@ -2917,11 +3512,130 @@ td:first-child{{color:#e0eaff}}
 .qa-group:last-child{{margin-bottom:0}}
 .qa-group-label{{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;
   margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(26,107,255,.15)}}
-.bug-report-shell{{display:flex;flex-direction:column;gap:20px}}
+.qa-dashboard-shell{{display:flex;flex-direction:column;gap:18px;position:relative;z-index:1}}
+.qa-dashboard-shell.empty{{min-height:140px;justify-content:center}}
+.qa-dashboard-empty{{text-align:center;padding:28px 20px;border-radius:18px;color:#8ab4d9;
+  border:1px dashed rgba(74,144,217,.28);background:rgba(12,25,49,.55);font-size:13px}}
+.qa-dashboard-head{{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap}}
+.activity-head-controls{{display:grid;grid-template-columns:280px 220px;align-items:stretch;gap:12px;
+  width:auto;max-width:100%;margin-left:auto;position:relative;z-index:8}}
+.qa-dashboard-title{{font-size:22px;font-weight:800;letter-spacing:.3px;color:#f5f8ff;text-transform:uppercase}}
+.qa-dashboard-subtitle{{font-size:12px;color:#8ab4d9;margin-top:6px}}
+.qa-dashboard-search{{min-width:0;width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 14px;border-radius:16px;background:rgba(10,20,40,.82);border:1px solid rgba(74,144,217,.24);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.03);height:48px}}
+.activity-date-filter{{position:relative;display:flex;flex-direction:column;justify-content:center;gap:4px;padding:7px 14px;
+  border-radius:16px;background:linear-gradient(180deg,rgba(12,25,49,.92),rgba(9,19,38,.96));
+  border:1px solid rgba(74,144,217,.24);box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 10px 22px rgba(0,0,0,.12);
+  min-height:48px;cursor:pointer;z-index:6}}
+.activity-date-label{{font-size:10px;font-weight:700;color:#78aee8;white-space:nowrap;text-transform:uppercase;letter-spacing:.65px;line-height:1}}
+.activity-date-trigger{{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:transparent;border:none;
+  color:#eef5ff;font-size:13px;font-weight:700;padding:0;cursor:pointer;text-align:left}}
+.activity-date-trigger::after{{content:'';width:8px;height:8px;border-right:2px solid #8fc0ff;border-bottom:2px solid #8fc0ff;
+  transform:rotate(45deg) translateY(-1px);transform-origin:center;transition:transform .18s ease, border-color .18s ease;flex:0 0 8px}}
+.activity-date-filter.open .activity-date-trigger::after{{transform:rotate(225deg) translateY(-1px)}}
+.activity-date-trigger-text{{display:block;min-width:0}}
+.activity-date-menu{{position:absolute;left:0;right:0;top:calc(100% + 10px);bottom:auto;display:none;flex-direction:column;gap:6px;padding:10px;
+  border-radius:16px;border:1px solid rgba(74,144,217,.24);background:linear-gradient(180deg,rgba(12,25,49,.98),rgba(8,16,31,.98));
+  box-shadow:0 22px 40px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.03);z-index:40;
+  opacity:0;transform:translateY(-8px) scale(.98);transform-origin:top center;
+  transition:opacity .18s ease, transform .18s ease}}
+.activity-date-filter.open .activity-date-menu{{display:flex;opacity:1;transform:translateY(0) scale(1)}}
+.activity-date-option{{width:100%;display:flex;align-items:center;padding:10px 12px;border-radius:12px;border:1px solid transparent;
+  background:rgba(255,255,255,.02);color:#dce9ff;font-size:13px;font-weight:700;cursor:pointer;text-align:left}}
+.activity-date-option:hover{{background:rgba(26,107,255,.12);border-color:rgba(74,144,217,.2)}}
+.activity-date-option.active{{background:linear-gradient(180deg,rgba(38,72,128,.45),rgba(22,46,86,.75));color:#eef5ff;
+  border-color:rgba(74,144,217,.34);box-shadow:inset 0 -2px 0 #2a82ff}}
+.activity-date-filter:hover{{border-color:rgba(74,144,217,.34);box-shadow:inset 0 1px 0 rgba(255,255,255,.03),0 12px 24px rgba(0,0,0,.16)}}
+.activity-date-filter:focus-within{{border-color:rgba(88,166,255,.42);box-shadow:0 0 0 3px rgba(26,107,255,.14),inset 0 1px 0 rgba(255,255,255,.03)}}
+.activity-date-filter.open{{z-index:50}}
+.activity-date-pane{{display:none}}
+.activity-date-pane.active{{display:flex;flex-direction:column;gap:20px;position:relative;z-index:1}}
+.qa-search-icon,.qa-filter-icon{{font-size:16px;color:#8fc0ff;opacity:.9}}
+.qa-search-input{{flex:1;background:transparent;border:none;outline:none;color:#dce9ff;font-size:12px}}
+.qa-search-input::placeholder{{color:#7fa6d8;opacity:1}}
+.qa-tabs{{display:flex;flex-wrap:wrap;gap:10px;padding-bottom:10px;border-bottom:1px solid rgba(74,144,217,.16)}}
+.qa-tab{{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;font-size:12px;font-weight:700;
+  color:#90a8cb;background:rgba(255,255,255,.02);border:1px solid rgba(74,144,217,.12);cursor:pointer}}
+.qa-tab strong{{color:#d8e6ff;font-size:11px}}
+.qa-tab.active{{color:#eaf3ff;background:linear-gradient(180deg,rgba(38,72,128,.45),rgba(22,46,86,.75));
+  border-color:rgba(74,144,217,.34);box-shadow:0 8px 22px rgba(26,107,255,.18), inset 0 -2px 0 #2a82ff}}
+.qa-tester-list{{display:flex;flex-direction:column;gap:16px}}
+.qa-tester-section{{border-radius:22px;border:1px solid rgba(74,144,217,.2);
+  background:linear-gradient(180deg,rgba(12,25,49,.96),rgba(9,18,36,.94));box-shadow:0 14px 34px rgba(0,0,0,.18);overflow:hidden}}
+.qa-tester-summary{{list-style:none;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:18px 20px;cursor:pointer}}
+.qa-tester-summary::-webkit-details-marker{{display:none}}
+.qa-tester-summary-left{{display:flex;align-items:center;gap:14px;flex-wrap:wrap}}
+.qa-tester-avatar{{width:42px;height:42px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,rgba(74,144,217,.9),rgba(26,107,255,.55));color:#eaf3ff;font-weight:800;font-size:16px;
+  border:1px solid rgba(159,200,255,.18);overflow:hidden;position:relative;flex:0 0 42px}}
+.qa-tester-avatar img{{width:100%;height:100%;object-fit:cover;display:block}}
+.qa-tester-avatar-fallback{{width:100%;height:100%;display:flex;align-items:center;justify-content:center}}
+.qa-tester-name{{font-size:16px;font-weight:800;color:#f5f8ff}}
+.qa-tester-count{{font-size:12px;color:#8fc0ff}}
+.qa-tester-chevron{{width:10px;height:10px;position:relative;flex:0 0 10px;transition:transform .2s ease}}
+.qa-tester-chevron::before{{content:'';position:absolute;inset:0;border-right:2px solid #bfd5f6;border-bottom:2px solid #bfd5f6;
+  transform:rotate(45deg);transform-origin:center}}
+.qa-tester-section[open] .qa-tester-chevron{{transform:rotate(180deg)}}
+.qa-tester-body{{padding:0 20px 18px;border-top:1px solid rgba(74,144,217,.14)}}
+.qa-issue-grid{{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding-top:18px}}
+.qa-issue-card{{position:relative;padding:16px;border-radius:18px;background:rgba(13,26,49,.96);
+  border:1px solid rgba(74,144,217,.18);box-shadow:0 12px 24px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.02);
+  transition:transform .2s ease,border-color .2s ease,box-shadow .2s ease}}
+.qa-issue-card:hover{{transform:translateY(-2px);border-color:rgba(74,144,217,.34);box-shadow:0 16px 30px rgba(0,0,0,.18),0 0 18px rgba(42,130,255,.08)}}
+.qa-card-bug{{box-shadow:inset 3px 0 0 #ff6b7c,0 12px 24px rgba(0,0,0,.14)}}
+.qa-card-story{{box-shadow:inset 3px 0 0 #58a6ff,0 12px 24px rgba(0,0,0,.14)}}
+.qa-card-task{{box-shadow:inset 3px 0 0 #fbbf24,0 12px 24px rgba(0,0,0,.14)}}
+.qa-card-sub{{box-shadow:inset 3px 0 0 #22d3ee,0 12px 24px rgba(0,0,0,.14)}}
+.qa-card-enh{{box-shadow:inset 3px 0 0 #8a7dff,0 12px 24px rgba(0,0,0,.14)}}
+.qa-issue-top{{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}}
+.qa-issue-type{{padding:6px 10px;border-radius:10px;font-size:10px;font-weight:800;letter-spacing:.7px;border:1px solid}}
+.qa-type-bug{{color:#ff7b89;background:rgba(255,107,124,.12);border-color:rgba(255,107,124,.3)}}
+.qa-type-story{{color:#67b3ff;background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.28)}}
+.qa-type-task{{color:#ffd66b;background:rgba(251,191,36,.12);border-color:rgba(251,191,36,.28)}}
+.qa-type-sub{{color:#79d2ff;background:rgba(34,211,238,.12);border-color:rgba(34,211,238,.28)}}
+.qa-type-enh{{color:#a99cff;background:rgba(138,125,255,.12);border-color:rgba(138,125,255,.28)}}
+.qa-issue-key{{font-size:11px;font-weight:700;color:#8fc0ff;text-decoration:none}}
+.qa-issue-badge{{margin-left:auto;padding:6px 11px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid;white-space:nowrap}}
+.qa-status-testing{{background:rgba(251,191,36,.14);border-color:rgba(251,191,36,.24);color:#f7cb6b}}
+.qa-status-done{{background:rgba(0,212,170,.12);border-color:rgba(0,212,170,.22);color:#76e4ca}}
+.qa-status-progress{{background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.22);color:#80b8ff}}
+.qa-status-passed{{background:rgba(72,211,190,.12);border-color:rgba(72,211,190,.22);color:#7cf0d8}}
+.qa-status-sentback{{background:rgba(88,166,255,.12);border-color:rgba(88,166,255,.22);color:#80b8ff}}
+.qa-status-reopened{{background:rgba(255,107,124,.14);border-color:rgba(255,107,124,.24);color:#ff94a0}}
+.qa-issue-title{{display:block;font-size:14px;font-weight:700;line-height:1.45;color:#eef5ff;text-decoration:none;min-height:40px;margin-bottom:12px}}
+.qa-issue-title:hover{{color:#dbeaff}}
+.qa-issue-transition{{margin-bottom:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(74,144,217,.12)}}
+.qa-issue-transition-main{{font-size:11px;font-weight:700;color:#dce9ff;margin-bottom:4px}}
+.qa-issue-transition-sub{{font-size:10px;color:#8ab4d9;line-height:1.45}}
+.qa-issue-tags{{display:flex;flex-wrap:wrap;gap:8px}}
+.qa-mini-pill{{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid}}
+.qa-mini-key{{background:rgba(31,67,124,.5);border-color:rgba(74,144,217,.22);color:#8fc0ff}}
+.qa-show-more{{width:max-content;min-width:180px;margin:16px auto 0;padding:11px 18px;border-radius:14px;text-align:center;
+  font-size:12px;font-weight:700;color:#d9e6ff;border:1px solid rgba(74,144,217,.24);background:rgba(255,255,255,.02);cursor:pointer}}
+.qa-show-more span{{color:#8fc0ff;margin-left:6px}}
+.qa-show-more.hidden{{display:none}}
+.qa-issue-card.hidden-by-limit,.qa-issue-card.hidden-by-filter{{display:none}}
+.qa-tester-section.hidden-by-filter{{display:none}}
+.qa-empty-state{{padding:14px 12px;text-align:center;font-size:12px;color:#8ab4d9}}
+@media(max-width:980px){{
+  .qa-issue-grid{{grid-template-columns:repeat(2,minmax(0,1fr))}}
+}}
+@media(max-width:720px){{
+  .qa-dashboard-title{{font-size:19px}}
+  .qa-tester-name{{font-size:15px}}
+  .qa-issue-grid{{grid-template-columns:1fr}}
+  .qa-dashboard-search{{min-width:100%}}
+  .activity-head-controls{{width:100%;grid-template-columns:1fr}}
+  .activity-date-filter{{width:100%}}
+  .activity-date-select{{min-width:0;flex:1}}
+}}
+.bug-report-shell{{display:flex;flex-direction:column;gap:20px;position:relative;z-index:1}}
 .bug-report-shell.empty{{min-height:140px;justify-content:center}}
 .bug-report-empty{{text-align:center;padding:28px 20px;border-radius:18px;color:#8ab4d9;
   border:1px dashed rgba(74,144,217,.28);background:rgba(12,25,49,.55);font-size:13px}}
-.bug-report-head{{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap}}
+.bug-report-head{{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;flex-wrap:wrap;margin-bottom:2px}}
+.bug-report-head .activity-date-filter{{width:220px;flex:0 0 220px}}
 .bug-report-title{{font-size:22px;font-weight:800;letter-spacing:.3px;color:#f5f8ff;text-transform:uppercase}}
 .bug-report-subtitle{{font-size:12px;color:#8ab4d9;margin-top:6px}}
 .bug-report-meta{{padding:10px 16px;border-radius:14px;background:rgba(26,107,255,.08);
@@ -2935,6 +3649,8 @@ td:first-child{{color:#e0eaff}}
 .bug-report-metric.metric-total .bug-report-metric-value{{color:#9fc8ff}}
 .bug-report-metric.metric-open{{border-color:rgba(0,212,170,.28)}}
 .bug-report-metric.metric-open .bug-report-metric-value{{color:#1ce6b3}}
+.bug-report-metric.metric-enh{{border-color:rgba(138,125,255,.28)}}
+.bug-report-metric.metric-enh .bug-report-metric-value{{color:#a99cff}}
 .bug-report-metric.metric-progress{{border-color:rgba(251,191,36,.28)}}
 .bug-report-metric.metric-progress .bug-report-metric-value{{color:#fbbf24}}
 .bug-report-metric.metric-reopened{{border-color:rgba(255,71,87,.28)}}
@@ -2947,19 +3663,25 @@ td:first-child{{color:#e0eaff}}
 .bug-person-header{{display:flex;align-items:center;gap:14px;margin-bottom:18px}}
 .bug-person-avatar{{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,rgba(74,144,217,.9),rgba(26,107,255,.55));color:#eaf3ff;font-weight:800;font-size:16px;
-  border:1px solid rgba(159,200,255,.18);flex-shrink:0}}
+  border:1px solid rgba(159,200,255,.18);flex-shrink:0;overflow:hidden;position:relative}}
+.bug-person-avatar img{{width:100%;height:100%;object-fit:cover;display:block}}
+.bug-person-avatar-fallback{{width:100%;height:100%;display:flex;align-items:center;justify-content:center}}
 .bug-person-meta{{display:flex;align-items:center;gap:12px;flex-wrap:wrap}}
 .bug-person-name{{font-size:16px;font-weight:800;color:#f5f8ff}}
 .bug-person-count{{padding:8px 12px;border-radius:999px;background:rgba(26,107,255,.14);border:1px solid rgba(74,144,217,.24);
   font-size:11px;font-weight:700;color:#8fc0ff}}
 .bug-person-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}}
 .bug-ticket-card{{position:relative;padding:18px 18px 16px;border-radius:18px;background:rgba(13,26,49,.96);
-  border:1px solid rgba(74,144,217,.18);box-shadow:inset 0 1px 0 rgba(255,255,255,.02)}}
-.bug-ticket-card::before{{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;border-radius:18px 0 0 18px;background:#4a90d9}}
-.bug-ticket-card.open::before{{background:#00d4aa}}
-.bug-ticket-card.in-progress::before{{background:#f59e0b}}
-.bug-ticket-card.reopened::before{{background:#ff4757}}
+  border:1px solid rgba(74,144,217,.18);box-shadow:inset 3px 0 0 #4a90d9,0 12px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.02)}}
+.bug-ticket-card.open{{box-shadow:inset 3px 0 0 #00d4aa,0 12px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.02)}}
+.bug-ticket-card.in-progress{{box-shadow:inset 3px 0 0 #f59e0b,0 12px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.02)}}
+.bug-ticket-card.reopened{{box-shadow:inset 3px 0 0 #ff4757,0 12px 24px rgba(0,0,0,.14),inset 0 1px 0 rgba(255,255,255,.02)}}
 .bug-ticket-top{{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}}
+.bug-ticket-top-left{{display:flex;align-items:center;gap:10px;flex-wrap:wrap}}
+.bug-ticket-type{{display:inline-flex;align-items:center;padding:6px 10px;border-radius:10px;font-size:10px;font-weight:800;
+  letter-spacing:.7px;border:1px solid;text-transform:uppercase}}
+.bug-ticket-type-bug{{color:#ff7b89;background:rgba(255,107,124,.12);border-color:rgba(255,107,124,.3)}}
+.bug-ticket-type-enh{{color:#a99cff;background:rgba(138,125,255,.12);border-color:rgba(138,125,255,.28)}}
 .bug-ticket-key{{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:999px;text-decoration:none;
   background:rgba(26,107,255,.16);border:1px solid rgba(74,144,217,.2);color:#8fc0ff;font-size:11px;font-weight:800}}
 .bug-ticket-summary{{display:block;color:#f5f8ff;text-decoration:none;font-size:14px;font-weight:700;line-height:1.45;margin-bottom:14px}}
@@ -3045,11 +3767,11 @@ td:first-child{{color:#e0eaff}}
   <div class="card">{bug_cards_html}</div>
   <div class="section-title">Total Scope Burndown</div>
   <div class="card">{burndown_stats}<div class="burndown-layout"><div class="burndown-chart-panel">{burndown_svg}{burndown_breakdown_html}</div><div class="burndown-side-panel">{burndown_explainer_html}{burndown_takeaways_html}</div></div></div>
-  <div class="section-title">Today's Developer Activity</div>
+  <div class="section-title">Developer Activity</div>
   <div class="card"><div class="dev-grid">{dev_activity_html}</div></div>
-  <div class="section-title">Today's QA Activity</div>
+  <div class="section-title">QA Activity</div>
   <div class="card">{qa_activity_html}</div>
-  <div class="section-title">Today's Bug Reports</div>
+  <div class="section-title">Bug & Enhancement Reports</div>
   <div class="card">{today_bug_reports_html}</div>
   {ai_html}
   <div class="section-title">Weighted Formula</div>
@@ -3089,6 +3811,141 @@ td:first-child{{color:#e0eaff}}
   </div>
   <div class="footer">Lumofy QA | Sprint Health Dashboard | {escape(r['generated_at'])}</div>
 </div>
+<script>
+(() => {{
+  const roots = Array.from(document.querySelectorAll('.interactive-activity-shell'));
+  if (!roots.length) return;
+
+  roots.forEach((root) => {{
+    const searchInput = root.querySelector('.qa-search-input');
+    const dateDropdown = root.querySelector('[data-date-dropdown="true"]');
+    const dateTrigger = dateDropdown?.querySelector('.activity-date-trigger');
+    const dateValue = dateDropdown?.querySelector('[data-date-value]');
+    const dateOptions = Array.from(dateDropdown?.querySelectorAll('[data-date-option]') || []);
+    const panes = Array.from(root.querySelectorAll('.activity-date-pane'));
+    let activeFilter = 'all';
+    let activeDate = dateOptions.find((option) => option.classList.contains('active'))?.dataset.dateOption || panes[0]?.dataset.date || '';
+
+    function getActivePane() {{
+      return panes.find((pane) => pane.dataset.date === activeDate) || panes[0] || null;
+    }}
+
+    function applyFilters() {{
+      const term = (searchInput?.value || '').trim().toLowerCase();
+      const activePane = getActivePane();
+      panes.forEach((pane) => pane.classList.toggle('active', pane === activePane));
+      if (dateValue) {{
+        const activeOption = dateOptions.find((option) => option.dataset.dateOption === activeDate);
+        if (activeOption) dateValue.textContent = activeOption.textContent || '';
+      }}
+      dateOptions.forEach((option) => option.classList.toggle('active', option.dataset.dateOption === activeDate));
+      if (!activePane) return;
+
+      const tabs = Array.from(activePane.querySelectorAll('.qa-tab[data-filter]'));
+      tabs.forEach((item) => item.classList.toggle('active', (item.dataset.filter || 'all') === activeFilter));
+
+      const sections = Array.from(activePane.querySelectorAll('.qa-tester-section'));
+      sections.forEach((section) => {{
+        const cards = Array.from(section.querySelectorAll('[data-activity-card="true"]'));
+        const showMoreButton = section.querySelector('.qa-show-more');
+        const expandLimit = Number(showMoreButton?.dataset.expand || '6');
+        const expanded = showMoreButton?.dataset.expanded === 'true';
+
+        let visibleCount = 0;
+        cards.forEach((card) => {{
+          const matchesFilter = activeFilter === 'all' || card.dataset.type === activeFilter;
+          const matchesSearch = !term || (card.dataset.search || '').includes(term);
+          const matches = matchesFilter && matchesSearch;
+          card.classList.toggle('hidden-by-filter', !matches);
+
+          if (!matches) {{
+            card.classList.add('hidden-by-limit');
+            return;
+          }}
+
+          visibleCount += 1;
+          card.classList.toggle('hidden-by-limit', !expanded && visibleCount > expandLimit);
+        }});
+
+        const hiddenMatching = cards.filter((card) =>
+          !card.classList.contains('hidden-by-filter') && card.classList.contains('hidden-by-limit')
+        ).length;
+
+        if (showMoreButton) {{
+          if (hiddenMatching > 0) {{
+            showMoreButton.classList.remove('hidden');
+            showMoreButton.innerHTML = `Show More <span>+${{hiddenMatching}}</span>`;
+          }} else {{
+            showMoreButton.classList.add('hidden');
+          }}
+        }}
+
+        section.classList.toggle('hidden-by-filter', visibleCount === 0);
+      }});
+    }}
+
+    root.addEventListener('click', (event) => {{
+      const tab = event.target.closest('.qa-tab[data-filter]');
+      if (tab && root.contains(tab)) {{
+        activeFilter = tab.dataset.filter || 'all';
+        applyFilters();
+        return;
+      }}
+      const dateOption = event.target.closest('[data-date-option]');
+      if (dateOption && root.contains(dateOption)) {{
+        activeDate = dateOption.dataset.dateOption || activeDate;
+        activeFilter = 'all';
+        dateDropdown?.classList.remove('open');
+        root.closest('.card')?.classList.remove('dropdown-open');
+        dateTrigger?.setAttribute('aria-expanded', 'false');
+        applyFilters();
+        return;
+      }}
+      const showMore = event.target.closest('.qa-show-more');
+      if (showMore && root.contains(showMore)) {{
+        showMore.dataset.expanded = 'true';
+        applyFilters();
+        return;
+      }}
+      const dateFilter = event.target.closest('.activity-date-filter');
+      if (dateDropdown && dateFilter === dateDropdown && !dateOption) {{
+        const nextOpen = !dateDropdown?.classList.contains('open');
+        dateDropdown?.classList.toggle('open', nextOpen);
+        root.closest('.card')?.classList.toggle('dropdown-open', nextOpen);
+        dateTrigger.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+        return;
+      }}
+    }});
+
+    if (searchInput) {{
+      searchInput.addEventListener('input', applyFilters);
+    }}
+
+    applyFilters();
+  }});
+
+  document.addEventListener('click', (event) => {{
+    document.querySelectorAll('[data-date-dropdown="true"].open').forEach((dropdown) => {{
+      if (!dropdown.contains(event.target)) {{
+        dropdown.classList.remove('open');
+        dropdown.closest('.card')?.classList.remove('dropdown-open');
+        const trigger = dropdown.querySelector('.activity-date-trigger');
+        trigger?.setAttribute('aria-expanded', 'false');
+      }}
+    }});
+  }});
+
+  document.addEventListener('keydown', (event) => {{
+    if (event.key !== 'Escape') return;
+    document.querySelectorAll('[data-date-dropdown="true"].open').forEach((dropdown) => {{
+      dropdown.classList.remove('open');
+      dropdown.closest('.card')?.classList.remove('dropdown-open');
+      const trigger = dropdown.querySelector('.activity-date-trigger');
+      trigger?.setAttribute('aria-expanded', 'false');
+    }});
+  }});
+}})();
+</script>
 </body>
 </html>"""
 
@@ -3220,6 +4077,7 @@ def run(dry_run=False, export_html=False, export_pdf=False, no_slack=False,
 
     if export_html: write_html_report(report)
     if export_pdf:  write_pdf_report(report)
+    _save_issue_cache()
 
     print("\n" + "=" * 60)
     print(message)
@@ -3329,6 +4187,7 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health
                 prev_sprints = fetch_last_n_sprints(n=3)
                 report = build_report(issues, sprint_info, prev_sprints)
                 write_html_report(report, output_path=html_output_path)
+                _save_issue_cache()
                 ss = SprintState(sprint_info)
                 print(
                     f"[watch:{started_at}] Updated HTML from Jira change "
