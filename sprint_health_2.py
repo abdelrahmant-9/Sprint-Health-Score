@@ -228,6 +228,22 @@ def load_metrics_config() -> dict:
 
 METRICS_CONFIG = load_metrics_config()
 
+# Populate jira config from environment variables if they are set, so the
+# reporter thread can access Jira credentials without manual config-file edits.
+_jira_env_map = {
+    "base_url":    os.getenv("JIRA_BASE_URL"),
+    "project_key": os.getenv("JIRA_PROJECT_KEY"),
+    "board_id":    os.getenv("JIRA_BOARD_ID"),
+}
+_jira_env_values = {k: v for k, v in _jira_env_map.items() if v}
+if _jira_env_values:
+    METRICS_CONFIG.setdefault("jira", {}).update(_jira_env_values)
+    try:
+        save_metrics_config(METRICS_CONFIG)
+        print(f"[config] Jira config populated from env vars: {list(_jira_env_values.keys())}")
+    except Exception as _e:
+        print(f"[warn] Could not save jira env vars to metrics config: {_e}")
+
 
 def reload_metrics_config() -> dict:
     global METRICS_CONFIG
