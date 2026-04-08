@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 import argparse
 import json
@@ -53,9 +53,20 @@ except Exception:
 
 # —— Status sets ————————————————————————————————————————————————————————————————
 DONE_STATUSES_RAW = {"Done", "Closed", "Resolved", "DONE"}
+STORY_DONE_LIKE_STATUSES = {"READY TO RELEASE"}
 
 def is_done(status_name: str) -> bool:
     return status_name.strip().upper() in {s.upper() for s in DONE_STATUSES_RAW}
+
+
+def is_effectively_done_status(status_name: str, issue_type: str = "") -> bool:
+    normalized_type = (issue_type or "").strip().lower()
+    normalized_status = (status_name or "").strip().upper()
+    if normalized_status in {s.upper() for s in DONE_STATUSES_RAW}:
+        return True
+    if normalized_type == STORY_TYPE.lower() and normalized_status in STORY_DONE_LIKE_STATUSES:
+        return True
+    return False
 
 QA_STATUSES          = {"Ready for Testing", "Ready For Testing", "READY FOR TESTING"}
 QA_PENDING_STATUSES  = {"Pending Fixes", "Pending fixes", "PENDING FIXES"}
@@ -241,7 +252,17 @@ def _normalize_person_name(name: str) -> str:
 
 def _format_decimal(value: float, places: int = 2) -> str:
     text = f"{value:.{places}f}"
-    return text.rstrip("0").rstrip(".")
+    if "." in text:
+        formatted = text.rstrip("0").rstrip(".")
+    else:
+        formatted = text
+    return formatted or "0"
+
+
+def _is_story_issue(issue: dict) -> bool:
+    fields = issue.get("fields", {}) if isinstance(issue, dict) else {}
+    issue_type = ((((fields.get("issuetype")) or {}).get("name")) or "").strip()
+    return issue_type == STORY_TYPE
 
 
 _SAFE_FORMULA_FUNCS = {"abs": abs, "max": max, "min": min, "round": round}
@@ -803,7 +824,7 @@ def fetch_sprint_issues() -> tuple[list, dict]:
     fields = (
         "summary,status,issuetype,created,resolutiondate,"
         "customfield_10016,customfield_10020,customfield_10021,"
-        "assignee,labels,updated,customfield_10014,priority"
+        "assignee,labels,updated,customfield_10014,priority,parent,issuelinks"
     )
     if board_id:
         raw = fetch_active_sprint_from_board(board_id)
@@ -853,7 +874,7 @@ def fetch_recent_project_issues(days: int = 7) -> list:
         fields=(
             "summary,status,issuetype,created,resolutiondate,"
             "customfield_10016,customfield_10020,customfield_10021,"
-            "assignee,labels,updated,customfield_10014,priority"
+            "assignee,labels,updated,customfield_10014,priority,parent,issuelinks"
         ),
         page_size=100,
         repeated_warning="[warn] Jira returned a repeated project issues page; stopping pagination early.",
@@ -906,10 +927,12 @@ def fetch_last_n_sprints(n: int = 3) -> list[dict]:
         for sp in sorted_sprints:
             cycle_times, bug_count = [], 0
             for f in sp["issues"]:
+                if ((f.get("issuetype") or {}).get("name") or "").strip() != STORY_TYPE:
+                    if (f.get("issuetype") or {}).get("name") == BUG_TYPE:
+                        bug_count += 1
+                    continue
                 ct = calc_cycle_time_days(f.get("created"), f.get("resolutiondate"))
                 if ct is not None: cycle_times.append(ct)
-                if (f.get("issuetype") or {}).get("name") == BUG_TYPE:
-                    bug_count += 1
             sprints_data.append({
                 "name": sp["info"].get("name"),
                 "avg_cycle_time": sum(cycle_times) / len(cycle_times) if cycle_times else None,
@@ -1096,7 +1119,7 @@ def calc_cycle_time_median_per_type(issues: list) -> dict:
                 continue
             if first_in_progress is None and "IN PROGRESS" in to_status:
                 first_in_progress = dt
-            if first_in_progress is not None and is_done(to_status):
+            if first_in_progress is not None and is_effectively_done_status(to_status, issue_type):
                 if first_done is None:
                     first_done = dt
                     
@@ -1137,7 +1160,7 @@ def calc_status_bottlenecks(issues: list) -> dict:
         
         if not status_transitions:
             s_name = issue["fields"]["status"]["name"]
-            if not is_done(s_name) and created_dt:
+            if not is_effectively_done_status(s_name, issue_type) and created_dt:
                 dur = max(0.0, (datetime.now(timezone.utc) - created_dt).total_seconds())
                 is_blocked = (s_name.upper() in waiting_states) or (s_name.upper() == "OPEN" and issue_type == BUG_TYPE)
                 if is_blocked:
@@ -1175,7 +1198,7 @@ def calc_status_bottlenecks(issues: list) -> dict:
             last_status = to_status
             last_time = dt
             
-        if last_status and not is_done(last_status) and last_time:
+        if last_status and not is_effectively_done_status(last_status, issue_type) and last_time:
             duration = max(0.0, (current_time_dt - last_time).total_seconds())
             is_blocked = (last_status.upper() in waiting_states) or (last_status.upper() == "OPEN" and issue_type == BUG_TYPE)
             if is_blocked:
@@ -1279,13 +1302,35 @@ def _recent_activity_dates(days: int = 7) -> list:
 def _sprint_activity_dates(sprint_start_str: str, fallback_days: int = 7) -> list:
     today_local = datetime.now(LOCAL_TZ).date()
     sprint_start_dt = _parse_date_str(sprint_start_str)
-    if not sprint_start_dt:
-        return _recent_activity_dates(fallback_days)
-    sprint_start_local = sprint_start_dt.astimezone(LOCAL_TZ).date()
-    if sprint_start_local > today_local:
-        return _recent_activity_dates(fallback_days)
-    total_days = max(1, (today_local - sprint_start_local).days + 1)
-    return [today_local - timedelta(days=offset) for offset in range(total_days)]
+    if sprint_start_dt:
+        sprint_start_local = sprint_start_dt.astimezone(LOCAL_TZ).date()
+        if sprint_start_local > today_local:
+            return [today_local]
+    else:
+        sprint_start_local = today_local
+
+    # Work week is Sunday -> Thursday, excluding Friday and Saturday.
+    days_since_sunday = (today_local.weekday() + 1) % 7
+    week_start = today_local - timedelta(days=days_since_sunday)
+    week_end = week_start + timedelta(days=4)
+
+    # On Wednesday, include Thursday as the final workday option as requested.
+    if today_local.weekday() == 2:
+        visible_end = min(week_end, today_local + timedelta(days=1))
+    elif today_local.weekday() in {4, 5}:  # Friday / Saturday
+        visible_end = week_end
+    else:
+        visible_end = min(today_local, week_end)
+
+    visible_start = max(week_start, sprint_start_local)
+    if visible_start > visible_end:
+        return [today_local]
+
+    return [
+        visible_start + timedelta(days=offset)
+        for offset in range((visible_end - visible_start).days + 1)
+        if (visible_start + timedelta(days=offset)).weekday() not in {4, 5}
+    ]
 
 
 # ——— BURNDOWN ————————————————————————————————————————————————————————————————
@@ -1297,22 +1342,20 @@ def build_burndown(issues: list, ss: SprintState) -> dict:
     now_dt   = datetime.now(timezone.utc)
     if not start_dt or not end_dt or end_dt <= start_dt: return {}
 
+    story_issues = [issue for issue in issues if _is_story_issue(issue)]
     total_days    = max(1, (end_dt.date() - start_dt.date()).days)
     elapsed_days  = max(0, (now_dt.date() - start_dt.date()).days)
     effective_days = elapsed_days if ss.state == "extended" else min(elapsed_days, total_days)
-    total_issues  = round(sum(get_issue_weight(issue) for issue in issues), 1)
+    total_issues  = round(sum(get_issue_weight(issue) for issue in story_issues), 1)
 
     completions_by_day: dict[int, float] = {}
-    for issue in issues:
-        f       = issue["fields"]
-        res_raw = f.get("resolutiondate")
-        if is_done(f["status"]["name"]) and res_raw:
-            res_dt = _parse_date_str(res_raw)
-            if res_dt and res_dt >= start_dt:
-                day_idx = (res_dt.date() - start_dt.date()).days
-                completions_by_day[day_idx] = round(
-                    completions_by_day.get(day_idx, 0.0) + get_issue_weight(issue), 1
-                )
+    for issue in story_issues:
+        completion_dt = get_effective_completion_datetime(issue)
+        if completion_dt and completion_dt >= start_dt:
+            day_idx = (completion_dt.date() - start_dt.date()).days
+            completions_by_day[day_idx] = round(
+                completions_by_day.get(day_idx, 0.0) + get_issue_weight(issue), 1
+            )
 
     actual_line: list[float] = []
     remaining = total_issues
@@ -1368,6 +1411,27 @@ def parse_jira_datetime(value: str) -> datetime | None:
         return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt.astimezone(timezone.utc)
     except Exception:
         return None
+
+
+def get_effective_completion_datetime(issue: dict) -> datetime | None:
+    fields = issue.get("fields", {}) if isinstance(issue, dict) else {}
+    issue_type = ((fields.get("issuetype") or {}).get("name") or "").strip()
+    current_status = ((fields.get("status") or {}).get("name") or "").strip()
+    if not is_effectively_done_status(current_status, issue_type):
+        return None
+
+    resolution_dt = parse_jira_datetime(fields.get("resolutiondate"))
+    if resolution_dt:
+        return resolution_dt
+
+    issue_key = issue.get("key", "")
+    if issue_key:
+        history = fetch_issue_history(issue_key, fields.get("updated", "") or "")
+        for event in (history.get("status") or []):
+            if is_effectively_done_status(event.get("to", ""), issue_type):
+                return event.get("datetime")
+
+    return parse_jira_datetime(fields.get("updated"))
 
 
 def issue_age_days(created: str) -> float | None:
@@ -1431,7 +1495,8 @@ def calculate_carryover_metrics(
         committed_items += 1
 
         status_name = ((fields.get("status") or {}).get("name") or "").strip()
-        if is_done(status_name):
+        issue_type = ((fields.get("issuetype") or {}).get("name") or "").strip()
+        if is_effectively_done_status(status_name, issue_type):
             completed_work += weight
             completed_items += 1
         else:
@@ -1596,7 +1661,7 @@ def calculate_sprint_carryover_metrics(
 
         current_status = ((fields.get("status") or {}).get("name") or "").strip()
         status_at_current_start = _status_at_datetime(current_status, status_events, current_sprint_start_dt)
-        if not is_done(status_at_current_start):
+        if not is_effectively_done_status(status_at_current_start, (fields.get("issuetype") or {}).get("name", "")):
             historical_work += weight
             historical_items += 1
             if include_item_list:
@@ -1609,7 +1674,7 @@ def calculate_sprint_carryover_metrics(
         )
         if previous_sprint_end_dt:
             status_at_previous_close = _status_at_datetime(current_status, status_events, previous_sprint_end_dt)
-            if not is_done(status_at_previous_close):
+            if not is_effectively_done_status(status_at_previous_close, (fields.get("issuetype") or {}).get("name", "")):
                 official_rollover_work += weight
                 official_rollover_items += 1
                 if include_item_list:
@@ -1815,6 +1880,7 @@ def build_developer_activity(
         key          = issue.get("key", "")
         summary      = f.get("summary", "")
         url          = f"{JIRA_BASE_URL}/browse/{key}"
+        linked_story, linked_story_summary = _extract_linked_story_details(f)
 
         # —— Fetch changelog for every sprint issue ———————————————
         changelog = fetch_issue_changelog(key, updated_raw or "")
@@ -1832,7 +1898,7 @@ def build_developer_activity(
         active_days = calc_dev_progress_days(changelog)
 
         stale_threshold = get_stale_threshold(issue_type, story_points)
-        is_stale        = active_days > stale_threshold and not is_done(status_name)
+        is_stale        = active_days > stale_threshold and not is_effectively_done_status(status_name, issue_type)
 
         assignee_account_id = (assignee or {}).get("accountId", "")
         for target_date in target_dates:
@@ -1862,7 +1928,7 @@ def build_developer_activity(
                         key, summary, issue_type, t, "pm_review",
                         "✅ Ready for PM Review", "#00d4aa", time_in_rft, url, story_points
                     ))
-                elif from_upper in qa_upper and is_done(t["to"]):
+                elif from_upper in qa_upper and is_effectively_done_status(t["to"], issue_type):
                     qa_items_by_date[date_key].append(_qa_event(
                         key, summary, issue_type, t, "done",
                         "✅ Done", "#00d4aa", time_in_rft, url, story_points
@@ -1903,9 +1969,11 @@ def build_developer_activity(
                 "key": key, "summary": summary, "type": issue_type,
                 "status": status_name, "story_points": story_points,
                 "active_days": active_days, "is_stale": is_stale,
-                "stale_threshold": stale_threshold, "is_done": is_done(status_name),
+                "stale_threshold": stale_threshold, "is_done": is_effectively_done_status(status_name, issue_type),
                 "time_in_rft": time_in_rft, "transitions_today": transitions_for_day,
                 "url": url,
+                "linked_story": linked_story,
+                "linked_story_summary": linked_story_summary,
             })
 
     dev_history = {
@@ -1950,6 +2018,146 @@ def _extract_linked_story_key(fields: dict) -> str:
     return ""
 
 
+def _extract_linked_story_details(fields: dict) -> tuple[str, str]:
+    parent = fields.get("parent") or {}
+    parent_fields = parent.get("fields") or {}
+    parent_key = parent.get("key") or ""
+    parent_type = ((parent_fields.get("issuetype") or {}).get("name") or "").strip().lower()
+    parent_summary = (parent_fields.get("summary") or "").strip()
+    if parent_key and parent_type == "story":
+        return parent_key, parent_summary
+
+    for link in (fields.get("issuelinks") or []):
+        for side in ("outwardIssue", "inwardIssue"):
+            issue = link.get(side) or {}
+            issue_fields = issue.get("fields") or {}
+            issue_key = issue.get("key") or ""
+            issue_type = ((issue_fields.get("issuetype") or {}).get("name") or "").strip().lower()
+            issue_summary = (issue_fields.get("summary") or "").strip()
+            if issue_key and issue_type == "story":
+                return issue_key, issue_summary
+    return "", ""
+
+
+def _extract_linked_work_category(fields: dict) -> str:
+    parent = fields.get("parent") or {}
+    parent_fields = parent.get("fields") or {}
+    parent_type = ((parent_fields.get("issuetype") or {}).get("name") or "").strip().lower()
+    if parent_type == "story":
+        return "story"
+    if parent_type in {"enhancement", "improvement", "task"}:
+        return "enhancement_task"
+    if parent_type:
+        return "other"
+
+    for link in (fields.get("issuelinks") or []):
+        for side in ("outwardIssue", "inwardIssue"):
+            issue = link.get(side) or {}
+            issue_fields = issue.get("fields") or {}
+            issue_type = ((issue_fields.get("issuetype") or {}).get("name") or "").strip().lower()
+            if issue_type == "story":
+                return "story"
+            if issue_type in {"enhancement", "improvement", "task"}:
+                return "enhancement_task"
+            if issue_type:
+                return "other"
+    return "no_link"
+
+
+def _build_bug_linkage_breakdown(issues: list[dict]) -> dict[str, int]:
+    counts = {"story": 0, "enhancement_task": 0, "no_link": 0, "other": 0}
+    for issue in issues:
+        fields = issue.get("fields", {})
+        issue_type = ((fields.get("issuetype") or {}).get("name") or "").strip()
+        if issue_type not in {BUG_TYPE, "Feature Bug"}:
+            continue
+        category = _extract_linked_work_category(fields)
+        counts[category] = counts.get(category, 0) + 1
+    return counts
+
+
+def _build_bug_story_insights(issues: list[dict]) -> dict:
+    story_bug_count = 0
+    linked_story_keys: set[str] = set()
+    engineer_counts: dict[str, int] = {}
+
+    for issue in issues:
+        fields = issue.get("fields", {})
+        issue_type = ((fields.get("issuetype") or {}).get("name") or "").strip()
+        if issue_type not in {BUG_TYPE, "Feature Bug"}:
+            continue
+
+        linked_story_key, _ = _extract_linked_story_details(fields)
+        if not linked_story_key:
+            continue
+
+        story_bug_count += 1
+        linked_story_keys.add(linked_story_key)
+
+        assignee = fields.get("assignee") or {}
+        assignee_name = (assignee.get("displayName") or "Unassigned").strip() or "Unassigned"
+        engineer_counts[assignee_name] = engineer_counts.get(assignee_name, 0) + 1
+
+    unique_story_count = len(linked_story_keys)
+    avg_bugs_per_story = round(story_bug_count / unique_story_count, 1) if unique_story_count > 0 else 0.0
+    top_engineer_name = ""
+    top_engineer_bug_count = 0
+    if engineer_counts:
+        top_engineer_name, top_engineer_bug_count = sorted(
+            engineer_counts.items(),
+            key=lambda item: (-item[1], item[0].lower()),
+        )[0]
+
+    return {
+        "story_bug_count": story_bug_count,
+        "unique_story_count": unique_story_count,
+        "avg_bugs_per_story": avg_bugs_per_story,
+        "top_engineer_name": top_engineer_name,
+        "top_engineer_bug_count": top_engineer_bug_count,
+    }
+
+
+def _count_story_linked_bugs(issues: list[dict]) -> int:
+    count = 0
+    for issue in issues:
+        fields = issue.get("fields", {})
+        issue_type = ((fields.get("issuetype") or {}).get("name") or "").strip()
+        if issue_type not in {BUG_TYPE, "Feature Bug"}:
+            continue
+        linked_story_key, _ = _extract_linked_story_details(fields)
+        if linked_story_key:
+            count += 1
+    return count
+
+
+def _signal_benchmark_summaries() -> dict:
+    commitment = METRICS_CONFIG["commitment"]
+    carryover = METRICS_CONFIG["carryover"]
+    cycle_time = METRICS_CONFIG["cycle_time"]
+    bug_ratio = METRICS_CONFIG["bug_ratio"]
+    return {
+        "commitment": (
+            f"Target: {int(commitment['ideal_min_pct'])}-{int(commitment['ideal_max_pct'])}% "
+            f"| Good: {int(commitment['good_min_pct'])}%+ | Risk: <{int(commitment['warning_min_pct'])}%"
+        ),
+        "carryover": (
+            f"Best: <{int(carryover['excellent_lt_pct'])}% "
+            f"| Good: up to {int(carryover['good_lte_pct'])}% "
+            f"| Risk: >{int(carryover['warning_lte_pct'])}%"
+        ),
+        "cycle_time": (
+            f"Best: within +/-{int(cycle_time['stable_abs_pct'])}% "
+            f"| Good: up to +{int(cycle_time['good_increase_pct'])}% "
+            f"| Risk: >+{int(cycle_time['warning_increase_pct'])}%"
+        ),
+        "bug_ratio": (
+            f"Best: <{int(bug_ratio['excellent_lt_pct'])}% "
+            f"| Good: up to {int(bug_ratio['good_lte_pct'])}% "
+            f"| Risk: >{int(bug_ratio['warning_lte_pct'])}%"
+        ),
+    }
+
+
 def _sprint_placement_label(fields: dict) -> str:
     sprints = fields.get("customfield_10020") or []
     if not sprints:
@@ -1970,9 +2178,9 @@ def _build_remaining_scope_breakdown(issues: list) -> list[dict]:
     for issue in issues:
         fields = issue.get("fields", {})
         status_name = ((fields.get("status") or {}).get("name") or "").strip()
-        if is_done(status_name):
-            continue
         issue_type = ((fields.get("issuetype") or {}).get("name") or "Unknown").strip() or "Unknown"
+        if is_effectively_done_status(status_name, issue_type):
+            continue
         row = by_type.setdefault(issue_type, {"type": issue_type, "count": 0, "scope": 0.0})
         row["count"] += 1
         row["scope"] = round(row["scope"] + get_issue_weight(issue), 1)
@@ -1984,9 +2192,9 @@ def _build_scope_breakdown(issues: list, remaining_only: bool = False) -> list[d
     for issue in issues:
         fields = issue.get("fields", {})
         status_name = ((fields.get("status") or {}).get("name") or "").strip()
-        if remaining_only and is_done(status_name):
-            continue
         issue_type = ((fields.get("issuetype") or {}).get("name") or "Unknown").strip() or "Unknown"
+        if remaining_only and is_effectively_done_status(status_name, issue_type):
+            continue
         row = by_type.setdefault(issue_type, {"type": issue_type, "count": 0, "scope": 0.0})
         row["count"] += 1
         row["scope"] = round(row["scope"] + get_issue_weight(issue), 1)
@@ -1994,7 +2202,7 @@ def _build_scope_breakdown(issues: list, remaining_only: bool = False) -> list[d
 
 
 def calculate_bug_ratio_base_work(issues: list, weighting: str = "hybrid_scope") -> dict:
-    included_types = {STORY_TYPE, "Enhancement", "Improvement", "Task"}
+    included_types = {STORY_TYPE}
     base_work = 0.0
     base_items = 0
     by_type: dict[str, dict] = {}
@@ -2039,7 +2247,7 @@ def _build_planned_scope_metrics(issues: list, sprint_start_dt: datetime | None)
         weight = get_issue_weight(issue)
         planned_scope += weight
         status_name = (((issue.get("fields") or {}).get("status") or {}).get("name") or "").strip()
-        if is_done(status_name):
+        if is_effectively_done_status(status_name, ((issue.get("fields") or {}).get("issuetype") or {}).get("name", "")):
             completed_scope += weight
         else:
             remaining_scope += weight
@@ -2098,12 +2306,15 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     is_ex = ss.state == "extended"
 
     sprint_start_dt = _parse_date_str(ss.start_str)
+    story_issues = [issue for issue in issues if _is_story_issue(issue)]
     total        = len(issues)
-    done         = sum(1 for i in issues if is_done(i["fields"]["status"]["name"]))
+    done         = sum(1 for i in issues if is_effectively_done_status(i["fields"]["status"]["name"], i["fields"]["issuetype"]["name"]))
     carried_over = total - done
 
     # Bug separation
     new_bugs = carried_bugs = new_bugs_done = 0
+    new_bug_items: list[dict] = []
+    carried_bug_items: list[dict] = []
     for i in issues:
         f = i["fields"]
         if f["issuetype"]["name"] not in {BUG_TYPE, "Feature Bug"}:
@@ -2111,14 +2322,17 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         created_dt = parse_jira_datetime(f.get("created"))
         if sprint_start_dt and created_dt and created_dt.date() >= sprint_start_dt.date():
             new_bugs += 1
-            if is_done(f["status"]["name"]): new_bugs_done += 1
+            new_bug_items.append(i)
+            if is_effectively_done_status(f["status"]["name"], f["issuetype"]["name"]): new_bugs_done += 1
         else:
             carried_bugs += 1
+            carried_bug_items.append(i)
 
     bugs         = new_bugs + carried_bugs
+    new_story_linked_bugs = _count_story_linked_bugs(new_bug_items)
     stories_done = sum(1 for i in issues
                        if i["fields"]["issuetype"]["name"] == STORY_TYPE
-                       and is_done(i["fields"]["status"]["name"]))
+                       and is_effectively_done_status(i["fields"]["status"]["name"], i["fields"]["issuetype"]["name"]))
 
     status_counts = {}; issue_type_counts = {}; assignee_counts = {}
     unfinished_status_counts = {}
@@ -2129,10 +2343,10 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     for i in issues:
         f = i["fields"]
         s = f["status"]["name"]
-        status_counts[s] = status_counts.get(s, 0) + 1
-        if not is_done(s):
-            unfinished_status_counts[s] = unfinished_status_counts.get(s, 0) + 1
         t = f["issuetype"]["name"]
+        status_counts[s] = status_counts.get(s, 0) + 1
+        if not is_effectively_done_status(s, t):
+            unfinished_status_counts[s] = unfinished_status_counts.get(s, 0) + 1
         issue_type_counts[t] = issue_type_counts.get(t, 0) + 1
         assignee      = f.get("assignee")
         assignee_name = assignee.get("displayName") if assignee else "Unassigned"
@@ -2140,7 +2354,7 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         labels   = [l.lower() for l in (f.get("labels") or [])]
         if "blocked" in labels or "blocker" in labels or "block" in s.lower(): blockers += 1
         if "flagged" in labels or bool(f.get("customfield_10021")): flagged += 1
-        if not is_done(s):
+        if not is_effectively_done_status(s, t):
             age = issue_age_days(f.get("created"))
             if age is not None:
                 age_values.append(age)
@@ -2150,8 +2364,8 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
                 else: age_buckets["15+d"] += 1
 
     cycle_times = [
-        ct for i in issues
-        if is_done(i["fields"]["status"]["name"])
+        ct for i in story_issues
+        if is_effectively_done_status(i["fields"]["status"]["name"], i["fields"]["issuetype"]["name"])
         for ct in [calc_cycle_time_days(i["fields"].get("created"), i["fields"].get("resolutiondate"))]
         if ct is not None
     ]
@@ -2163,10 +2377,10 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     prev_bugs = next((s["bugs"] for s in prev_sprints if s.get("bugs") is not None), None)
 
     bd          = build_burndown(issues, ss)
-    total_scope = bd.get("total_scope", float(total)) if bd else float(total)
+    total_scope = bd.get("total_scope", float(len(story_issues))) if bd else float(len(story_issues))
     scope_cfg = _config_scope_calculation()
     carryover_metrics = calculate_carryover_metrics(
-        issues,
+        story_issues,
         sprint_start_dt=sprint_start_dt,
         include_mid_sprint_added=bool(scope_cfg.get("include_mid_sprint_added", False)),
         weighting=str(scope_cfg.get("weighting", "hybrid_scope")),
@@ -2179,17 +2393,24 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         include_item_list=False,
     )
     sprint_carryover_metrics = calculate_sprint_carryover_metrics(
-        issues,
+        story_issues,
         current_sprint=sprint_info,
         current_sprint_start_dt=sprint_start_dt,
         weighting=str(scope_cfg.get("weighting", "hybrid_scope")),
         include_item_list=False,
     )
-    committed_scope = carryover_metrics["committed_work"] or total_scope
-    completed_scope = carryover_metrics["completed_work"]
+    committed_scope = total_scope
+    completed_scope = sum(
+        get_work_weight(issue, weighting=str(scope_cfg.get("weighting", "hybrid_scope")))
+        for issue in story_issues
+        if is_effectively_done_status(
+            ((issue.get("fields", {}).get("status") or {}).get("name") or "").strip(),
+            ((issue.get("fields", {}).get("issuetype") or {}).get("name") or "").strip(),
+        )
+    )
     official_rollover_scope = sprint_carryover_metrics["official_rollover_work"]
     bug_ratio_base = calculate_bug_ratio_base_work(
-        issues,
+        story_issues,
         weighting=str(scope_cfg.get("weighting", "hybrid_scope")),
     )
     bug_ratio_base_work = bug_ratio_base["base_work"]
@@ -2197,7 +2418,7 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     c_score,  c_pct  = score_commitment(completed_scope, committed_scope, sp, is_ex)
     co_score, co_pct = score_carryover(official_rollover_scope, total_scope, sp, is_ex)
     cy_score, cy_pct = score_cycle_time(current_avg_ct, prev_avg_ct, sp)
-    b_score,  b_pct  = score_bug_ratio(new_bugs, bug_ratio_base_work, sp)
+    b_score,  b_pct  = score_bug_ratio(new_story_linked_bugs, bug_ratio_base_work, sp)
 
     if bd:
         bd["total_breakdown"] = _build_scope_breakdown(issues, remaining_only=False)
@@ -2213,7 +2434,7 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         bug_change_arrow = "↓" if bug_change_pct < 0 else ("↑" if bug_change_pct > 0 else "→")
 
     no_data_signals = []
-    if total == 0: no_data_signals.extend(["commitment", "carryover", "bug_ratio"])
+    if len(story_issues) == 0: no_data_signals.extend(["commitment", "carryover", "bug_ratio"])
     if current_avg_ct is None or prev_avg_ct is None: no_data_signals.append("cycle_time")
 
     weights = _config_weights()
@@ -2232,8 +2453,13 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     }
 
     activity_dates = _sprint_activity_dates(ss.start_str)
+    today_activity_key = _activity_date_key(datetime.now(LOCAL_TZ).date())
     activity_date_options = [
-        {"key": _activity_date_key(target_date), "label": _activity_date_label(target_date)}
+        {
+            "key": _activity_date_key(target_date),
+            "label": _activity_date_label(target_date),
+            "is_default": _activity_date_key(target_date) == today_activity_key,
+        }
         for target_date in activity_dates
     ]
     activity_issues = fetch_recent_project_issues(days=len(activity_dates))
@@ -2268,7 +2494,11 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         "bd_nudge": bd_nudge,
         "total": total, "done": done, "carried_over": carried_over,
         "bugs": bugs, "new_bugs": new_bugs, "new_bugs_done": new_bugs_done,
+        "new_story_linked_bugs": new_story_linked_bugs,
         "carried_bugs": carried_bugs, "stories_done": stories_done,
+        "new_bug_linkage": _build_bug_linkage_breakdown(new_bug_items),
+        "carried_bug_linkage": _build_bug_linkage_breakdown(carried_bug_items),
+        "bug_story_insights": _build_bug_story_insights(new_bug_items + carried_bug_items),
         "blocked_count": blockers, "flagged_count": flagged,
         "status_counts": status_counts,
         "unfinished_status_counts": unfinished_status_counts,
@@ -2280,12 +2510,12 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         "signals": {
             "commitment": {
                 "score": c_score, "pct": c_pct,
-                "raw": f"{_format_decimal(completed_scope)}/{_format_decimal(committed_scope)} committed scope done",
+                "raw": f"{_format_decimal(completed_scope)}/{_format_decimal(committed_scope)} story scope done",
                 "no_data": committed_scope == 0,
             },
             "carryover":  {
                 "score": co_score, "pct": co_pct,
-                "raw": f"{_format_decimal(official_rollover_scope)}/{_format_decimal(total_scope)} scope rolled from previous sprint",
+                "raw": f"{_format_decimal(official_rollover_scope)}/{_format_decimal(total_scope)} story scope rolled from previous sprint",
                 "no_data": total_scope == 0,
             },
             "cycle_time": {
@@ -2296,8 +2526,8 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
             },
             "bug_ratio": {
                 "score": b_score, "pct": b_pct,
-                "raw": f"{new_bugs} new bugs / {_format_decimal(bug_ratio_base_work)} story-enhancement-task scope",
-                "no_data": bug_ratio_base_work == 0 and new_bugs == 0,
+                "raw": f"{new_story_linked_bugs} story-linked new bugs / {_format_decimal(bug_ratio_base_work)} story scope",
+                "no_data": bug_ratio_base_work == 0 and new_story_linked_bugs == 0,
             },
         },
         "formula_breakdown": fb, "weights": dict(weights),
@@ -2387,7 +2617,7 @@ def _build_burndown_explainer_html(bd: dict) -> str:
         The burndown compares how much scope should be left each day versus how much scope is actually still open.
       </p>
       <div class="burndown-scope-note">
-        Scope includes Stories, Bugs, Tasks, Enhancements, and Sub-tasks. Story points are used when available; otherwise each item counts as 1.
+        Burndown scope here tracks Stories only. The Remaining Scope Breakdown below still shows all remaining work types.
       </div>
       <div class="burndown-legend">
         <span><i class="ideal"></i> Ideal line: the expected pace to finish on time</span>
@@ -2407,7 +2637,7 @@ def _build_remaining_scope_breakdown_html(bd: dict) -> str:
     if not remaining_breakdown:
         return ""
     remaining_rows = "".join(
-        f"<div class='scope-breakdown-row'><span>{escape(item['type'])}</span><span>{item['count']} item(s)</span><strong>{item['scope']} scope</strong></div>"
+        f"<div class='scope-breakdown-row'><span>{escape(item['type'])}</span><strong>{_format_decimal(float(item['scope']), 0)} scope</strong></div>"
         for item in remaining_breakdown
     )
     return f"""
@@ -2423,7 +2653,11 @@ def _build_burndown_takeaways_html(bd: dict) -> str:
     if not bd:
         return ""
     remaining_breakdown = bd.get("remaining_breakdown") or []
-    top_item = remaining_breakdown[0] if remaining_breakdown else None
+    story_item = next(
+        (item for item in remaining_breakdown if str(item.get("type", "")).strip().lower() == "story"),
+        None,
+    )
+    top_item = story_item or (remaining_breakdown[0] if remaining_breakdown else None)
     top_type = top_item["type"] if top_item else "N/A"
     top_scope = float(top_item["scope"]) if top_item else 0.0
     total_remaining = max(float(bd.get("current_remaining", 0.0) or 0.0), 1.0)
@@ -2445,7 +2679,7 @@ def _build_burndown_takeaways_html(bd: dict) -> str:
           <span>Of remaining scope comes from {escape(top_type)}</span>
         </div>
         <div class="burndown-takeaway">
-          <strong>{behind_by} scope</strong>
+          <strong>{_format_decimal(behind_by, 0)} scope</strong>
           <span>Extra scope above ideal pace</span>
         </div>
         <div class="burndown-takeaway">
@@ -2698,13 +2932,15 @@ def _build_blocked_time_ratio_panel_html(bottlenecks: dict) -> str:
     colors = ["#fbbf24", "#ff4757", "#a78bfa"]
     for i, t in enumerate(top):
         c = colors[i % len(colors)]
-        legend_html += f'<div><i style="background:{c}"></i>{escape(t["name"])} <span style="color:#8ab4d9; font-size: 11px;">({round(t["pct"])}%)</span></div>'
+        legend_name = f'{t["name"]} (Bugs only)' if str(t.get("name", "")).strip().lower() == "open" else t["name"]
+        legend_html += f'<div><i style="background:{c}"></i>{escape(legend_name)} <span style="color:#8ab4d9; font-size: 11px;">({round(t["pct"])}%)</span></div>'
         
     bottleneck_html = ""
     if worst_name:
+        worst_label = f'{worst_name} (for Bugs only)' if str(worst_name).strip().lower() == "open" else worst_name
         bottleneck_html = f"""
         <div style="margin-top: 18px; font-size: 12px; line-height: 1.5; color: #8ab4d9; background: rgba(255,255,255,.03); padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(26,107,255,.12);">
-          <strong style="color:#e0eaff;">Top Bottleneck:</strong> Tickets sit longest in <em style="color:#fbbf24;">"{escape(worst_name)}"</em> status, costing an average of {round(worst_days, 1)} days per blocked issue.
+          <strong style="color:#e0eaff;">Top Bottleneck:</strong> Tickets sit longest in <em style="color:#fbbf24;">"{escape(worst_label)}"</em> status, costing an average of {round(worst_days, 1)} days per blocked issue.
         </div>"""
         
     return f"""
@@ -2761,11 +2997,11 @@ def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
 def _render_activity_date_select(date_options: list[dict], select_label: str) -> str:
     if not date_options:
         return ""
-    initial = date_options[0]
+    initial = next((option for option in date_options if option.get("is_default")), date_options[0])
     options_html = "".join(
-        f"<button type='button' class='activity-date-option{' active' if index == 0 else ''}' "
+        f"<button type='button' class='activity-date-option{' active' if option.get('is_default') else ''}' "
         f"data-date-option='{escape(option['key'])}'>{escape(option['label'])}</button>"
-        for index, option in enumerate(date_options)
+        for option in date_options
     )
     return (
         f"<div class='activity-date-filter' data-date-dropdown='true' aria-label='{escape(select_label)}'>"
@@ -2884,7 +3120,7 @@ def _build_dev_activity_html(dev_activity: dict[str, list], date_options: list[d
                     issue_type_counts["enh"] += 1
 
         html += (
-            f"<div class='activity-date-pane{' active' if option_index == 0 else ''}' data-date='{escape(option['key'])}'>"
+            f"<div class='activity-date-pane{' active' if option.get('is_default') else ''}' data-date='{escape(option['key'])}'>"
             f"{_activity_tabs_html(issue_type_counts, 'Developer issue type filter')}"
         )
 
@@ -2928,11 +3164,27 @@ def _build_dev_activity_html(dev_activity: dict[str, list], date_options: list[d
                     iss.get("summary", ""),
                     iss.get("type", ""),
                     dev_name,
+                    iss.get("linked_story", ""),
+                    iss.get("linked_story_summary", ""),
                     transition_main,
                     transition_sub,
                     compact_status_label,
                     iss.get("status", ""),
                 ]).lower()
+                linked_story_html = ""
+                if (iss.get("type") or "").strip().lower() == "sub-task" and iss.get("linked_story"):
+                    story_summary = (iss.get("linked_story_summary") or "").strip()
+                    linked_story_label = escape(iss["linked_story"])
+                    linked_story_text = (
+                        f"{linked_story_label} - {escape(story_summary[:68])}{'...' if len(story_summary) > 68 else ''}"
+                        if story_summary else linked_story_label
+                    )
+                    linked_story_html = (
+                        f"<div class='qa-linked-story'>"
+                        f"<span class='qa-linked-story-label'>Story</span>"
+                        f"<span class='qa-linked-story-value'>{linked_story_text}</span>"
+                        f"</div>"
+                    )
                 html += f"""
                 <article class="qa-issue-card {card_class}{' hidden-by-limit' if issue_index >= 6 else ''}" data-activity-card="true" data-type="{type_filter}" data-search="{escape(search_blob)}">
                   <div class="qa-issue-top">
@@ -2940,6 +3192,7 @@ def _build_dev_activity_html(dev_activity: dict[str, list], date_options: list[d
                     <a href="{iss['url']}" target="_blank" class="qa-issue-key">{iss['key']}</a>
                   </div>
                   <a href="{iss['url']}" target="_blank" class="qa-issue-title">{escape(iss['summary'][:68])}{'...' if len(iss['summary']) > 68 else ''}</a>
+                  {linked_story_html}
                   <div class="qa-issue-transition">
                     <div class="qa-issue-transition-main">{escape(transition_main)}</div>
                     <div class="qa-issue-transition-sub">{escape(transition_sub)}</div>
@@ -3112,7 +3365,7 @@ def _build_qa_activity_html(qa_items: dict[str, list], date_options: list[dict])
         sorted_testers = sorted(by_tester.values(), key=lambda t: (-len(t["issues"]), t["name"].lower()))
 
         html += (
-            f"<div class='activity-date-pane{' active' if option_index == 0 else ''}' data-date='{escape(option['key'])}'>"
+            f"<div class='activity-date-pane{' active' if option.get('is_default') else ''}' data-date='{escape(option['key'])}'>"
             f"{_activity_tabs_html(issue_type_counts, 'QA issue type filter')}"
         )
 
@@ -3252,7 +3505,7 @@ def _build_todays_bug_reports_html(bugs: dict[str, list], date_options: list[dic
             ("Reopened", status_counts["reopened"], "metric-reopened"),
         ]
 
-        html += f"<div class='activity-date-pane{' active' if option_index == 0 else ''}' data-date='{escape(option['key'])}'>"
+        html += f"<div class='activity-date-pane{' active' if option.get('is_default') else ''}' data-date='{escape(option['key'])}'>"
         html += "<div class='bug-report-metrics'>"
         for label, value, css_class in metric_specs:
             html += (
@@ -3339,7 +3592,7 @@ def format_slack_message(r: dict) -> str:
         ext_note   = " _(sprint overran)_" if bd.get("is_extended") else ""
         bd_line    = (
             f"\n*Burndown*  Day {bd['elapsed_days']}/{bd['total_days']}  ·  "
-            f"{bd['current_remaining']} scope remaining  ·  Ideal: {bd['ideal_remaining']}  ·  "
+            f"{_format_decimal(float(bd['current_remaining']), 0)} scope remaining  ·  Ideal: {_format_decimal(float(bd['ideal_remaining']), 0)}  ·  "
             f"{track_icon} {'On track' if bd.get('on_track') else 'Behind'}{ext_note}  ·  "
             f"Velocity: {bd['velocity']}/day  ·  Projected: {bd['projected_end']}\n"
         )
@@ -3368,8 +3621,12 @@ def format_slack_message(r: dict) -> str:
     date_range    = f"{r['sprint_start']} → {r['sprint_end']}" if r["sprint_start"] and r["sprint_end"] else "Dates not set"
     progress_note = f"   ·   Day {r.get('elapsed_days','?')}/{r.get('total_days','?')} ({r['sprint_progress_pct']}%)" if r.get("sprint_progress_pct") is not None else ""
 
-    selected_activity_key = ((r.get("activity_date_options") or [{}])[0].get("key") or "")
-    selected_activity_label = ((r.get("activity_date_options") or [{}])[0].get("label") or "Today")
+    selected_activity_option = next(
+        (option for option in (r.get("activity_date_options") or []) if option.get("is_default")),
+        ((r.get("activity_date_options") or [{}])[0]),
+    )
+    selected_activity_key = selected_activity_option.get("key") or ""
+    selected_activity_label = selected_activity_option.get("label") or "Today"
     dev_activity_for_slack = (r.get("dev_activity") or {}).get(selected_activity_key, [])
     qa_activity_for_slack = (r.get("qa_activity") or {}).get(selected_activity_key, [])
 
@@ -3423,7 +3680,7 @@ def format_slack_site_message(r: dict, site_url: str, pdf_url: str = "") -> str:
         bugs_line = f"New Bugs: {r['new_bugs']} ({r['bug_change_arrow']} {int(p) if float(p).is_integer() else p}%) | Carried: {r['carried_bugs']}"
     cycle_time = f"{r['current_avg_cycle_time']} days" if r.get("current_avg_cycle_time") is not None else "N/A"
     bd      = r.get("burndown", {})
-    bd_note = f"\nBurndown: {bd['current_remaining']} scope remaining · {'✅ On track' if bd.get('on_track') else '⚠️ Behind'}" if bd else ""
+    bd_note = f"\nBurndown: {_format_decimal(float(bd['current_remaining']), 0)} scope remaining · {'✅ On track' if bd.get('on_track') else '⚠️ Behind'}" if bd else ""
     return (
         f"🚀 Sprint Health Report Ready — Lumofy QA\n\nScore: {score}/100 {health_dot}\n"
         f"{bugs_line}\nCycle Time: {cycle_time}{bd_note}\n\n🔗 View Report:\n{site_url}"
@@ -3440,11 +3697,25 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
     bd          = r.get("burndown", {})
     weights     = r["weights"]
     thresholds  = r["signal_thresholds"]
+    benchmark_summaries = _signal_benchmark_summaries()
     ai_insights = r.get("ai_insights")
 
     def signal_color(s): return "green" if s >= 85 else "yellow" if s >= 70 else "orange" if s >= 50 else "red"
     def nd_badge(k):
         return '<span class="no-data-badge">no data — neutral</span>' if r["signals"][k].get("no_data") else ""
+    def bug_linkage_html(counts: dict) -> str:
+        counts = counts or {}
+        parts = [
+            ("Story", counts.get("story", 0)),
+            ("Enh/Task", counts.get("enhancement_task", 0)),
+            ("No Link", counts.get("no_link", 0)),
+        ]
+        if counts.get("other", 0):
+            parts.append(("Other", counts.get("other", 0)))
+        return "".join(
+            f"<span class='bug-link-pill'><strong>{value}</strong> {escape(label)}</span>"
+            for label, value in parts
+        )
 
     issue_type_rows = "\n".join(
         f"<tr><td>{escape(k)}</td><td>{v}</td><td>{round(v/r['total']*100,1) if r['total'] else 0}%</td></tr>"
@@ -3481,8 +3752,14 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
          "formula": "Current avg cycle time for completed work vs previous 3-sprint avg"},
         {"key": "bug_ratio",  "label": "Bug Ratio (New Only)", "score": sigs["bug_ratio"]["score"],
          "metric": sigs["bug_ratio"]["raw"], "pct": sigs["bug_ratio"]["pct"],
-         "formula": "New Bugs created during this sprint ÷ (Stories + Enhancements + Tasks)"},
+         "formula": "New bugs created during this sprint ÷ total story scope"},
     ]
+    health_signals_formula_html = (
+        "<div class='signals-formula-note'>"
+        "Simple formula: we convert each signal to a score out of 100, then final health = "
+        "Commitment 35% + Carryover 25% + Cycle Time 20% + Bug Ratio 20% + Burndown adjustment."
+        "</div>"
+    )
     signals_html = ""
     for sd in signal_defs:
         sc = signal_color(sd["score"])
@@ -3495,12 +3772,22 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
             <span class="signal-metric-sep">•</span>
             <span class="signal-metric-pct">{sd['pct']}%</span>
           </div>
+          <div class="signal-benchmark">{escape(benchmark_summaries.get(sd['key'], ''))}</div>
           {nd_badge(sd['key'])}
         </div>"""
 
     bug_ratio_base_work = (r.get("bug_ratio_base") or {}).get("base_work", 0.0)
-    new_bug_pct      = round(r["new_bugs"] / bug_ratio_base_work * 100, 1) if bug_ratio_base_work else 0
+    new_story_linked_bugs = r.get("new_story_linked_bugs", 0)
+    new_bug_pct      = round(new_story_linked_bugs / bug_ratio_base_work * 100, 1) if bug_ratio_base_work else 0
     new_bugs_res_pct = round(r["new_bugs_done"] / r["new_bugs"] * 100, 1) if r["new_bugs"] else 0
+    new_bug_linkage_html = bug_linkage_html(r.get("new_bug_linkage", {}))
+    carried_bug_linkage_html = bug_linkage_html(r.get("carried_bug_linkage", {}))
+    bug_story_insights = r.get("bug_story_insights") or {}
+    top_bug_engineer = bug_story_insights.get("top_engineer_name") or "N/A"
+    top_bug_engineer_count = bug_story_insights.get("top_engineer_bug_count", 0)
+    avg_bugs_per_story = bug_story_insights.get("avg_bugs_per_story", 0)
+    affected_story_count = bug_story_insights.get("unique_story_count", 0)
+    story_bug_count = bug_story_insights.get("story_bug_count", 0)
     bug_cards_html   = f"""
     <div class="bug-cards">
       <div class="bug-card new-bugs">
@@ -3508,8 +3795,9 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
         <div class="bug-card-title">New Bugs</div>
         <div class="bug-card-count">{r['new_bugs']}</div>
         <div class="bug-card-sub">Created this sprint</div>
-        <div class="bug-card-ratio">Bug Ratio: <strong>{new_bug_pct}%</strong> of story-enhancement-task scope</div>
+        <div class="bug-card-ratio">Bug Ratio: <strong>{new_bug_pct}%</strong> of story scope</div>
         <div class="bug-card-resolved">Resolved: <strong>{r['new_bugs_done']}</strong> ({new_bugs_res_pct}%)</div>
+        <div class="bug-linkage-row">{new_bug_linkage_html}</div>
         <div class="bug-card-note">Counts toward Health Score</div>
       </div>
       <div class="bug-card carried-bugs">
@@ -3517,7 +3805,20 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
         <div class="bug-card-title">Carried Bugs</div>
         <div class="bug-card-count">{r['carried_bugs']}</div>
         <div class="bug-card-sub">From previous sprints</div>
+        <div class="bug-linkage-row">{carried_bug_linkage_html}</div>
         <div class="bug-card-note">Display only - not in Health Score</div>
+      </div>
+    </div>
+    <div class="bug-insight-grid">
+      <div class="bug-insight-card">
+        <div class="bug-insight-label">Average Bugs per Story</div>
+        <div class="bug-insight-value">{avg_bugs_per_story}</div>
+        <div class="bug-insight-sub">{story_bug_count} bugs linked to {affected_story_count} stor{'y' if affected_story_count == 1 else 'ies'}</div>
+      </div>
+      <div class="bug-insight-card">
+        <div class="bug-insight-label">Most Bugs on Stories</div>
+        <div class="bug-insight-value">{escape(top_bug_engineer)}</div>
+        <div class="bug-insight-sub">{top_bug_engineer_count} bug{'s' if top_bug_engineer_count != 1 else ''} linked to stories</div>
       </div>
     </div>"""
 
@@ -3533,8 +3834,8 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
         burndown_stats = f"""
         <div class="bd-stats">
           <div class="bd-stat"><div class="bd-stat-val">{bd['elapsed_days']}/{bd['total_days']}</div><div class="bd-stat-lbl">Days Elapsed</div></div>
-          <div class="bd-stat"><div class="bd-stat-val">{bd['current_remaining']}</div><div class="bd-stat-lbl">Scope Remaining</div></div>
-          <div class="bd-stat"><div class="bd-stat-val">{bd['ideal_remaining']}</div><div class="bd-stat-lbl">Ideal Scope Remaining</div></div>
+          <div class="bd-stat"><div class="bd-stat-val">{_format_decimal(float(bd['current_remaining']), 0)}</div><div class="bd-stat-lbl">Scope Remaining</div></div>
+          <div class="bd-stat"><div class="bd-stat-val">{_format_decimal(float(bd['ideal_remaining']), 0)}</div><div class="bd-stat-lbl">Ideal Scope Remaining</div></div>
           <div class="bd-stat"><div class="bd-stat-val {bd_track_cls}">{bd_track_txt}</div><div class="bd-stat-lbl">Status</div></div>
           <div class="bd-stat"><div class="bd-stat-val">{bd['velocity']}/day</div><div class="bd-stat-lbl">Velocity</div></div>
           <div class="bd-stat"><div class="bd-stat-val">{bd['projected_end']}</div><div class="bd-stat-lbl">Projected Finish</div></div>
@@ -3582,9 +3883,17 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
 <style>
 *{{box-sizing:border-box;margin:0;padding:0}}
 body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
-  background:#050d1a;color:#e0eaff;padding:32px 16px;min-height:100vh}}
-.container{{max-width:1060px;margin:0 auto}}
-.header{{text-align:center;margin-bottom:36px}}
+  background:
+    radial-gradient(circle at 12% 10%, var(--bg-orb-a) 0%, transparent 24%),
+    radial-gradient(circle at 88% 14%, var(--bg-orb-b) 0%, transparent 26%),
+    radial-gradient(circle at 50% 0%, var(--bg-orb-c) 0%, transparent 34%),
+    linear-gradient(180deg,var(--page-bg-alt) 0%, var(--page-bg) 58%, var(--page-bg-deep) 100%);
+  color:var(--text-main);padding:32px 16px;min-height:100vh;position:relative;overflow-x:hidden}}
+.container{{max-width:1060px;margin:0 auto;position:relative;z-index:1}}
+.header{{text-align:center;margin-bottom:36px;padding:28px 24px;border-radius:28px;
+  background:var(--glass-hero-bg);border:1px solid var(--glass-border);backdrop-filter:blur(22px) saturate(140%);
+  box-shadow:var(--glass-shadow);position:relative;overflow:hidden}}
+.header::before{{content:'';position:absolute;inset:0 0 auto 0;height:1px;background:var(--glass-highlight);opacity:.95}}
 .lumofy-logo{{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:18px}}
 .logo-mark{{width:32px;height:32px;background:linear-gradient(135deg,#1a6bff,#00d4aa);
   clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);}}
@@ -3592,20 +3901,27 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .logo-text span{{color:#1a6bff}}
 .header h1{{font-size:30px;font-weight:700;color:#fff;margin-bottom:6px}}
 .header p{{font-size:13px;color:#4a90d9}}
-.header-actions{{display:flex;justify-content:center;margin-top:18px}}
+.header-actions{{display:flex;justify-content:center;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px}}
 .admin-cta{{display:inline-flex;align-items:center;gap:10px;padding:12px 18px;border-radius:999px;
   background:linear-gradient(135deg,#1a6bff,#00d4aa);color:#fff;text-decoration:none;font-size:13px;
-  font-weight:700;letter-spacing:.2px;border:1px solid rgba(255,255,255,.12);
-  box-shadow:0 10px 28px rgba(26,107,255,.28),0 4px 12px rgba(0,0,0,.22);
+  font-weight:700;letter-spacing:.2px;border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 10px 28px rgba(26,107,255,.24),0 4px 12px rgba(0,0,0,.18);
   transition:transform .2s ease,box-shadow .2s ease,filter .2s ease}}
 .admin-cta:hover{{transform:translateY(-2px);filter:brightness(1.05);
   box-shadow:0 16px 34px rgba(26,107,255,.34),0 6px 16px rgba(0,0,0,.28)}}
 .admin-cta svg{{width:18px;height:18px;fill:#fff;flex-shrink:0}}
+body[data-theme="light"] .admin-cta{{box-shadow:0 12px 24px rgba(34,94,168,.12),0 6px 14px rgba(20,40,80,.08)}}
+body[data-theme="light"] .logo-text,
+body[data-theme="light"] .header h1,
+body[data-theme="light"] .score-label{{color:var(--text-main)}}
+body[data-theme="light"] .header p{{color:var(--text-soft)}}
+body[data-theme="light"] .progress-bar-wrap{{background:rgba(34,94,168,.1);border-color:rgba(34,94,168,.16)}}
 .progress-bar-wrap{{background:rgba(26,107,255,.15);border-radius:999px;height:4px;width:260px;margin:12px auto 0;border:1px solid rgba(26,107,255,.2)}}
 .progress-bar-fill{{height:4px;border-radius:999px;background:linear-gradient(90deg,#1a6bff,#00d4aa)}}
-.card{{background:rgba(10,20,40,.8);backdrop-filter:blur(20px);border-radius:16px;
-  padding:32px 28px;margin-bottom:24px;border:1px solid rgba(26,107,255,.2);box-shadow:0 4px 24px rgba(0,0,0,.4);
+.card{{background:var(--glass-panel-bg);backdrop-filter:blur(22px) saturate(140%);border-radius:24px;
+  padding:32px 28px;margin-bottom:24px;border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);
   position:relative;z-index:1}}
+.card::before{{content:'';position:absolute;left:0;right:0;top:0;height:1px;background:var(--glass-highlight);opacity:.9}}
 .card.dropdown-open{{z-index:30}}
 .score-wrap{{text-align:center}}
 .score-circle{{width:150px;height:150px;border-radius:50%;margin:0 auto 20px;
@@ -3627,6 +3943,8 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .section-title{{font-size:16px;font-weight:700;color:#4a90d9;margin:32px 0 14px;
   text-transform:uppercase;letter-spacing:.8px;display:flex;align-items:center;gap:8px}}
 .section-title::after{{content:'';flex:1;height:1px;background:rgba(26,107,255,.2)}}
+.signals-formula-note{{margin:-4px 0 16px;padding:10px 14px;border-radius:12px;font-size:12px;line-height:1.55;
+  color:#9dc4f0;background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.14)}}
 .signals-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin-bottom:24px}}
 .signal-card{{background:linear-gradient(180deg,rgba(12,25,49,.96),rgba(9,19,39,.92));border-radius:18px;padding:22px 18px 18px;
   border:1px solid rgba(26,107,255,.22);text-align:center;transition:transform .25s,border-color .25s,box-shadow .25s;
@@ -3643,11 +3961,18 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .signal-metric-main{{color:#b4d4ff}}
 .signal-metric-sep{{color:#3b70b4;font-weight:900}}
 .signal-metric-pct{{color:#ffffff;font-weight:800}}
+.signal-benchmark{{font-size:11px;line-height:1.5;color:#8ab4d9;min-height:34px;margin-bottom:8px}}
 .no-data-badge{{display:inline-block;background:rgba(251,191,36,.1);color:#fbbf24;
   font-size:9px;font-weight:700;padding:2px 7px;border-radius:999px;margin-bottom:8px;
   text-transform:uppercase;letter-spacing:.4px;border:1px solid rgba(251,191,36,.3)}}
 .bug-cards{{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:8px}}
 @media(max-width:560px){{.bug-cards{{grid-template-columns:1fr}}}}
+.bug-insight-grid{{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}}
+@media(max-width:560px){{.bug-insight-grid{{grid-template-columns:1fr}}}}
+.bug-insight-card{{border-radius:14px;padding:16px 18px;background:rgba(255,255,255,.03);border:1px solid rgba(74,144,217,.16)}}
+.bug-insight-label{{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#4a90d9;margin-bottom:8px}}
+.bug-insight-value{{font-size:24px;font-weight:900;color:#eef5ff;line-height:1.2;margin-bottom:6px}}
+.bug-insight-sub{{font-size:12px;line-height:1.5;color:#8ab4d9}}
 .bug-card{{border-radius:14px;padding:24px 20px;border:1px solid;text-align:center}}
 .bug-card.new-bugs{{background:rgba(251,191,36,.06);border-color:rgba(251,191,36,.3)}}
 .bug-card.carried-bugs{{background:rgba(255,71,87,.06);border-color:rgba(255,71,87,.3)}}
@@ -3658,6 +3983,10 @@ body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sa
 .bug-card-sub{{font-size:11px;color:#4a90d9;margin-bottom:10px}}
 .bug-card-ratio{{font-size:12px;color:#8ab4d9;margin-bottom:4px}}
 .bug-card-resolved{{font-size:12px;color:#00d4aa;margin-bottom:8px}}
+.bug-linkage-row{{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:10px 0 12px}}
+.bug-link-pill{{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;font-size:11px;
+  color:#dce9ff;background:rgba(255,255,255,.05);border:1px solid rgba(74,144,217,.18)}}
+.bug-link-pill strong{{color:#fff}}
 .bug-card-note{{font-size:10px;padding:4px 10px;border-radius:999px;display:inline-block}}
 .new-bugs .bug-card-note{{background:rgba(251,191,36,.1);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}}
 .carried-bugs .bug-card-note{{background:rgba(74,144,217,.1);color:#4a90d9;border:1px solid rgba(74,144,217,.2)}}
@@ -3913,6 +4242,10 @@ td:first-child{{color:#e0eaff}}
 .qa-status-reopened{{background:rgba(255,107,124,.14);border-color:rgba(255,107,124,.24);color:#ff94a0}}
 .qa-issue-title{{display:block;font-size:14px;font-weight:700;line-height:1.45;color:#eef5ff;text-decoration:none;min-height:40px;margin-bottom:12px}}
 .qa-issue-title:hover{{color:#dbeaff}}
+.qa-linked-story{{display:flex;flex-direction:column;gap:4px;margin:-2px 0 12px;padding:10px 12px;border-radius:12px;
+  background:rgba(88,166,255,.08);border:1px solid rgba(88,166,255,.22)}}
+.qa-linked-story-label{{font-size:10px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:#7fb2ff}}
+.qa-linked-story-value{{font-size:11px;line-height:1.45;color:#dce9ff;word-break:break-word}}
 .qa-issue-transition{{margin-bottom:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(74,144,217,.12)}}
 .qa-issue-transition-main{{font-size:11px;font-weight:700;color:#dce9ff;margin-bottom:4px}}
 .qa-issue-transition-sub{{font-size:10px;color:#8ab4d9;line-height:1.45}}
@@ -4025,7 +4358,162 @@ td:first-child{{color:#e0eaff}}
 .ai-summary{{font-size:13px;color:#8ab4d9;line-height:1.7}}
 .ai-actions{{margin:14px 0 0 18px;color:#e0eaff}}
 .ai-actions li{{margin-bottom:8px}}
+:root{{
+  --page-bg:#06111f;
+  --page-bg-alt:#0b1730;
+  --page-bg-deep:#050d1a;
+  --bg-orb-a:rgba(52,118,255,.18);
+  --bg-orb-b:rgba(0,212,170,.11);
+  --bg-orb-c:rgba(255,120,80,.08);
+  --text-main:#e0eaff;
+  --text-soft:#8ab4d9;
+  --text-accent:#4a90d9;
+  --glass-panel-bg:linear-gradient(180deg,rgba(13,24,45,.72),rgba(9,18,35,.64));
+  --glass-hero-bg:linear-gradient(180deg,rgba(14,26,48,.76),rgba(10,20,39,.64));
+  --glass-border:rgba(137,179,255,.16);
+  --glass-highlight:linear-gradient(90deg,rgba(255,255,255,.24),rgba(255,255,255,.05),rgba(255,255,255,0));
+  --glass-shadow:0 20px 50px rgba(0,0,0,.22);
+  --card-bg:linear-gradient(180deg,rgba(12,25,49,.96),rgba(9,19,39,.92));
+  --card-border:rgba(26,107,255,.22);
+  --panel-bg:linear-gradient(180deg,rgba(15,30,54,.96),rgba(10,20,40,.92));
+  --panel-border:rgba(26,107,255,.18);
+  --chip-bg:rgba(26,107,255,.08);
+  --chip-border:rgba(26,107,255,.12);
+  --theme-toggle-bg:rgba(255,255,255,.04);
+  --theme-toggle-border:rgba(74,144,217,.2);
+  --theme-toggle-text:#dce9ff;
+}}
+body[data-theme="light"]{{
+  --page-bg:#eef4fb;
+  --page-bg-alt:#f8fbff;
+  --page-bg-deep:#e6eef8;
+  --bg-orb-a:rgba(68,124,214,.13);
+  --bg-orb-b:rgba(73,199,184,.11);
+  --bg-orb-c:rgba(255,179,120,.10);
+  --text-main:#19314f;
+  --text-soft:#5f7694;
+  --text-accent:#2f6fbc;
+  --glass-panel-bg:linear-gradient(180deg,rgba(255,255,255,.72),rgba(248,251,255,.62));
+  --glass-hero-bg:linear-gradient(180deg,rgba(255,255,255,.78),rgba(247,250,255,.66));
+  --glass-border:rgba(123,153,193,.24);
+  --glass-highlight:linear-gradient(90deg,rgba(255,255,255,.92),rgba(255,255,255,.38),rgba(255,255,255,0));
+  --glass-shadow:0 18px 40px rgba(100,130,170,.12);
+  --card-bg:linear-gradient(180deg,rgba(255,255,255,.72),rgba(248,251,255,.62));
+  --card-border:rgba(123,153,193,.24);
+  --panel-bg:linear-gradient(180deg,rgba(255,255,255,.78),rgba(246,250,255,.68));
+  --panel-border:rgba(123,153,193,.22);
+  --chip-bg:rgba(66,104,156,.06);
+  --chip-border:rgba(93,128,176,.12);
+  --theme-toggle-bg:rgba(255,255,255,.5);
+  --theme-toggle-border:rgba(123,153,193,.24);
+  --theme-toggle-text:#19314f;
+}}
 .footer{{text-align:center;margin-top:40px;padding:20px;color:#2d5a8e;font-size:11px}}
+.report-particles{{position:fixed;inset:0;width:100%;height:100%;display:block;pointer-events:none;z-index:0;opacity:.96}}
+.theme-toggle{{display:inline-flex;align-items:center;gap:10px;padding:10px 14px;border-radius:999px;
+  background:var(--theme-toggle-bg);border:1px solid var(--theme-toggle-border);color:var(--theme-toggle-text);
+  text-decoration:none;font-size:12px;font-weight:800;letter-spacing:.04em;cursor:pointer;backdrop-filter:blur(10px);
+  transition:transform .2s ease,border-color .2s ease,background .2s ease}}
+.theme-toggle:hover{{transform:translateY(-1px);border-color:#1a6bff}}
+.theme-toggle-icon{{font-size:14px;line-height:1}}
+body[data-theme="light"]{{color:var(--text-main)}}
+body[data-theme="light"] .container{{color:var(--text-main)}}
+body[data-theme="light"] .card,
+body[data-theme="light"] .signal-card,
+body[data-theme="light"] .details-panel,
+body[data-theme="light"] .details-subpanel,
+body[data-theme="light"] .qa-dashboard-shell,
+body[data-theme="light"] .bug-report-shell,
+body[data-theme="light"] .qa-tester-section,
+body[data-theme="light"] .qa-issue-card,
+body[data-theme="light"] .bug-person-card,
+body[data-theme="light"] .bug-ticket-card,
+body[data-theme="light"] .burndown-explainer,
+body[data-theme="light"] .burndown-takeaways,
+body[data-theme="light"] .scope-breakdown,
+body[data-theme="light"] .bug-insight-card,
+body[data-theme="light"] .activity-date-filter,
+body[data-theme="light"] .activity-date-menu{{background:var(--card-bg)!important;border-color:var(--card-border)!important;box-shadow:0 12px 28px rgba(90,121,163,.10)}}
+body[data-theme="light"] .score-wrap,
+body[data-theme="light"] .formula-breakdown,
+body[data-theme="light"] .formula-final{{background:var(--card-bg)!important;border-color:var(--card-border)!important}}
+body[data-theme="light"] .section-title,
+body[data-theme="light"] .details-panel-head h3,
+body[data-theme="light"] .qa-dashboard-title,
+body[data-theme="light"] .bug-report-title,
+body[data-theme="light"] .health-status,
+body[data-theme="light"] .score-number,
+body[data-theme="light"] .signal-score,
+body[data-theme="light"] .bd-stat-val,
+body[data-theme="light"] .burndown-explainer-title,
+body[data-theme="light"] .burndown-takeaways-title,
+body[data-theme="light"] .scope-breakdown-title,
+body[data-theme="light"] .qa-tester-name,
+body[data-theme="light"] .qa-issue-title,
+body[data-theme="light"] .bug-insight-value{{color:var(--text-main)!important}}
+body[data-theme="light"] .health-sub,
+body[data-theme="light"] .details-panel-head span,
+body[data-theme="light"] .qa-dashboard-subtitle,
+body[data-theme="light"] .signal-benchmark,
+body[data-theme="light"] .signal-metric-main,
+body[data-theme="light"] .bug-insight-sub,
+body[data-theme="light"] .burndown-explainer-copy,
+body[data-theme="light"] .burndown-scope-note,
+body[data-theme="light"] .qa-tester-count,
+body[data-theme="light"] .activity-date-label,
+body[data-theme="light"] .activity-date-trigger-text,
+body[data-theme="light"] .qa-search-input,
+body[data-theme="light"] .qa-search-input::placeholder{{color:var(--text-soft)!important}}
+body[data-theme="light"] .signal-metric,
+body[data-theme="light"] .qa-linked-story,
+body[data-theme="light"] .qa-issue-transition,
+body[data-theme="light"] .bug-link-pill,
+body[data-theme="light"] .signals-formula-note{{background:var(--chip-bg)!important;border-color:var(--chip-border)!important}}
+body[data-theme="light"] .qa-tab{{background:rgba(16,35,63,.03);border-color:rgba(34,94,168,.12);color:var(--text-soft)}}
+body[data-theme="light"] .qa-tab strong{{color:var(--text-main)}}
+body[data-theme="light"] .qa-tab.active{{background:linear-gradient(180deg,rgba(34,94,168,.14),rgba(34,94,168,.08));color:var(--text-main);border-color:rgba(34,94,168,.22)}}
+body[data-theme="light"] .activity-date-trigger::after{{border-right-color:var(--text-accent);border-bottom-color:var(--text-accent)}}
+body[data-theme="light"] .qa-mini-pill,
+body[data-theme="light"] .bug-card-note{{box-shadow:none}}
+body[data-theme="light"] .signal-unit,
+body[data-theme="light"] .signal-metric-sep,
+body[data-theme="light"] .bug-card-sub,
+body[data-theme="light"] .bd-stat-lbl,
+body[data-theme="light"] .details-summary-meta,
+body[data-theme="light"] .bug-report-subtitle,
+body[data-theme="light"] .footer{{color:var(--text-soft)!important}}
+body[data-theme="light"] .signal-metric-pct,
+body[data-theme="light"] .bug-link-pill strong,
+body[data-theme="light"] td:first-child,
+body[data-theme="light"] .details-subtitle,
+body[data-theme="light"] .details-summary-main,
+body[data-theme="light"] .issue-type-name,
+body[data-theme="light"] .assignee-name,
+body[data-theme="light"] .assignee-count,
+body[data-theme="light"] .qa-issue-transition-main,
+body[data-theme="light"] .qa-linked-story-value,
+body[data-theme="light"] .bug-person-name,
+body[data-theme="light"] .bug-ticket-summary,
+body[data-theme="light"] .interp-status,
+body[data-theme="light"] .ai-title{{color:var(--text-main)!important}}
+body[data-theme="light"] th{{background:rgba(66,104,156,.06);color:var(--text-accent)}}
+body[data-theme="light"] td,
+body[data-theme="light"] .formula-row,
+body[data-theme="light"] .ai-summary,
+body[data-theme="light"] .ai-actions,
+body[data-theme="light"] .interp-desc{{color:var(--text-soft)!important}}
+body[data-theme="light"] .status-chip,
+body[data-theme="light"] .details-subpanel,
+body[data-theme="light"] .burndown-summary div,
+body[data-theme="light"] .burndown-takeaway,
+body[data-theme="light"] .scope-breakdown-row,
+body[data-theme="light"] .bug-report-meta,
+body[data-theme="light"] .bug-report-metric,
+body[data-theme="light"] .bug-ticket-card,
+body[data-theme="light"] .qa-show-more{{background:rgba(255,255,255,.36)!important;border-color:rgba(123,153,193,.2)!important}}
+body[data-theme="light"] .qa-issue-card,
+body[data-theme="light"] .signal-card,
+body[data-theme="light"] .bug-person-card{{box-shadow:0 16px 36px rgba(100,130,170,.10), inset 0 1px 0 rgba(255,255,255,.55)!important}}
 .fab-wrapper{{position:fixed;right:24px;bottom:24px;z-index:9999}}
 .fab-dashboard{{width:60px;height:60px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,#1a6bff,#00d4aa);text-decoration:none;border:1px solid rgba(255,255,255,.12);
@@ -4042,6 +4530,7 @@ td:first-child{{color:#e0eaff}}
 </style>
 </head>
 <body>
+<canvas id="reportParticles" class="report-particles" aria-hidden="true"></canvas>
 <div class="container">
   <div class="header">
     <div class="lumofy-logo">
@@ -4052,6 +4541,10 @@ td:first-child{{color:#e0eaff}}
     <p>{date_range} &nbsp;|&nbsp; Day {r.get('elapsed_days','?')}/{r.get('total_days','?')} ({progress_pct}% through sprint)</p>
     <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:{progress_pct}%"></div></div>
     <div class="header-actions">
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle color theme">
+        <span class="theme-toggle-icon" id="themeToggleIcon">DM</span>
+        <span id="themeToggleText">Theme</span>
+      </button>
       <a href="http://127.0.0.1:8765" target="_blank" class="admin-cta" title="Open Admin Dashboard">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
@@ -4070,6 +4563,7 @@ td:first-child{{color:#e0eaff}}
     <div class="health-sub">{escape(r['sprint_name'])} &nbsp;|&nbsp; {escape(r['generated_at'])}</div>
   </div>
   <div class="section-title">Health Signals</div>
+  {health_signals_formula_html}
   <div class="signals-grid">{signals_html}</div>
   <div class="section-title">Bug Breakdown</div>
   <div class="card">{bug_cards_html}</div>
@@ -4121,9 +4615,241 @@ td:first-child{{color:#e0eaff}}
 </div>
 <script>
 (() => {{
-  const roots = Array.from(document.querySelectorAll('.interactive-activity-shell'));
-  if (!roots.length) return;
+  const storageKey = 'sprint-health-theme';
+  const themeToggle = document.getElementById('themeToggle');
+  const themeToggleText = document.getElementById('themeToggleText');
+  const themeToggleIcon = document.getElementById('themeToggleIcon');
 
+  function applyTheme(theme) {{
+    document.body.dataset.theme = theme;
+    if (themeToggleText) themeToggleText.textContent = theme === 'light' ? 'Dark Mode' : 'Light Mode';
+    if (themeToggleIcon) themeToggleIcon.textContent = theme === 'light' ? 'DM' : 'LM';
+  }}
+
+  const savedTheme = localStorage.getItem(storageKey);
+  const preferredTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  applyTheme(preferredTheme);
+
+  themeToggle?.addEventListener('click', () => {{
+    const nextTheme = document.body.dataset.theme === 'light' ? 'dark' : 'light';
+    localStorage.setItem(storageKey, nextTheme);
+    applyTheme(nextTheme);
+  }});
+
+  const particleCanvas = document.getElementById('reportParticles');
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  if (particleCanvas) {{
+    const particleCtx = particleCanvas.getContext('2d', {{ alpha: true }});
+    const DPR_LIMIT = 1.8;
+    const iconSprites = [];
+    const particles = [];
+    let canvasWidth = 0;
+    let canvasHeight = 0;
+    let centerX = 0;
+    let centerY = 0;
+    let baseRadius = 0;
+    let orbitTime = 0;
+    let frameId = 0;
+    let startedAt = performance.now();
+
+    function clamp(value, min, max) {{
+      return Math.max(min, Math.min(max, value));
+    }}
+
+    function easeOutCubic(t) {{
+      return 1 - Math.pow(1 - t, 3);
+    }}
+
+    function particlePalette() {{
+      return document.body.dataset.theme === 'light'
+        ? {{
+            ink: '#172B4D',
+            brand: '#0052CC',
+            muted: 'rgba(23, 43, 77, 0.22)',
+            glow: 'rgba(0, 82, 204, 0.09)',
+            coreA: 'rgba(255,255,255,0.95)',
+            coreB: 'rgba(76,154,255,0.18)'
+          }}
+        : {{
+            ink: '#DCE9FF',
+            brand: '#4C9AFF',
+            muted: 'rgba(220, 233, 255, 0.22)',
+            glow: 'rgba(76, 154, 255, 0.12)',
+            coreA: 'rgba(255,255,255,0.82)',
+            coreB: 'rgba(76,154,255,0.20)'
+          }};
+    }}
+
+    function makeSprite(drawFn, size) {{
+      const offscreen = document.createElement('canvas');
+      offscreen.width = size;
+      offscreen.height = size;
+      const ictx = offscreen.getContext('2d');
+      drawFn(ictx, size);
+      return offscreen;
+    }}
+
+    function rebuildSprites() {{
+      const palette = particlePalette();
+      iconSprites.length = 0;
+      iconSprites.push(
+        makeSprite((ictx, size) => {{
+          ictx.strokeStyle = palette.brand;
+          ictx.lineWidth = size * 0.11;
+          ictx.lineCap = 'round';
+          ictx.lineJoin = 'round';
+          ictx.beginPath();
+          ictx.moveTo(size * 0.24, size * 0.54);
+          ictx.lineTo(size * 0.43, size * 0.72);
+          ictx.lineTo(size * 0.76, size * 0.30);
+          ictx.stroke();
+        }}, 48),
+        makeSprite((ictx, size) => {{
+          ictx.fillStyle = palette.brand;
+          ictx.beginPath();
+          ictx.moveTo(size * 0.50, size * 0.10);
+          ictx.lineTo(size * 0.82, size * 0.30);
+          ictx.lineTo(size * 0.82, size * 0.70);
+          ictx.lineTo(size * 0.50, size * 0.90);
+          ictx.lineTo(size * 0.18, size * 0.70);
+          ictx.lineTo(size * 0.18, size * 0.30);
+          ictx.closePath();
+          ictx.fill();
+          ictx.clearRect(size * 0.39, size * 0.29, size * 0.22, size * 0.42);
+        }}, 48),
+        makeSprite((ictx, size) => {{
+          ictx.strokeStyle = palette.ink;
+          ictx.lineWidth = size * 0.10;
+          ictx.lineCap = 'round';
+          ictx.beginPath();
+          ictx.moveTo(size * 0.24, size * 0.38);
+          ictx.lineTo(size * 0.76, size * 0.38);
+          ictx.moveTo(size * 0.24, size * 0.52);
+          ictx.lineTo(size * 0.64, size * 0.52);
+          ictx.moveTo(size * 0.24, size * 0.66);
+          ictx.lineTo(size * 0.58, size * 0.66);
+          ictx.stroke();
+        }}, 48)
+      );
+    }}
+
+    function resizeParticles() {{
+      const dpr = Math.min(window.devicePixelRatio || 1, DPR_LIMIT);
+      canvasWidth = window.innerWidth;
+      canvasHeight = window.innerHeight;
+      centerX = canvasWidth * 0.5;
+      centerY = Math.min(380, canvasHeight * 0.27);
+      baseRadius = Math.min(canvasWidth, canvasHeight) * 0.14;
+      particleCanvas.width = Math.round(canvasWidth * dpr);
+      particleCanvas.height = Math.round(canvasHeight * dpr);
+      particleCanvas.style.width = `${{canvasWidth}}px`;
+      particleCanvas.style.height = `${{canvasHeight}}px`;
+      particleCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      rebuildSprites();
+      rebuildParticles();
+    }}
+
+    function rebuildParticles() {{
+      const palette = particlePalette();
+      const count = canvasWidth < 900 ? 110 : 150;
+      particles.length = 0;
+      for (let i = 0; i < count; i += 1) {{
+        const ratio = i / count;
+        const orbitRadius = 28 + Math.pow(ratio, 1.32) * Math.min(canvasWidth, canvasHeight) * 0.42;
+        const isIcon = i % 12 === 0;
+        particles.push({{
+          angle: Math.random() * Math.PI * 2,
+          orbitRadius,
+          speed: 0.00045 + Math.random() * 0.0012,
+          twist: 0.8 + Math.random() * 1.4,
+          drift: (Math.random() - 0.5) * 0.12,
+          size: isIcon ? 10 + Math.random() * 6 : 1.8 + Math.random() * 3.2,
+          alpha: isIcon ? 0.34 + Math.random() * 0.16 : 0.16 + Math.random() * 0.24,
+          sprite: isIcon ? iconSprites[i % iconSprites.length] : null,
+          color: i % 4 === 0 ? palette.brand : palette.muted
+        }});
+      }}
+    }}
+
+    function drawGlow(pulse) {{
+      const palette = particlePalette();
+      const gradient = particleCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, baseRadius * 1.8);
+      gradient.addColorStop(0, palette.glow);
+      gradient.addColorStop(0.46, document.body.dataset.theme === 'light' ? 'rgba(0,82,204,0.04)' : 'rgba(76,154,255,0.06)');
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      particleCtx.fillStyle = gradient;
+      particleCtx.beginPath();
+      particleCtx.arc(centerX, centerY, baseRadius * (1.08 + pulse * 0.05), 0, Math.PI * 2);
+      particleCtx.fill();
+    }}
+
+    function drawCore(pulse) {{
+      const palette = particlePalette();
+      const gradient = particleCtx.createRadialGradient(centerX, centerY, 0, centerX, centerY, baseRadius * 0.48);
+      gradient.addColorStop(0, palette.coreA);
+      gradient.addColorStop(0.26, palette.coreB);
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      particleCtx.fillStyle = gradient;
+      particleCtx.beginPath();
+      particleCtx.arc(centerX, centerY, baseRadius * (0.12 + pulse * 0.012), 0, Math.PI * 2);
+      particleCtx.fill();
+    }}
+
+    function drawParticle(particle, elapsed, pulse) {{
+      const burst = easeOutCubic(clamp(elapsed / 2200, 0, 1));
+      const angle = particle.angle + elapsed * particle.speed * particle.twist;
+      const orbit = particle.orbitRadius * (0.84 + burst * 0.16);
+      const x = centerX + Math.cos(angle + particle.drift) * orbit;
+      const y = centerY + Math.sin(angle) * orbit * 0.72;
+
+      particleCtx.save();
+      particleCtx.translate(x, y);
+      particleCtx.rotate(angle * 0.82);
+      particleCtx.globalAlpha = particle.alpha * (0.88 + pulse * 0.12);
+
+      if (particle.sprite) {{
+        const size = particle.size * (1 + pulse * 0.03);
+        particleCtx.drawImage(particle.sprite, -size / 2, -size / 2, size, size);
+      }} else {{
+        particleCtx.fillStyle = particle.color;
+        particleCtx.beginPath();
+        particleCtx.arc(0, 0, particle.size, 0, Math.PI * 2);
+        particleCtx.fill();
+      }}
+
+      particleCtx.restore();
+    }}
+
+    function renderParticles(now) {{
+      particleCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+      orbitTime += 16.67;
+      const pulse = 0.5 + Math.sin((now - startedAt) * 0.0024) * 0.5;
+      drawGlow(pulse);
+      for (let i = 0; i < particles.length; i += 1) {{
+        drawParticle(particles[i], orbitTime, pulse);
+      }}
+      drawCore(pulse);
+
+      if (!prefersReducedMotion.matches) {{
+        frameId = window.requestAnimationFrame(renderParticles);
+      }}
+    }}
+
+    function startParticles() {{
+      window.cancelAnimationFrame(frameId);
+      startedAt = performance.now();
+      orbitTime = 0;
+      resizeParticles();
+      renderParticles(startedAt);
+    }}
+
+    startParticles();
+    window.addEventListener('resize', resizeParticles, {{ passive: true }});
+    prefersReducedMotion.addEventListener('change', startParticles);
+  }}
+
+  const roots = Array.from(document.querySelectorAll('.interactive-activity-shell'));
   roots.forEach((root) => {{
     const searchInput = root.querySelector('.qa-search-input');
     const dateDropdown = root.querySelector('[data-date-dropdown="true"]');
@@ -4302,7 +5028,7 @@ def write_pdf_report(r: dict, output_path: str | None = None) -> str | None:
     if bd:
         lines += [
             "Burndown:",
-            f"  Day {bd['elapsed_days']}/{bd['total_days']}  |  {bd['current_remaining']} scope remaining  |  Ideal: {bd['ideal_remaining']}",
+            f"  Day {bd['elapsed_days']}/{bd['total_days']}  |  {_format_decimal(float(bd['current_remaining']), 0)} scope remaining  |  Ideal: {_format_decimal(float(bd['ideal_remaining']), 0)}",
             f"  Velocity: {bd['velocity']}/day  |  Projected: {bd['projected_end']}",
             f"  Status: {'On track' if bd.get('on_track') else 'Behind'}",
             "",

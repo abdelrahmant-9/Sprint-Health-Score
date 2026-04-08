@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Success State</title>
+<style>
+  :root {
+    --bg: #f4f7fb;
+    --bg-deep: #e8eef7;
+    --ink: #172b4d;
+    --muted: #5e6c84;
+    --brand: #0052cc;
+    --brand-soft: rgba(0, 82, 204, 0.14);
+    --card: rgba(255, 255, 255, 0.72);
+    --card-border: rgba(23, 43, 77, 0.08);
+    --shadow: 0 24px 70px rgba(23, 43, 77, 0.12);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    font-family: "Segoe UI", Arial, sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 20% 18%, rgba(0, 82, 204, 0.12), transparent 24%),
+      radial-gradient(circle at 82% 16%, rgba(23, 43, 77, 0.08), transparent 26%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
+  }
+
+  body {
+    overflow: hidden;
+  }
+
+  .success-shell {
+    position: relative;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 32px;
+    isolation: isolate;
+  }
+
+  .success-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 0;
+  }
+
+  .success-card {
+    position: relative;
+    z-index: 1;
+    width: min(640px, calc(100vw - 32px));
+    padding: 36px 34px;
+    border-radius: 28px;
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    box-shadow: var(--shadow);
+    backdrop-filter: blur(22px) saturate(140%);
+    text-align: center;
+  }
+
+  .success-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid rgba(0, 82, 204, 0.12);
+    color: var(--brand);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .success-badge-mark {
+    width: 10px;
+    height: 10px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #0052cc, #4c9aff);
+    box-shadow: 0 0 0 6px rgba(0, 82, 204, 0.08);
+  }
+
+  h1 {
+    margin: 22px 0 12px;
+    font-size: clamp(32px, 4vw, 48px);
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+  }
+
+  p {
+    margin: 0 auto;
+    max-width: 510px;
+    color: var(--muted);
+    font-size: 16px;
+    line-height: 1.7;
+  }
+
+  .success-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 26px;
+  }
+
+  .success-meta-card {
+    padding: 14px 12px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.56);
+    border: 1px solid rgba(23, 43, 77, 0.06);
+  }
+
+  .success-meta-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .success-meta-value {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  @media (max-width: 720px) {
+    .success-shell {
+      padding: 18px;
+    }
+
+    .success-card {
+      padding: 28px 22px;
+      border-radius: 24px;
+    }
+
+    .success-meta {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+  <main class="success-shell">
+    <canvas id="successCanvas" class="success-canvas" aria-hidden="true"></canvas>
+
+    <section class="success-card">
+      <div class="success-badge">
+        <span class="success-badge-mark"></span>
+        Operation Successful
+      </div>
+      <h1>Workspace access confirmed</h1>
+      <p>
+        Your environment has been authenticated successfully. The particle field below is a lightweight,
+        production-friendly success effect designed for Flask and Django templates.
+      </p>
+
+      <div class="success-meta">
+        <div class="success-meta-card">
+          <span class="success-meta-label">State</span>
+          <span class="success-meta-value">Verified</span>
+        </div>
+        <div class="success-meta-card">
+          <span class="success-meta-label">Latency</span>
+          <span class="success-meta-value">120 ms</span>
+        </div>
+        <div class="success-meta-card">
+          <span class="success-meta-label">Mode</span>
+          <span class="success-meta-value">Secure</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      const canvas = document.getElementById("successCanvas");
+      if (!canvas) return;
+
+      const ctx = canvas.getContext("2d", { alpha: true });
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      const DPR_LIMIT = 1.8;
+      const COLORS = {
+        ink: "#172B4D",
+        brand: "#0052CC",
+        brandSoft: "rgba(0, 82, 204, 0.18)",
+        gray: "rgba(23, 43, 77, 0.26)",
+        aura: "rgba(0, 82, 204, 0.10)"
+      };
+
+      let width = 0;
+      let height = 0;
+      let dpr = 1;
+      let baseRadius = 0;
+      let particles = [];
+      let iconSprites = [];
+      let orbitTime = 0;
+      let pulseStart = performance.now();
+      let frameHandle = 0;
+
+      function easeOutCubic(t) {
+        return 1 - Math.pow(1 - t, 3);
+      }
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function createSprite(drawFn, size) {
+        const offscreen = document.createElement("canvas");
+        offscreen.width = size;
+        offscreen.height = size;
+        const ictx = offscreen.getContext("2d");
+        drawFn(ictx, size);
+        return offscreen;
+      }
+
+      function buildSprites() {
+        iconSprites = [
+          createSprite((ictx, size) => {
+            ictx.strokeStyle = COLORS.brand;
+            ictx.lineWidth = size * 0.11;
+            ictx.lineCap = "round";
+            ictx.lineJoin = "round";
+            ictx.beginPath();
+            ictx.moveTo(size * 0.26, size * 0.54);
+            ictx.lineTo(size * 0.44, size * 0.72);
+            ictx.lineTo(size * 0.76, size * 0.30);
+            ictx.stroke();
+          }, 48),
+          createSprite((ictx, size) => {
+            ictx.fillStyle = COLORS.brand;
+            ictx.beginPath();
+            ictx.moveTo(size * 0.50, size * 0.10);
+            ictx.lineTo(size * 0.82, size * 0.30);
+            ictx.lineTo(size * 0.82, size * 0.70);
+            ictx.lineTo(size * 0.50, size * 0.90);
+            ictx.lineTo(size * 0.18, size * 0.70);
+            ictx.lineTo(size * 0.18, size * 0.30);
+            ictx.closePath();
+            ictx.fill();
+            ictx.clearRect(size * 0.39, size * 0.29, size * 0.22, size * 0.42);
+          }, 48),
+          createSprite((ictx, size) => {
+            ictx.strokeStyle = COLORS.ink;
+            ictx.lineWidth = size * 0.10;
+            ictx.lineCap = "round";
+            ictx.beginPath();
+            ictx.moveTo(size * 0.24, size * 0.38);
+            ictx.lineTo(size * 0.76, size * 0.38);
+            ictx.moveTo(size * 0.24, size * 0.52);
+            ictx.lineTo(size * 0.64, size * 0.52);
+            ictx.moveTo(size * 0.24, size * 0.66);
+            ictx.lineTo(size * 0.58, size * 0.66);
+            ictx.stroke();
+          }, 48)
+        ];
+      }
+
+      function resize() {
+        dpr = Math.min(window.devicePixelRatio || 1, DPR_LIMIT);
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        canvas.style.width = width + "px";
+        canvas.style.height = height + "px";
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        baseRadius = Math.min(width, height) * 0.23;
+        buildParticles();
+      }
+
+      function buildParticles() {
+        const particleCount = width < 640 ? 120 : 190;
+        particles = [];
+        for (let i = 0; i < particleCount; i += 1) {
+          const radiusFactor = i / particleCount;
+          const orbitRadius = 28 + Math.pow(radiusFactor, 1.35) * Math.min(width, height) * 0.46;
+          const angle = Math.random() * Math.PI * 2;
+          const isIcon = i % 11 === 0;
+          particles.push({
+            orbitRadius,
+            angle,
+            speed: 0.0006 + Math.random() * 0.0018,
+            size: isIcon ? 11 + Math.random() * 7 : 2 + Math.random() * 3.8,
+            alpha: isIcon ? 0.44 + Math.random() * 0.22 : 0.24 + Math.random() * 0.38,
+            drift: (Math.random() - 0.5) * 0.12,
+            twist: 0.55 + Math.random() * 1.4,
+            sprite: isIcon ? iconSprites[i % iconSprites.length] : null,
+            dotColor: i % 4 === 0 ? COLORS.brand : COLORS.gray
+          });
+        }
+      }
+
+      function drawBackgroundGlow(cx, cy, pulse) {
+        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 1.45);
+        glow.addColorStop(0, "rgba(0, 82, 204, 0.12)");
+        glow.addColorStop(0.45, COLORS.aura);
+        glow.addColorStop(1, "rgba(0, 82, 204, 0)");
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseRadius * (1.2 + pulse * 0.04), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawCore(cx, cy, pulse) {
+        const core = ctx.createRadialGradient(cx, cy, 0, cx, cy, baseRadius * 0.34);
+        core.addColorStop(0, "rgba(255, 255, 255, 0.95)");
+        core.addColorStop(0.28, "rgba(76, 154, 255, 0.32)");
+        core.addColorStop(1, "rgba(0, 82, 204, 0)");
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.arc(cx, cy, baseRadius * (0.16 + pulse * 0.01), 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      function drawParticle(particle, cx, cy, elapsed, pulse) {
+        const angle = particle.angle + elapsed * particle.speed * particle.twist;
+        const burstProgress = clamp(elapsed / 1800, 0, 1);
+        const burstEase = easeOutCubic(burstProgress);
+        const orbit = particle.orbitRadius * (0.85 + burstEase * 0.15);
+        const x = cx + Math.cos(angle + particle.drift) * orbit;
+        const y = cy + Math.sin(angle) * orbit * 0.78;
+
+        ctx.save();
+        ctx.globalAlpha = particle.alpha * (0.9 + pulse * 0.12);
+        ctx.translate(x, y);
+        ctx.rotate(angle * 0.8);
+
+        if (particle.sprite) {
+          const iconSize = particle.size * (1.0 + pulse * 0.04);
+          ctx.drawImage(particle.sprite, -iconSize / 2, -iconSize / 2, iconSize, iconSize);
+        } else {
+          ctx.fillStyle = particle.dotColor;
+          ctx.beginPath();
+          ctx.arc(0, 0, particle.size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.restore();
+      }
+
+      function render(now) {
+        if (prefersReducedMotion.matches) {
+          ctx.clearRect(0, 0, width, height);
+          const cx = width * 0.5;
+          const cy = height * 0.46;
+          drawBackgroundGlow(cx, cy, 0.4);
+          drawCore(cx, cy, 0.4);
+          particles.forEach((particle) => drawParticle(particle, cx, cy, pulseStart + 600, 0.4));
+          return;
+        }
+
+        ctx.clearRect(0, 0, width, height);
+        orbitTime += 16.67;
+        const cx = width * 0.5;
+        const cy = height * 0.46;
+        const pulse = 0.5 + Math.sin((now - pulseStart) * 0.0028) * 0.5;
+
+        drawBackgroundGlow(cx, cy, pulse);
+
+        for (let i = 0; i < particles.length; i += 1) {
+          drawParticle(particles[i], cx, cy, orbitTime, pulse);
+        }
+
+        drawCore(cx, cy, pulse);
+        frameHandle = window.requestAnimationFrame(render);
+      }
+
+      function start() {
+        window.cancelAnimationFrame(frameHandle);
+        pulseStart = performance.now();
+        resize();
+        render(pulseStart);
+      }
+
+      buildSprites();
+      start();
+
+      window.addEventListener("resize", resize, { passive: true });
+      prefersReducedMotion.addEventListener("change", start);
+    })();
+  </script>
+</body>
+</html>
