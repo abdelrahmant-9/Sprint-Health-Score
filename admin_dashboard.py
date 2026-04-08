@@ -387,7 +387,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
     @media (max-width: 800px) {{ .sidebar {{ display: none; }} .main-content {{ padding: 20px; }} }}
   </style>
 </head>
-<body>
+<body data-theme="light">
   <div class="app-container">
     <aside class="sidebar">
       <h2 style="font-size:18px; margin-bottom:20px;">Lumofy Platform</h2>
@@ -445,8 +445,9 @@ def _dashboard_html(user, message: str = "", error: str = "") -> str:
     sections = _build_sections(config)
 
     content = f"""
-      <header class="header">
+      <header class="header" style="display:flex; justify-content:space-between; align-items:center;">
         <div><h1>Control Center</h1><p>Edit platform logic and visual settings.</p></div>
+        <button id="themeToggle" style="padding:8px 16px; border-radius:10px; background:var(--input-bg); border:1px solid var(--glass-border); color:var(--text-soft); cursor:pointer; font-weight:600; font-size:12px; white-space:nowrap;">🌙 Dark</button>
       </header>
       {saved_banner}{error_banner}
       <form method="post" action="/save">
@@ -456,6 +457,29 @@ def _dashboard_html(user, message: str = "", error: str = "") -> str:
           <button class="reset" type="submit" formaction="/reset">Reset Defaults</button>
         </div>
       </form>
+      <script>
+        (() => {{
+          const storageKey = 'sprint-health-theme';
+          const toggle = document.getElementById('themeToggle');
+          const body = document.body;
+          
+          const updateTheme = (theme) => {{
+            body.dataset.theme = theme;
+            localStorage.setItem(storageKey, theme);
+            toggle.textContent = theme === 'light' ? '🌙 Dark' : '☀️ Light';
+          }};
+          
+          // Get saved theme or default to light
+          const saved = localStorage.getItem(storageKey) || 'light';
+          if (body.dataset.theme !== saved) updateTheme(saved);
+          
+          toggle.addEventListener('click', () => {{
+            const current = body.dataset.theme;
+            updateTheme(current === 'light' ? 'dark' : 'light');
+            location.reload();
+          }});
+        }})();
+      </script>
     """
     return _layout_html(content, user_role=user["role"], active_path="/admin")
 
@@ -476,8 +500,10 @@ def _users_html(user, message: str = "", error: str = "") -> str:
         </div>"""
 
     content = f"""
-      <h1>User Management</h1>
-      <p style="color:var(--text-soft); margin-bottom:30px;">Manage access levels.</p>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:30px;">
+        <div><h1>User Management</h1><p style="color:var(--text-soft);">Manage access levels.</p></div>
+        <button id="themeToggle" style="padding:8px 16px; border-radius:10px; background:var(--input-bg); border:1px solid var(--glass-border); color:var(--text-soft); cursor:pointer; font-weight:600; font-size:12px; white-space:nowrap;">🌙 Dark</button>
+      </div>
       {banner}{err_banner}
       <section>
         <div class="section-head"><h3>Add Account</h3></div>
@@ -492,6 +518,28 @@ def _users_html(user, message: str = "", error: str = "") -> str:
         <div class="section-head"><h3>Existing Accounts</h3></div>
         <div style="display:flex; flex-direction:column; gap:8px;">{rows}</div>
       </section>
+      <script>
+        (() => {{
+          const storageKey = 'sprint-health-theme';
+          const toggle = document.getElementById('themeToggle');
+          const body = document.body;
+          
+          const updateTheme = (theme) => {{
+            body.dataset.theme = theme;
+            localStorage.setItem(storageKey, theme);
+            toggle.textContent = theme === 'light' ? '🌙 Dark' : '☀️ Light';
+          }};
+          
+          const saved = localStorage.getItem(storageKey) || 'light';
+          if (body.dataset.theme !== saved) updateTheme(saved);
+          
+          toggle.addEventListener('click', () => {{
+            const current = body.dataset.theme;
+            updateTheme(current === 'light' ? 'dark' : 'light');
+            location.reload();
+          }});
+        }})();
+      </script>
     """
     return _layout_html(content, user_role=user["role"], active_path="/users")
 
@@ -499,31 +547,256 @@ def _users_html(user, message: str = "", error: str = "") -> str:
 def _login_html(error: str = "") -> str:
     error_banner = f"<div class='error'>{escape(error)}</div>" if error else ""
     return f"""<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Platform Login - Lumofy</title>
   <style>
-    body {{ font-family: sans-serif; background: #06090f; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }}
-    .box {{ background: #0b1220; padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); width: 340px; }}
-    input {{ width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; box-sizing: border-box; }}
-    button {{ width: 100%; padding: 12px; border-radius: 10px; background: #1677ff; color: #fff; border: none; cursor: pointer; font-weight: 700; }}
-    .error {{ background: rgba(255,77,79,0.1); color: #ff7875; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }}
+    :root {{
+      --bg: #f4f7fa;
+      --card-bg: #ffffff;
+      --input-bg: #f9fbfd;
+      --glass-border: rgba(0, 0, 0, 0.06);
+      --text-main: #19314f;
+      --text-soft: #637d92;
+      --button-bg: #1677ff;
+      --button-hover: #0d5ccc;
+      --error-main: #ff4d4f;
+      --error-bg: rgba(255, 77, 79, 0.1);
+      --shadow: 0 10px 30px rgba(90, 121, 163, 0.08);
+    }}
+    body[data-theme="dark"] {{
+      --bg: #06090f;
+      --card-bg: #0b1220;
+      --input-bg: rgba(0, 0, 0, 0.25);
+      --glass-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f0f5ff;
+      --text-soft: #8c98ae;
+      --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }}
+    #login-particles {{ position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.5; }}
+    .login-container {{ position: relative; z-index: 2; width: 380px; }}
+    .logo-section {{
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 40px;
+      gap: 12px;
+    }}
+    .logo-mark {{
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 28px;
+      color: var(--button-bg);
+    }}
+    .logo-text {{
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-main);
+    }}
+    .theme-toggle {{
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-soft);
+      transition: all 0.2s;
+      z-index: 100;
+    }}
+    .theme-toggle:hover {{
+      background: var(--input-bg);
+      color: var(--text-main);
+    }}
+    .box {{
+      background: var(--card-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 40px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }}
+    .box h2 {{ margin-bottom: 24px; font-size: 20px; font-weight: 800; }}
+    .error {{
+      background: var(--error-bg);
+      color: var(--error-main);
+      padding: 12px 16px;
+      border-radius: 12px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid rgba(255, 77, 79, 0.2);
+    }}
+    .form-group {{
+      margin-bottom: 16px;
+    }}
+    .form-group label {{
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-soft);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }}
+    input {{
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--input-bg);
+      border: 1px solid var(--glass-border);
+      color: var(--text-main);
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      box-sizing: border-box;
+    }}
+    input:focus {{
+      outline: none;
+      border-color: var(--button-bg);
+      box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.1);
+    }}
+    input::placeholder {{ color: var(--text-soft); }}
+    button {{
+      width: 100%;
+      padding: 12px 16px;
+      border-radius: 10px;
+      background: var(--button-bg);
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 14px;
+      transition: all 0.2s;
+      margin-top: 8px;
+    }}
+    button:hover {{ background: var(--button-hover); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(22, 119, 255, 0.3); }}
+    button:active {{ transform: translateY(0); }}
   </style>
 </head>
-<body>
-  <div class="box">
-    <h2 style="margin:0 0 20px">Platform Login</h2>
-    {error_banner}
-    <form method="post" action="/login">
-      <input type="hidden" id="nextField" name="next">
-      <input type="text" name="username" placeholder="Email" required autofocus>
-      <input type="password" name="password" placeholder="Password" required>
-      <button type="submit">Sign In</button>
-    </form>
-    <script>
-      const urlParams = new URLSearchParams(window.location.search);
-      if(urlParams.has('next')) document.getElementById('nextField').value = urlParams.get('next');
-    </script>
+<body data-theme="light">
+  <button class="theme-toggle" id="themeToggle">🌙 Dark</button>
+  <canvas id="login-particles"></canvas>
+  <div class="login-container">
+    <div class="logo-section">
+      <div class="logo-mark">⚡</div>
+      <div class="logo-text">Lumofy</div>
+    </div>
+    <div class="box">
+      <h2>Platform Login</h2>
+      {error_banner}
+      <form method="post" action="/login">
+        <input type="hidden" id="nextField" name="next">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="username" placeholder="your@email.com" required autofocus>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" placeholder="Enter your password" required>
+        </div>
+        <button type="submit">Sign In</button>
+      </form>
+    </div>
   </div>
+  <script>
+    (() => {{
+      const storageKey = 'sprint-health-theme';
+      const body = document.body;
+      const toggle = document.getElementById('themeToggle');
+      
+      const applyTheme = (t) => {{
+        body.dataset.theme = t;
+        localStorage.setItem(storageKey, t);
+        toggle.textContent = t === 'light' ? '🌙 Dark' : '☀️ Light';
+      }};
+      
+      // Load saved theme or default to light
+      applyTheme(localStorage.getItem(storageKey) || 'light');
+      
+      toggle.addEventListener('click', () => {{
+        const current = body.dataset.theme;
+        applyTheme(current === 'light' ? 'dark' : 'light');
+      }});
+      
+      // Particles animation
+      const canvas = document.getElementById('login-particles');
+      const ctx = canvas.getContext('2d');
+      let w, h;
+      const particles = [];
+      
+      const resize = () => {{
+        w = canvas.width = window.innerWidth;
+        h = canvas.height = window.innerHeight;
+      }};
+      
+      window.addEventListener('resize', resize);
+      resize();
+      
+      class Particle {{
+        constructor() {{ this.reset(); }}
+        reset() {{
+          this.x = Math.random() * w;
+          this.y = Math.random() * h;
+          this.v = 0.2 + Math.random() * 0.5;
+          this.s = 1 + Math.random() * 2;
+          this.a = 0.1 + Math.random() * 0.4;
+        }}
+        draw() {{
+          this.y -= this.v;
+          if (this.y < -10) this.y = h + 10;
+          ctx.beginPath();
+          ctx.arc(this.x, this.y, this.s, 0, Math.PI * 2);
+          ctx.fill();
+        }}
+      }}
+      
+      for (let i = 0; i < 400; i++) particles.push(new Particle());
+      
+      const animate = () => {{
+        const theme = body.dataset.theme;
+        ctx.fillStyle = theme === 'light' ? 'rgba(22,119,255,0.15)' : 'rgba(255,255,255,0.15)';
+        ctx.clearRect(0, 0, w, h);
+        particles.forEach(p => p.draw());
+        requestAnimationFrame(animate);
+      }};
+      
+      animate();
+      
+      // Handle next parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.has('next')) document.getElementById('nextField').value = urlParams.get('next');
+      
+      // Sync theme across tabs
+      window.addEventListener('storage', (e) => {{
+        if (e.key === storageKey) applyTheme(e.newValue);
+      }});
+    }})();
+  </script>
 </body>
 </html>"""
 
