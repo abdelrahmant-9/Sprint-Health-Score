@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import argparse
 import json
@@ -2631,20 +2631,30 @@ def _build_burndown_explainer_html(bd: dict) -> str:
 
 
 def _build_remaining_scope_breakdown_html(bd: dict) -> str:
-    if not bd:
-        return ""
+    if not bd: return ""
     remaining_breakdown = bd.get("remaining_breakdown") or []
-    if not remaining_breakdown:
-        return ""
-    remaining_rows = "".join(
-        f"<div class='scope-breakdown-row'><span>{escape(item['type'])}</span><strong>{_format_decimal(float(item['scope']), 0)} scope</strong></div>"
-        for item in remaining_breakdown
-    )
+    if not remaining_breakdown: return "<div class='details-empty'>No remaining scope.</div>"
+    
+    max_val = max([float(item.get("scope", 0)) for item in remaining_breakdown])
+    max_val = max(1.0, max_val)
+    
+    rows = []
+    for item in remaining_breakdown:
+        label = str(item.get("type", "Other"))
+        scope = float(item.get("scope", 0.0))
+        pct = (scope / max_val) * 100
+        cls = label.lower().replace(" ", "-")
+        rows.append(f"""
+        <div class='scope-breakdown-row {cls}'>
+          <div class='scope-breakdown-row-top'><span>{escape(label)}</span><strong>{_format_decimal(scope, 0)} scope</strong></div>
+          <div class='scope-breakdown-bar-bg'><div class='scope-breakdown-bar-fill' style='width:{pct}%'></div></div>
+        </div>""")
+    
     return f"""
     <div class="burndown-breakdown-under">
       <div class="scope-breakdown">
         <div class="scope-breakdown-title">Remaining Scope Breakdown</div>
-        {remaining_rows}
+        {''.join(rows)}
       </div>
     </div>"""
 
@@ -3995,43 +4005,29 @@ body[data-theme="light"] .progress-bar-wrap{{background:rgba(34,94,168,.1);borde
 .bd-stat-val{{font-size:16px;font-weight:700;color:#e0eaff;margin-bottom:4px}}
 .bd-stat-val.green{{color:#00d4aa}}.bd-stat-val.red{{color:#ff4757}}
 .bd-stat-lbl{{font-size:10px;color:#4a90d9;text-transform:uppercase;letter-spacing:.5px}}
-.burndown-layout{{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(280px,1fr);gap:22px;align-items:start}}
-.burndown-chart-panel{{min-width:0;display:flex;flex-direction:column;gap:18px}}
-.burndown-side-panel{{min-width:0;display:flex;flex-direction:column;gap:18px}}
-.burndown-explainer{{background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);border-radius:14px;
-  padding:18px 16px;display:flex;flex-direction:column;gap:14px;min-height:320px}}
+.burndown-full-width{{margin-bottom:22px}}
+.burndown-bottom-grid{{display:grid;grid-template-columns:1.6fr 1fr;gap:22px;align-items:stretch}}
+.scope-breakdown{{display:flex;flex-direction:column;gap:12px;border-radius:14px}}
+.scope-breakdown-title{{font-size:13px;font-weight:900;color:var(--text-main);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:10px}}
+.scope-breakdown-title::after{{content:'';height:1px;flex:1;background:var(--glass-border);opacity:0.5}}
+.scope-breakdown-row{{display:flex;flex-direction:column;gap:6px;padding:14px 16px;border-radius:16px;background:var(--card-bg);border:1px solid var(--info-border);transition:all .3s ease;position:relative;overflow:hidden}}
+.scope-breakdown-row:hover{{transform:translateX(4px);border-color:var(--ant-primary-500);background:rgba(255,255,255,0.02)}}
+.scope-breakdown-row-top{{display:flex;justify-content:space-between;align-items:center;z-index:1}}
+.scope-breakdown-row span:first-child{{color:var(--text-main);font-weight:700;font-size:14px}}
+.scope-breakdown-row strong{{font-size:13px;color:var(--success-main);font-weight:800;padding:4px 10px;background:rgba(0,212,170,0.1);border-radius:8px}}
+.scope-breakdown-bar-bg{{height:4px;background:rgba(255,255,255,0.05);border-radius:99px;width:100%;margin-top:4px;overflow:hidden}}
+.scope-breakdown-bar-fill{{height:100%;border-radius:99px;background:var(--ant-primary-500);transition:width 1s cubic-bezier(0.16, 1, 0.3, 1)}}
+.scope-breakdown-row.story .scope-breakdown-bar-fill{{background:linear-gradient(90deg,var(--ant-primary-400),var(--ant-primary-500))}}
+.scope-breakdown-row.bug .scope-breakdown-bar-fill{{background:linear-gradient(90deg,var(--ant-error),#f43f5e)}}
+.scope-breakdown-row.task .scope-breakdown-bar-fill{{background:linear-gradient(90deg,#fbbf24,#f59e0b)}}
+.scope-breakdown-row.sub-task .scope-breakdown-bar-fill{{background:linear-gradient(90deg,#22d3ee,#06b6d4)}}
+.scope-breakdown-row.enhancement .scope-breakdown-bar-fill{{background:linear-gradient(90deg,#8a7dff,#7c3aed)}}
+.burndown-breakdown-under{{padding:24px 20px;background:var(--info-bg);border:1px solid var(--info-border);
+  border-radius:14px;display:flex;flex-direction:column;align-self:stretch;height:100%}}
+.burndown-explainer{{background:var(--info-bg);border:1px solid var(--info-border);border-radius:14px;
+  padding:24px 20px;display:flex;flex-direction:column;gap:18px;align-self:stretch;height:100%}}
 .burndown-explainer-title{{font-size:14px;font-weight:800;color:#e0eaff;letter-spacing:.2px}}
 .burndown-explainer-copy{{font-size:12px;line-height:1.7;color:#8ab4d9}}
-.burndown-scope-note{{font-size:11px;color:#c6daf7;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16);
-  border-radius:10px;padding:10px 12px}}
-.burndown-legend{{display:flex;flex-direction:column;gap:10px}}
-.burndown-legend span{{display:flex;align-items:center;gap:10px;font-size:12px;color:#c6daf7}}
-.burndown-legend i{{display:inline-block;flex-shrink:0;border-radius:999px}}
-.burndown-legend .ideal{{width:18px;height:3px;background:#2d5a8e}}
-.burndown-legend .actual{{width:18px;height:3px;background:#ff4757}}
-.burndown-legend .today{{width:3px;height:16px;background:#1a6bff;border-radius:4px}}
-.burndown-summary{{display:grid;gap:10px}}
-.burndown-summary div{{padding:12px;border-radius:12px;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16)}}
-.burndown-summary strong{{display:block;font-size:18px;color:#e0eaff;margin-bottom:4px}}
-.burndown-summary span{{font-size:11px;color:#4a90d9;text-transform:uppercase;letter-spacing:.4px}}
-.scope-breakdown{{display:flex;flex-direction:column;gap:8px}}
-.scope-breakdown-title{{font-size:12px;font-weight:800;color:#e0eaff;letter-spacing:.4px;text-transform:uppercase}}
-.scope-breakdown-row{{display:grid;grid-template-columns:minmax(0,1.4fr) auto auto;gap:10px;align-items:center;
-  padding:10px 12px;border-radius:12px;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16)}}
-.scope-breakdown-row span:first-child{{color:#e0eaff;font-weight:700}}
-.scope-breakdown-row span{{font-size:11px;color:#8ab4d9}}
-.scope-breakdown-row strong{{font-size:12px;color:#00d4aa;white-space:nowrap}}
-.burndown-breakdown-under{{padding:18px 16px;background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);
-  border-radius:14px}}
-.burndown-takeaways{{padding:18px 16px;background:rgba(26,107,255,.06);border:1px solid rgba(26,107,255,.16);
-  border-radius:14px}}
-.burndown-takeaways-title{{font-size:12px;font-weight:800;color:#e0eaff;letter-spacing:.4px;text-transform:uppercase;margin-bottom:12px}}
-.burndown-takeaway-grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
-.burndown-takeaway{{padding:12px;border-radius:12px;background:rgba(10,20,40,.72);border:1px solid rgba(26,107,255,.16)}}
-.burndown-takeaway strong{{display:block;font-size:16px;color:#e0eaff;margin-bottom:4px}}
-.burndown-takeaway strong.green{{color:#00d4aa}}
-.burndown-takeaway strong.red{{color:#ff4757}}
-.burndown-takeaway span{{font-size:11px;line-height:1.5;color:#8ab4d9}}
 .formula-breakdown{{margin-bottom:16px;padding:16px;background:rgba(26,107,255,.06);border-radius:10px;border-left:3px solid #1a6bff}}
 .formula-row{{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:13px;color:#8ab4d9}}
 .formula-row:last-child{{margin-bottom:0}}

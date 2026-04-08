@@ -1,8 +1,12 @@
 import hashlib
+import json
 import os
+import uuid
+from datetime import datetime, timedelta
 from html import escape
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from dotenv import load_dotenv
@@ -13,19 +17,93 @@ load_dotenv()
 
 HOST = os.getenv("ADMIN_DASHBOARD_HOST", "127.0.0.1").strip() or "127.0.0.1"
 PORT = int(os.getenv("ADMIN_DASHBOARD_PORT", "8765"))
-PASSWORD = os.getenv("ADMIN_DASHBOARD_PASSWORD", "").strip()
-COOKIE_NAME = "sprint_health_admin"
-COOKIE_VALUE = hashlib.sha256(PASSWORD.encode("utf-8")).hexdigest() if PASSWORD else ""
+AUTH_FILE = Path(r"d:\Sprint Health Script\auth_users.json")
+SESSION_EXPIRY_DAYS = 30
+
+
+class AuthManager:
+    def __init__(self, file_path: Path):
+        self.file_path = file_path
+        self.data = self._load()
+
+    def _load(self):
+        if not self.file_path.exists():
+            return {"users": {}, "sessions": {}}
+        try:
+            return json.loads(self.file_path.read_text(encoding="utf-8"))
+        except:
+            return {"users": {}, "sessions": {}}
+
+    def save(self):
+        self.file_path.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
+
+    def hash_password(self, password: str) -> str:
+        return hashlib.sha256(password.encode()).hexdigest()
+
+    def authenticate(self, username, password):
+        user = self.data["users"].get(username)
+        if user and user["password"] == self.hash_password(password):
+            return user
+        return None
+
+    def create_session(self, username):
+        session_id = str(uuid.uuid4())
+        expiry = (datetime.now() + timedelta(days=SESSION_EXPIRY_DAYS)).isoformat()
+        self.data["sessions"][session_id] = {"username": username, "expires": expiry}
+        self.save()
+        return session_id
+
+    def get_user_from_session(self, session_id):
+        session = self.data["sessions"].get(session_id)
+        if not session:
+            return None
+        try:
+            if datetime.fromisoformat(session["expires"]) < datetime.now():
+                del self.data["sessions"][session_id]
+                self.save()
+                return None
+        except:
+            return None
+        return self.data["users"].get(session["username"])
+
+    def delete_session(self, session_id):
+        if session_id in self.data["sessions"]:
+            del self.data["sessions"][session_id]
+            self.save()
+
+    def add_user(self, username, password, role):
+        if username in self.data["users"]:
+            return False
+        self.data["users"][username] = {
+            "password": self.hash_password(password),
+            "role": role,
+            "created_at": datetime.now().isoformat(),
+        }
+        self.save()
+        return True
+
+    def delete_user(self, username):
+        if username in self.data["users"]:
+            del self.data["users"][username]
+            to_del = [sid for sid, s in self.data["sessions"].items() if s["username"] == username]
+            for sid in to_del:
+                del self.data["sessions"][sid]
+            self.save()
+            return True
+        return False
+
+
+auth = AuthManager(AUTH_FILE)
 
 
 def _float_value(params: dict, key: str) -> float:
     raw = (params.get(key, [""])[0] or "").strip()
-    return float(raw)
+    return float(raw) if raw else 0.0
 
 
 def _int_value(params: dict, key: str) -> int:
     raw = (params.get(key, [""])[0] or "").strip()
-    return int(float(raw))
+    return int(float(raw)) if raw else 0
 
 
 def _text_value(params: dict, key: str) -> str:
@@ -38,14 +116,8 @@ def _bool_value(params: dict, key: str) -> bool:
 
 def _list_values(params: dict, key: str) -> list[str]:
     raw = (params.get(key, [""])[0] or "").strip()
-    if not raw:
-        return []
-    parts = []
-    for line in raw.replace(",", "\n").splitlines():
-        item = line.strip()
-        if item:
-            parts.append(item)
-    return parts
+    if not raw: return []
+    return [i.strip() for i in raw.replace(",", "\n").splitlines() if i.strip()]
 
 
 def _field_input(label: str, name: str, value, step: str = "1", input_type: str = "number", hint: str = "") -> str:
@@ -62,7 +134,7 @@ def _field_input(label: str, name: str, value, step: str = "1", input_type: str 
 def _field_textarea(label: str, name: str, value: str, hint: str = "", rows: int = 3) -> str:
     hint_html = f"<small>{escape(hint)}</small>" if hint else ""
     return (
-        f"<label class='field field-wide'>"
+        f"<label class='field'>"
         f"<span>{escape(label)}</span>"
         f"<textarea name='{escape(name)}' rows='{rows}' required>{escape(value)}</textarea>"
         f"{hint_html}"
@@ -73,613 +145,463 @@ def _field_textarea(label: str, name: str, value: str, hint: str = "", rows: int
 def _field_checkbox(label: str, name: str, checked: bool, hint: str = "") -> str:
     hint_html = f"<small>{escape(hint)}</small>" if hint else ""
     return (
-        f"<label class='toggle'>"
-        f"<span class='toggle-copy'>"
-        f"<strong>{escape(label)}</strong>"
-        f"{hint_html}"
-        f"</span>"
-        f"<input type='checkbox' name='{escape(name)}' value='1' {'checked' if checked else ''}>"
+        f"<label class='field'>"
+        f"<span>{escape(label)}</span>"
+        f"<div><input type='checkbox' name='{escape(name)}' value='1' {'checked' if checked else ''} style='width:auto'> {hint_html}</div>"
         f"</label>"
     )
 
 
 def _section(title: str, description: str, fields: list[str], compact: bool = False) -> str:
     grid_class = "grid compact-grid" if compact else "grid"
-    description_html = f"<p>{escape(description)}</p>" if description else ""
     return (
         f"<section class='card'>"
-        f"<div class='section-head'><h2>{escape(title)}</h2>{description_html}</div>"
+        f"<div class='section-head'><h3>{escape(title)}</h3><p>{escape(description)}</p></div>"
         f"<div class='{grid_class}'>{''.join(fields)}</div>"
         f"</section>"
     )
 
 
 def _build_config_from_form(params: dict) -> dict:
-    current = sprint_health.load_metrics_config()
-    config = sprint_health._deep_copy_config(current)
+    c = sprint_health.load_metrics_config()
+    conf = sprint_health._deep_copy_config(c)
 
-    config["weights"]["commitment"] = _float_value(params, "weight_commitment")
-    config["weights"]["carryover"] = _float_value(params, "weight_carryover")
-    config["weights"]["cycle_time"] = _float_value(params, "weight_cycle_time")
-    config["weights"]["bug_ratio"] = _float_value(params, "weight_bug_ratio")
+    # Weights
+    conf["weights"]["commitment"] = _float_value(params, "w_commit")
+    conf["weights"]["carryover"] = _float_value(params, "w_carry")
+    conf["weights"]["cycle_time"] = _float_value(params, "w_cycle")
+    conf["weights"]["bug_ratio"] = _float_value(params, "w_bug")
 
-    config["points"]["excellent"] = _int_value(params, "point_excellent")
-    config["points"]["good"] = _int_value(params, "point_good")
-    config["points"]["warning"] = _int_value(params, "point_warning")
-    config["points"]["poor"] = _int_value(params, "point_poor")
-    config["points"]["neutral"] = _int_value(params, "point_neutral")
+    # Points
+    conf["points"]["excellent"] = _int_value(params, "p_exc")
+    conf["points"]["good"] = _int_value(params, "p_good")
+    conf["points"]["warning"] = _int_value(params, "p_warn")
+    conf["points"]["poor"] = _int_value(params, "p_poor")
+    conf["points"]["neutral"] = _int_value(params, "p_neut")
 
-    config["commitment"]["ideal_min_pct"] = _float_value(params, "commitment_ideal_min_pct")
-    config["commitment"]["ideal_max_pct"] = _float_value(params, "commitment_ideal_max_pct")
-    config["commitment"]["good_min_pct"] = _float_value(params, "commitment_good_min_pct")
-    config["commitment"]["warning_min_pct"] = _float_value(params, "commitment_warning_min_pct")
-    config["commitment"]["extended_cap_score"] = _int_value(params, "commitment_extended_cap_score")
+    # Metrics
+    conf["commitment"]["ideal_min_pct"] = _float_value(params, "c_imin")
+    conf["commitment"]["ideal_max_pct"] = _float_value(params, "c_imax")
+    conf["commitment"]["good_min_pct"] = _float_value(params, "c_gmin")
+    conf["commitment"]["warning_min_pct"] = _float_value(params, "c_wmin")
+    conf["commitment"]["extended_cap_score"] = _int_value(params, "c_cap")
 
-    config["carryover"]["excellent_lt_pct"] = _float_value(params, "carryover_excellent_lt_pct")
-    config["carryover"]["good_lte_pct"] = _float_value(params, "carryover_good_lte_pct")
-    config["carryover"]["warning_lte_pct"] = _float_value(params, "carryover_warning_lte_pct")
-    config["carryover"]["extended_penalty"] = _int_value(params, "carryover_extended_penalty")
+    conf["carryover"]["excellent_lt_pct"] = _float_value(params, "co_exc")
+    conf["carryover"]["good_lte_pct"] = _float_value(params, "co_good")
+    conf["carryover"]["warning_lte_pct"] = _float_value(params, "co_warn")
+    conf["carryover"]["extended_penalty"] = _int_value(params, "co_pen")
 
-    config["cycle_time"]["stable_abs_pct"] = _float_value(params, "cycle_time_stable_abs_pct")
-    config["cycle_time"]["good_increase_pct"] = _float_value(params, "cycle_time_good_increase_pct")
-    config["cycle_time"]["warning_increase_pct"] = _float_value(params, "cycle_time_warning_increase_pct")
+    conf["cycle_time"]["stable_abs_pct"] = _float_value(params, "ct_st")
+    conf["cycle_time"]["good_increase_pct"] = _float_value(params, "ct_gi")
+    conf["cycle_time"]["warning_increase_pct"] = _float_value(params, "ct_wi")
 
-    config["bug_ratio"]["excellent_lt_pct"] = _float_value(params, "bug_ratio_excellent_lt_pct")
-    config["bug_ratio"]["good_lte_pct"] = _float_value(params, "bug_ratio_good_lte_pct")
-    config["bug_ratio"]["warning_lte_pct"] = _float_value(params, "bug_ratio_warning_lte_pct")
+    conf["bug_ratio"]["excellent_lt_pct"] = _float_value(params, "br_exc")
+    conf["bug_ratio"]["good_lte_pct"] = _float_value(params, "br_good")
+    conf["bug_ratio"]["warning_lte_pct"] = _float_value(params, "br_warn")
 
-    config["burndown"]["done_bonus"] = _int_value(params, "burndown_done_bonus")
-    config["burndown"]["on_track_bonus"] = _int_value(params, "burndown_on_track_bonus")
-    config["burndown"]["behind_small_max"] = _int_value(params, "burndown_behind_small_max")
-    config["burndown"]["behind_medium_max"] = _int_value(params, "burndown_behind_medium_max")
-    config["burndown"]["behind_medium_penalty"] = _int_value(params, "burndown_behind_medium_penalty")
-    config["burndown"]["behind_large_penalty"] = _int_value(params, "burndown_behind_large_penalty")
+    conf["burndown"]["done_bonus"] = _int_value(params, "bd_db")
+    conf["burndown"]["on_track_bonus"] = _int_value(params, "bd_ot")
+    conf["burndown"]["behind_small_max"] = _int_value(params, "bd_bsm")
+    conf["burndown"]["behind_medium_max"] = _int_value(params, "bd_bmm")
+    conf["burndown"]["behind_medium_penalty"] = _int_value(params, "bd_bmp")
+    conf["burndown"]["behind_large_penalty"] = _int_value(params, "bd_blp")
 
-    config["stale_thresholds"]["bug_days"] = _int_value(params, "stale_bug_days")
-    config["stale_thresholds"]["subtask_days"] = _int_value(params, "stale_subtask_days")
-    config["stale_thresholds"]["story_no_points_days"] = _int_value(params, "stale_story_no_points_days")
-    config["stale_thresholds"]["story_small_max_points"] = _float_value(params, "stale_story_small_max_points")
-    config["stale_thresholds"]["story_small_days"] = _int_value(params, "stale_story_small_days")
-    config["stale_thresholds"]["story_medium_max_points"] = _float_value(params, "stale_story_medium_max_points")
-    config["stale_thresholds"]["story_medium_days"] = _int_value(params, "stale_story_medium_days")
-    config["stale_thresholds"]["story_large_days"] = _int_value(params, "stale_story_large_days")
-    config["stale_thresholds"]["default_days"] = _int_value(params, "stale_default_days")
+    st = conf["stale_thresholds"]
+    st["bug_days"] = _int_value(params, "st_bug")
+    st["subtask_days"] = _int_value(params, "st_sub")
+    st["story_no_points_days"] = _int_value(params, "st_snp")
+    st["story_small_max_points"] = _float_value(params, "st_ssm")
+    st["story_small_days"] = _int_value(params, "st_ss")
+    st["story_medium_max_points"] = _float_value(params, "st_smm")
+    st["story_medium_days"] = _int_value(params, "st_sm")
+    st["story_large_days"] = _int_value(params, "st_sl")
+    st["default_days"] = _int_value(params, "st_def")
 
-    config["labels"]["green_min_score"] = _int_value(params, "label_green_min_score")
-    config["labels"]["yellow_min_score"] = _int_value(params, "label_yellow_min_score")
-    config["labels"]["orange_min_score"] = _int_value(params, "label_orange_min_score")
+    conf["labels"]["green_min_score"] = _int_value(params, "l_g")
+    conf["labels"]["yellow_min_score"] = _int_value(params, "l_y")
+    conf["labels"]["orange_min_score"] = _int_value(params, "l_o")
 
-    config["final_score"]["custom_formula"] = _text_value(params, "final_score_custom_formula")
-    config["final_score"]["round_result"] = _bool_value(params, "final_score_round_result")
-    config["final_score"]["min_score"] = _int_value(params, "final_score_min_score")
-    config["final_score"]["max_score"] = _int_value(params, "final_score_max_score")
-    config.setdefault("activity_people", {})
-    config["activity_people"]["qa_names"] = _list_values(params, "activity_qa_names")
-    config["activity_people"]["developer_names"] = _list_values(params, "activity_developer_names")
+    fs = conf["final_score"]
+    fs["custom_formula"] = _text_value(params, "fs_f")
+    fs["round_result"] = _bool_value(params, "fs_r")
+    fs["min_score"] = _int_value(params, "fs_min")
+    fs["max_score"] = _int_value(params, "fs_max")
 
-    total_weight = sum(config["weights"].values())
-    if round(total_weight, 4) <= 0:
-        raise ValueError("Total weights must be greater than zero.")
+    conf["activity_people"]["qa_names"] = _list_values(params, "ap_qa")
+    conf["activity_people"]["developer_names"] = _list_values(params, "ap_dev")
 
-    return config
+    conf["jira"]["base_url"] = _text_value(params, "j_url")
+    conf["jira"]["project_key"] = _text_value(params, "j_proj")
+    conf["jira"]["board_id"] = _int_value(params, "j_board")
+
+    conf["branding"]["company_name"] = _text_value(params, "b_name")
+    conf["branding"]["report_title"] = _text_value(params, "b_title")
+    conf["branding"]["logo_path"] = _text_value(params, "b_logo")
+
+    conf["ui"]["particle_density"] = _int_value(params, "u_pd")
+    conf["ui"]["theme_color"] = _text_value(params, "u_tc")
+
+    return conf
 
 
 def _build_sections(config: dict) -> list[str]:
-    weights = config["weights"]
-    points = config["points"]
-    commitment = config["commitment"]
-    carryover = config["carryover"]
-    cycle_time = config["cycle_time"]
-    bug_ratio = config["bug_ratio"]
-    burndown = config["burndown"]
-    stale = config["stale_thresholds"]
-    labels = config["labels"]
-    final_score = config["final_score"]
-    activity_people = config.get("activity_people", {"qa_names": [], "developer_names": []})
-
+    w, p, c, co, ct, br, bd, st, l, fs, ap, j, b, u = (
+        config["weights"], config["points"], config["commitment"], config["carryover"],
+        config["cycle_time"], config["bug_ratio"], config["burndown"], config["stale_thresholds"],
+        config["labels"], config["final_score"], config["activity_people"], config["jira"],
+        config["branding"], config["ui"]
+    )
     return [
-        _section(
-            "Weights",
-            "Main contribution of each signal in the final sprint score.",
-            [
-                _field_input("Commitment", "weight_commitment", weights["commitment"], "0.01"),
-                _field_input("Carryover", "weight_carryover", weights["carryover"], "0.01"),
-                _field_input("Cycle Time", "weight_cycle_time", weights["cycle_time"], "0.01"),
-                _field_input("Bug Ratio", "weight_bug_ratio", weights["bug_ratio"], "0.01"),
-            ],
-            compact=True,
-        ),
-        _section(
-            "Points",
-            "Base score values reused by all scoring rules.",
-            [
-                _field_input("Excellent", "point_excellent", points["excellent"]),
-                _field_input("Good", "point_good", points["good"]),
-                _field_input("Warning", "point_warning", points["warning"]),
-                _field_input("Poor", "point_poor", points["poor"]),
-                _field_input("Neutral", "point_neutral", points["neutral"]),
-            ],
-        ),
-        _section(
-            "Commitment",
-            "How completed scope is translated into a signal score.",
-            [
-                _field_input("Ideal min %", "commitment_ideal_min_pct", commitment["ideal_min_pct"], "0.1"),
-                _field_input("Ideal max %", "commitment_ideal_max_pct", commitment["ideal_max_pct"], "0.1"),
-                _field_input("Good min %", "commitment_good_min_pct", commitment["good_min_pct"], "0.1"),
-                _field_input("Warning min %", "commitment_warning_min_pct", commitment["warning_min_pct"], "0.1"),
-                _field_input("Extended cap score", "commitment_extended_cap_score", commitment["extended_cap_score"]),
-            ],
-        ),
-        _section(
-            "Carryover",
-            "How unfinished scope impacts the signal.",
-            [
-                _field_input("Excellent below %", "carryover_excellent_lt_pct", carryover["excellent_lt_pct"], "0.1"),
-                _field_input("Good up to %", "carryover_good_lte_pct", carryover["good_lte_pct"], "0.1"),
-                _field_input("Warning up to %", "carryover_warning_lte_pct", carryover["warning_lte_pct"], "0.1"),
-                _field_input("Extended penalty", "carryover_extended_penalty", carryover["extended_penalty"]),
-            ],
-        ),
-        _section(
-            "Cycle Time",
-            "Compares current sprint average cycle time against recent history.",
-            [
-                _field_input("Stable abs %", "cycle_time_stable_abs_pct", cycle_time["stable_abs_pct"], "0.1"),
-                _field_input("Good increase %", "cycle_time_good_increase_pct", cycle_time["good_increase_pct"], "0.1"),
-                _field_input("Warning increase %", "cycle_time_warning_increase_pct", cycle_time["warning_increase_pct"], "0.1"),
-            ],
-            compact=True,
-        ),
-        _section(
-            "Bug Ratio",
-            "Thresholds for newly created bugs during the sprint.",
-            [
-                _field_input("Excellent below %", "bug_ratio_excellent_lt_pct", bug_ratio["excellent_lt_pct"], "0.1"),
-                _field_input("Good up to %", "bug_ratio_good_lte_pct", bug_ratio["good_lte_pct"], "0.1"),
-                _field_input("Warning up to %", "bug_ratio_warning_lte_pct", bug_ratio["warning_lte_pct"], "0.1"),
-            ],
-            compact=True,
-        ),
-        _section(
-            "Burndown Nudge",
-            "Bonus or penalty applied after the main signal calculation.",
-            [
-                _field_input("Done bonus", "burndown_done_bonus", burndown["done_bonus"]),
-                _field_input("On-track bonus", "burndown_on_track_bonus", burndown["on_track_bonus"]),
-                _field_input("Behind small max", "burndown_behind_small_max", burndown["behind_small_max"]),
-                _field_input("Behind medium max", "burndown_behind_medium_max", burndown["behind_medium_max"]),
-                _field_input("Behind medium penalty", "burndown_behind_medium_penalty", burndown["behind_medium_penalty"]),
-                _field_input("Behind large penalty", "burndown_behind_large_penalty", burndown["behind_large_penalty"]),
-            ],
-        ),
-        _section(
-            "Stale Thresholds",
-            "Days without movement before an issue is considered stale.",
-            [
-                _field_input("Bug days", "stale_bug_days", stale["bug_days"]),
-                _field_input("Sub-task days", "stale_subtask_days", stale["subtask_days"]),
-                _field_input("Story no-points days", "stale_story_no_points_days", stale["story_no_points_days"]),
-                _field_input("Story small max points", "stale_story_small_max_points", stale["story_small_max_points"], "0.1"),
-                _field_input("Story small days", "stale_story_small_days", stale["story_small_days"]),
-                _field_input("Story medium max points", "stale_story_medium_max_points", stale["story_medium_max_points"], "0.1"),
-                _field_input("Story medium days", "stale_story_medium_days", stale["story_medium_days"]),
-                _field_input("Story large days", "stale_story_large_days", stale["story_large_days"]),
-                _field_input("Default days", "stale_default_days", stale["default_days"]),
-            ],
-        ),
-        _section(
-            "Health Bands",
-            "Labels shown in the report based on the final score.",
-            [
-                _field_input("Green min score", "label_green_min_score", labels["green_min_score"]),
-                _field_input("Yellow min score", "label_yellow_min_score", labels["yellow_min_score"]),
-                _field_input("Orange min score", "label_orange_min_score", labels["orange_min_score"]),
-            ],
-            compact=True,
-        ),
-        _section(
-            "Final Score Formula",
-            "Edit the final combination logic without touching code.",
-            [
-                _field_textarea(
-                    "Custom formula",
-                    "final_score_custom_formula",
-                    final_score["custom_formula"],
-                    "Available names: commitment, carryover, cycle_time, bug_ratio, burndown, weight_commitment, weight_carryover, weight_cycle_time, weight_bug_ratio, weighted_commitment, weighted_carryover, weighted_cycle_time, weighted_bug_ratio, min, max, abs, round.",
-                    rows=4,
-                ),
-                _field_checkbox("Round result", "final_score_round_result", final_score["round_result"], "Round the formula result before saving the final score."),
-                _field_input("Minimum score", "final_score_min_score", final_score["min_score"]),
-                _field_input("Maximum score", "final_score_max_score", final_score["max_score"]),
-            ],
-        ),
-        _section(
-            "People Filters",
-            "Optional filters for activity sections. Leave empty to show everyone.",
-            [
-                _field_textarea(
-                    "QA names",
-                    "activity_qa_names",
-                    "\n".join(activity_people.get("qa_names", [])),
-                    "One name per line (or comma-separated). Only these names appear in Today's QA Activity.",
-                    rows=4,
-                ),
-                _field_textarea(
-                    "Developer names",
-                    "activity_developer_names",
-                    "\n".join(activity_people.get("developer_names", [])),
-                    "One name per line (or comma-separated). Only these names appear in Today's Developer Activity.",
-                    rows=4,
-                ),
-            ],
-        ),
+        _section("Identity & Branding", "Header information for the report.", [
+            _field_input("Company Name", "b_name", b["company_name"], input_type="text"),
+            _field_input("Report Title", "b_title", b["report_title"], input_type="text"),
+            _field_input("Logo Filename/URL", "b_logo", b["logo_path"], input_type="text"),
+        ], compact=True),
+        _section("Health Bands", "Score thresholds for color labels.", [
+            _field_input("Green Min", "l_g", l["green_min_score"]),
+            _field_input("Yellow Min", "l_y", l["yellow_min_score"]),
+            _field_input("Orange Min", "l_o", l["orange_min_score"]),
+        ], compact=True),
+        _section("Commitment Metric", "Thresholds for sprint scope completion.", [
+            _field_input("Ideal Min %", "c_imin", c["ideal_min_pct"], "0.1"),
+            _field_input("Ideal Max %", "c_imax", c["ideal_max_pct"], "0.1"),
+            _field_input("Good Min %", "c_gmin", c["good_min_pct"], "0.1"),
+            _field_input("Warning Min %", "c_wmin", c["warning_min_pct"], "0.1"),
+            _field_input("Cap Score", "c_cap", c["extended_cap_score"]),
+        ]),
+        _section("Carryover Metric", "Penalties for unfinished work.", [
+            _field_input("Excellent < %", "co_exc", co["excellent_lt_pct"], "0.1"),
+            _field_input("Good <= %", "co_good", co["good_lte_pct"], "0.1"),
+            _field_input("Warning <= %", "co_warn", co["warning_lte_pct"], "0.1"),
+            _field_input("Penalty", "co_pen", co["extended_penalty"]),
+        ]),
+        _section("Cycle Time Metric", "History-based comparisons.", [
+            _field_input("Stable Abs %", "ct_st", ct["stable_abs_pct"], "0.1"),
+            _field_input("Good Incr %", "ct_gi", ct["good_increase_pct"], "0.1"),
+            _field_input("Warn Incr %", "ct_wi", ct["warning_increase_pct"], "0.1"),
+        ], compact=True),
+        _section("Bug Ratio Metric", "Newly created bugs ratio.", [
+            _field_input("Exc < %", "br_exc", br["excellent_lt_pct"], "0.1"),
+            _field_input("Good <= %", "br_good", br["good_lte_pct"], "0.1"),
+            _field_input("Warn <= %", "br_warn", br["warning_lte_pct"], "0.1"),
+        ], compact=True),
+        _section("Scoring Logic", "Base points and weights.", [
+            _field_input("P: Excellent", "p_exc", p["excellent"]), _field_input("P: Good", "p_good", p["good"]),
+            _field_input("P: Warning", "p_warn", p["warning"]), _field_input("P: Poor", "p_poor", p["poor"]),
+            _field_input("W: Commitment", "w_commit", w["commitment"], "0.01"), _field_input("W: Carryover", "w_carry", w["carryover"], "0.01"),
+            _field_input("W: Cycle Time", "w_cycle", w["cycle_time"], "0.01"), _field_input("W: Bug Ratio", "w_bug", w["bug_ratio"], "0.01"),
+        ]),
+        _section("Final Score Formula", "Combine signals into one number.", [
+            _field_textarea("Formula", "fs_f", fs["custom_formula"], rows=2),
+            _field_checkbox("Round", "fs_r", fs["round_result"], "Round result"),
+            _field_input("Min", "fs_min", fs["min_score"]), _field_input("Max", "fs_max", fs["max_score"]),
+        ]),
+        _section("Burndown Nudge", "Score adjustments.", [
+            _field_input("Done Bonus", "bd_db", bd["done_bonus"]), _field_input("OnTrack Bonus", "bd_ot", bd["on_track_bonus"]),
+            _field_input("Small Max", "bd_bsm", bd["behind_small_max"]), _field_input("Med Max", "bd_bmm", bd["behind_medium_max"]),
+            _field_input("Med Penalty", "bd_bmp", bd["behind_medium_penalty"]), _field_input("Large Penalty", "bd_blp", bd["behind_large_penalty"]),
+        ]),
+        _section("Stale Issue Days", "Inactivity thresholds.", [
+            _field_input("Bug Days", "st_bug", st["bug_days"]), _field_input("Subtask", "st_sub", st["subtask_days"]),
+            _field_input("Story(0pt)", "st_snp", st["story_no_points_days"]), _field_input("Story(Large)", "st_sl", st["story_large_days"]),
+        ], compact=True),
+        _section("Jira & UI", "System and visual settings.", [
+            _field_input("Jira URL", "j_url", j["base_url"], input_type="text"),
+            _field_input("Project", "j_proj", j["project_key"], input_type="text"),
+            _field_input("Board ID", "j_board", j["board_id"]),
+            _field_input("Density", "u_pd", u["particle_density"]),
+        ]),
+        _section("Activity Filters", "Who appears in activity logs.", [
+            _field_textarea("QA Names", "ap_qa", "\n".join(ap["qa_names"])),
+            _field_textarea("Dev Names", "ap_dev", "\n".join(ap["developer_names"])),
+        ], compact=True),
     ]
 
 
-def _dashboard_html(message: str = "", error: str = "") -> str:
+def _layout_html(content: str, title: str = "Admin Control Center", user_role: str = "viewer", active_path: str = "/admin") -> str:
+    config = sprint_health.load_metrics_config()
+    admin_only = 'style="display:none"' if user_role == "viewer" else ""
+    user_mgmt_only = 'style="display:none"' if user_role != "admin" else ""
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{escape(title)}</title>
+  <style>
+    :root {{
+      --bg: #06090f; --sidebar: #0b1220; --card-bg: rgba(20, 30, 50, 0.7);
+      --input-bg: rgba(0, 0, 0, 0.25); --glass-border: rgba(255, 255, 255, 0.08);
+      --ant-primary-500: #1677ff; --text-main: #f0f5ff; --text-soft: #8c98ae;
+      --success-main: #52c41a; --error-main: #ff4d4f; --warning-main: #faad14;
+      --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    }}
+    body[data-theme="light"] {{
+      --bg: #f4f7fa; --sidebar: #ffffff; --card-bg: #ffffff;
+      --input-bg: #f9fbfd; --glass-border: rgba(0, 0, 0, 0.06);
+      --text-main: #19314f; --text-soft: #637d92;
+      --shadow: 0 10px 30px rgba(90, 121, 163, 0.08);
+    }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+    body {{
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg); color: var(--text-main); min-height: 100vh;
+      display: flex; overflow-x: hidden; transition: background 0.3s ease;
+    }}
+    #admin-particles {{ position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.6; }}
+    .app-container {{ display: flex; width: 100%; z-index: 2; }}
+    .sidebar {{
+      width: 260px; background: var(--sidebar); border-right: 1px solid var(--glass-border);
+      height: 100vh; position: sticky; top: 0; padding: 40px 24px; display: flex; flex-direction: column; gap: 32px;
+    }}
+    .main-content {{ flex: 1; padding: 20px 40px; max-width: 1200px; margin: 0 auto; }}
+    .nav-list {{ list-style: none; display: flex; flex-direction: column; gap: 8px; }}
+    .nav-item a {{
+      display: block; padding: 12px 16px; border-radius: 12px; color: var(--text-soft);
+      text-decoration: none; font-size: 14px; font-weight: 600; transition: all 0.2s;
+    }}
+    .nav-item a:hover, .nav-item.active a {{ background: rgba(22, 119, 255, 0.1); color: var(--ant-primary-500); }}
+    .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }}
+    .header h1 {{ font-size: 24px; font-weight: 900; }}
+    section {{ background: var(--card-bg); border: 1px solid var(--glass-border); border-radius: 20px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }}
+    .section-head {{ margin-bottom: 20px; }}
+    .section-head h3 {{ font-size: 16px; font-weight: 800; border-left: 3px solid var(--ant-primary-500); padding-left: 10px; margin-bottom: 4px; }}
+    .section-head p {{ font-size: 11px; color: var(--text-soft); padding-left: 14px; }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }}
+    .field {{ display: flex; flex-direction: column; gap: 4px; padding: 12px; background: var(--input-bg); border-radius: 12px; border: 1px solid var(--glass-border); }}
+    .field span {{ font-size: 10px; font-weight: 800; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.5px; }}
+    input, select, textarea {{ background: transparent; border: none; color: var(--text-main); font-size: 14px; font-weight: 600; width: 100%; outline: none; }}
+    button, .btn {{ padding: 12px 24px; border-radius: 12px; font-weight: 700; cursor: pointer; border: none; transition: 0.2s; text-decoration: none; display: inline-block; }}
+    .save {{ background: var(--ant-primary-500); color: #fff; }}
+    .reset {{ background: rgba(0,0,0,0.05); color: var(--text-main); border: 1px solid var(--glass-border); }}
+    .banner {{ padding: 14px 20px; border-radius: 14px; margin-bottom: 24px; border: 1px solid transparent; }}
+    .banner.ok {{ background: rgba(82, 196, 26, 0.1); color: var(--success-main); }}
+    .banner.error {{ background: rgba(255, 77, 79, 0.1); color: var(--error-main); }}
+    @media (max-width: 800px) {{ .sidebar {{ display: none; }} .main-content {{ padding: 20px; }} }}
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <h2 style="font-size:18px; margin-bottom:20px;">Lumofy Platform</h2>
+      <nav>
+        <ul class="nav-list">
+          <li class="nav-item {'active' if active_path == '/' else ''}"><a href="/">Main Dashboard</a></li>
+          <li class="nav-item {'active' if active_path == '/admin' else ''}" {admin_only}><a href="/admin">Settings</a></li>
+          <li class="nav-item {'active' if active_path == '/users' else ''}" {user_mgmt_only}><a href="/users">User Management</a></li>
+          <li class="nav-item"><a href="/logout" style="color:var(--error-main)">Logout</a></li>
+        </ul>
+      </nav>
+    </aside>
+    <main class="main-content">
+      {content}
+    </main>
+  </div>
+  <canvas id="admin-particles"></canvas>
+  <script>
+    (() => {{
+      const storageKey = 'sprint-health-theme';
+      const body = document.body;
+      const applyTheme = (t) => {{ body.dataset.theme = t; localStorage.setItem(storageKey, t); }};
+      applyTheme(localStorage.getItem(storageKey) || 'light');
+      window.addEventListener('storage', (e) => {{ if (e.key === storageKey) body.dataset.theme = e.newValue; }});
+      
+      const canvas = document.getElementById('admin-particles');
+      const ctx = canvas.getContext('2d');
+      let w, h; const particles = [];
+      const resize = () => {{ w = canvas.width = window.innerWidth; h = canvas.height = window.innerHeight; }};
+      window.addEventListener('resize', resize); resize();
+      class P {{
+        constructor() {{ this.reset(); }}
+        reset() {{ this.x = Math.random()*w; this.y = Math.random()*h; this.v = 0.2+Math.random()*0.5; this.s = 1+Math.random()*2; this.a = 0.1+Math.random()*0.4; }}
+        draw() {{
+          this.y -= this.v; if (this.y < -10) this.y = h + 10;
+          ctx.beginPath(); ctx.arc(this.x, this.y, this.s, 0, Math.PI*2);
+          ctx.fill();
+        }}
+      }}
+      const theme = body.dataset.theme;
+      ctx.fillStyle = theme === 'light' ? 'rgba(22,119,255,0.2)' : 'rgba(255,255,255,0.2)';
+      for(let i=0; i<{config.get('ui',{}).get('particle_density',600)}; i++) particles.push(new P());
+      const animate = () => {{ ctx.clearRect(0,0,w,h); particles.forEach(p => p.draw()); requestAnimationFrame(animate); }};
+      animate();
+    }})();
+  </script>
+</body>
+</html>"""
+
+
+def _dashboard_html(user, message: str = "", error: str = "") -> str:
     config = sprint_health.load_metrics_config()
     saved_banner = f"<div class='banner ok'>{escape(message)}</div>" if message else ""
     error_banner = f"<div class='banner error'>{escape(error)}</div>" if error else ""
     sections = _build_sections(config)
 
+    content = f"""
+      <header class="header">
+        <div><h1>Control Center</h1><p>Edit platform logic and visual settings.</p></div>
+      </header>
+      {saved_banner}{error_banner}
+      <form method="post" action="/save">
+        {''.join(sections)}
+        <div style="display:flex; gap:16px; margin-top:20px">
+          <button class="save" type="submit">Save Changes</button>
+          <button class="reset" type="submit" formaction="/reset">Reset Defaults</button>
+        </div>
+      </form>
+    """
+    return _layout_html(content, user_role=user["role"], active_path="/admin")
+
+
+def _users_html(user, message: str = "", error: str = "") -> str:
+    users_data = auth.data["users"]
+    banner = f"<div class='banner ok'>{escape(message)}</div>" if message else ""
+    err_banner = f"<div class='banner error'>{escape(error)}</div>" if error else ""
+
+    rows = ""
+    for username, info in users_data.items():
+        rows += f"""<div class="field" style="flex-direction:row; justify-content:space-between; align-items:center;">
+          <div><strong>{escape(username)}</strong><br><small>{escape(info['role'].capitalize())}</small></div>
+          <form method="post" action="/users/delete" style="margin:0">
+            <input type="hidden" name="username" value="{escape(username)}">
+            <button type="submit" style="background:var(--error-main); padding:6px 12px; font-size:11px; color:#fff">Delete</button>
+          </form>
+        </div>"""
+
+    content = f"""
+      <h1>User Management</h1>
+      <p style="color:var(--text-soft); margin-bottom:30px;">Manage access levels.</p>
+      {banner}{err_banner}
+      <section>
+        <div class="section-head"><h3>Add Account</h3></div>
+        <form method="post" action="/users/add" class="grid" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="field"><span>Email</span><input type="text" name="new_username" required></div>
+          <div class="field"><span>Password</span><input type="password" name="new_password" required></div>
+          <div class="field"><span>Role</span><select name="new_role"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select></div>
+          <div style="grid-column:1/-1"><button class="save" type="submit" style="width:100%">Add User</button></div>
+        </form>
+      </section>
+      <section>
+        <div class="section-head"><h3>Existing Accounts</h3></div>
+        <div style="display:flex; flex-direction:column; gap:8px;">{rows}</div>
+      </section>
+    """
+    return _layout_html(content, user_role=user["role"], active_path="/users")
+
+
+def _login_html(error: str = "") -> str:
+    error_banner = f"<div class='error'>{escape(error)}</div>" if error else ""
     return f"""<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sprint Health Admin</title>
   <style>
-    :root {{
-      --bg: #08111f;
-      --panel: #101b2f;
-      --panel-2: #0c1628;
-      --border: #29456d;
-      --border-soft: rgba(83, 122, 170, 0.35);
-      --text: #eef4ff;
-      --muted: #9bb2cf;
-      --accent: #3381ff;
-      --accent-2: #1b5fd1;
-      --success-bg: #123524;
-      --success-text: #9ff0c0;
-      --error-bg: #3c1717;
-      --error-text: #ffb3b3;
-      --shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
-    }}
-    * {{ box-sizing: border-box; }}
-    body {{
-      margin: 0;
-      padding: 28px 18px 48px;
-      font-family: "Segoe UI", Tahoma, Arial, sans-serif;
-      background:
-        radial-gradient(circle at top right, rgba(51, 129, 255, 0.12), transparent 26%),
-        linear-gradient(180deg, #091120 0%, #060d19 100%);
-      color: var(--text);
-    }}
-    .wrap {{ max-width: 1180px; margin: 0 auto; }}
-    .hero {{
-      padding: 28px;
-      margin-bottom: 20px;
-      border: 1px solid var(--border-soft);
-      border-radius: 24px;
-      background: linear-gradient(180deg, rgba(16, 27, 47, 0.98), rgba(10, 19, 34, 0.98));
-      box-shadow: var(--shadow);
-    }}
-    .hero h1 {{ margin: 0 0 8px; font-size: 34px; letter-spacing: -0.03em; }}
-    .hero p {{ margin: 0; color: var(--muted); line-height: 1.7; }}
-    .banner {{
-      border-radius: 14px;
-      padding: 14px 16px;
-      margin-bottom: 14px;
-      border: 1px solid transparent;
-    }}
-    .banner.ok {{ background: var(--success-bg); color: var(--success-text); }}
-    .banner.error {{ background: var(--error-bg); color: var(--error-text); }}
-    form {{ display: flex; flex-direction: column; gap: 18px; }}
-    .card {{
-      background: linear-gradient(180deg, rgba(16, 27, 47, 0.96), rgba(13, 23, 40, 0.96));
-      border: 1px solid var(--border-soft);
-      border-radius: 22px;
-      padding: 22px;
-      box-shadow: var(--shadow);
-    }}
-    .section-head {{
-      display: flex;
-      justify-content: space-between;
-      gap: 16px;
-      align-items: flex-start;
-      margin-bottom: 18px;
-    }}
-    .section-head h2 {{ margin: 0; font-size: 18px; }}
-    .section-head p {{
-      margin: 0;
-      max-width: 560px;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.6;
-    }}
-    .grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 14px;
-    }}
-    .compact-grid {{
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    }}
-    .field,
-    .toggle {{
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      padding: 14px;
-      border-radius: 16px;
-      background: rgba(7, 14, 26, 0.48);
-      border: 1px solid rgba(67, 102, 146, 0.22);
-    }}
-    .field-wide {{ grid-column: 1 / -1; }}
-    .field span,
-    .toggle-copy strong {{
-      color: var(--text);
-      font-size: 14px;
-      font-weight: 600;
-    }}
-    .field small,
-    .toggle-copy small {{
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.5;
-    }}
-    input,
-    textarea {{
-      width: 100%;
-      background: var(--panel-2);
-      color: var(--text);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 12px 14px;
-      font: inherit;
-      transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    }}
-    input:focus,
-    textarea:focus {{
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(51, 129, 255, 0.16);
-    }}
-    textarea {{
-      resize: vertical;
-      min-height: 110px;
-      line-height: 1.6;
-    }}
-    .toggle {{
-      flex-direction: row;
-      align-items: center;
-      justify-content: space-between;
-      gap: 14px;
-    }}
-    .toggle input {{
-      width: 20px;
-      height: 20px;
-      margin: 0;
-      accent-color: #1597b8;
-    }}
-    .toggle-copy {{
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }}
-    .actions {{
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      margin-top: 4px;
-    }}
-    button,
-    .logout {{
-      border: 0;
-      border-radius: 14px;
-      padding: 13px 20px;
-      font: inherit;
-      font-weight: 700;
-      text-decoration: none;
-      cursor: pointer;
-      transition: transform 0.18s ease, opacity 0.18s ease, background 0.18s ease;
-    }}
-    button:hover,
-    .logout:hover {{
-      transform: translateY(-1px);
-    }}
-    .save {{
-      background: linear-gradient(135deg, var(--accent), var(--accent-2));
-      color: white;
-    }}
-    .reset {{
-      background: #233754;
-      color: var(--text);
-    }}
-    .logout {{
-      background: transparent;
-      color: var(--muted);
-      border: 1px solid var(--border);
-    }}
-    .tip {{
-      margin-top: 18px;
-      color: var(--muted);
-      font-size: 13px;
-      line-height: 1.7;
-    }}
-    @media (max-width: 760px) {{
-      body {{ padding: 18px 12px 36px; }}
-      .hero {{ padding: 22px; }}
-      .hero h1 {{ font-size: 28px; }}
-      .section-head {{
-        flex-direction: column;
-      }}
-      .toggle {{
-        align-items: flex-start;
-      }}
-    }}
+    body {{ font-family: sans-serif; background: #06090f; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }}
+    .box {{ background: #0b1220; padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); width: 340px; }}
+    input {{ width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; box-sizing: border-box; }}
+    button {{ width: 100%; padding: 12px; border-radius: 10px; background: #1677ff; color: #fff; border: none; cursor: pointer; font-weight: 700; }}
+    .error {{ background: rgba(255,77,79,0.1); color: #ff7875; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="hero">
-      <h1>Sprint Health Admin Dashboard</h1>
-      <p>Adjust scoring logic, thresholds, and formula behavior from one place. Changes are written to <strong>{escape(str(sprint_health.METRICS_CONFIG_PATH))}</strong> and used on the next report run.</p>
-    </div>
-    {saved_banner}
+  <div class="box">
+    <h2 style="margin:0 0 20px">Platform Login</h2>
     {error_banner}
-    <form method="post" action="/save">
-      {''.join(sections)}
-      <div class="actions">
-        <button class="save" type="submit">Save Config</button>
-      </div>
+    <form method="post" action="/login">
+      <input type="hidden" id="nextField" name="next">
+      <input type="text" name="username" placeholder="Email" required autofocus>
+      <input type="password" name="password" placeholder="Password" required>
+      <button type="submit">Sign In</button>
     </form>
-    <form method="post" action="/reset" style="margin-top:12px;">
-      <div class="actions">
-        <button class="reset" type="submit">Reset Defaults</button>
-        <a class="logout" href="/logout">Logout</a>
-      </div>
-    </form>
-    <div class="tip">Local only on {escape(HOST)}:{PORT}. Inputs removed from this dashboard were not deleted from the backend; only non-useful UI controls were hidden to keep the screen focused.</div>
+    <script>
+      const urlParams = new URLSearchParams(window.location.search);
+      if(urlParams.has('next')) document.getElementById('nextField').value = urlParams.get('next');
+    </script>
   </div>
 </body>
 </html>"""
 
 
-def _login_html(error: str = "") -> str:
-    error_banner = f"<div class='error'>{escape(error)}</div>" if error else ""
-    password_note = ""
-    if not PASSWORD:
-        password_note = "<p class='warn'>Set ADMIN_DASHBOARD_PASSWORD in .env first, then restart the dashboard.</p>"
-    return f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin Login</title>
-  <style>
-    body {{ font-family: "Segoe UI", Tahoma, Arial, sans-serif; background:#0b1220; color:#e6eef8; display:grid; place-items:center; min-height:100vh; margin:0; }}
-    .box {{ width:min(420px,92vw); background:#121c2f; border:1px solid #233552; border-radius:18px; padding:24px; }}
-    h1 {{ margin:0 0 8px; }}
-    p {{ color:#9fb3c8; line-height:1.6; }}
-    .error {{ background:#3c1717; color:#ffb3b3; border-radius:10px; padding:10px 12px; margin:12px 0; }}
-    .warn {{ color:#ffd27a; }}
-    input {{ width:100%; box-sizing:border-box; background:#0b1220; color:#e6eef8; border:1px solid #31486d; border-radius:10px; padding:12px; margin:10px 0 14px; }}
-    button {{ width:100%; border:0; border-radius:10px; padding:12px; background:#1a6bff; color:white; font-weight:700; cursor:pointer; }}
-  </style>
-</head>
-<body>
-  <form class="box" method="post" action="/login">
-    <h1>Private Dashboard</h1>
-    <p>Runs on localhost only. Login required before editing the metrics config.</p>
-    {password_note}
-    {error_banner}
-    <input type="password" name="password" placeholder="Dashboard password" required>
-    <button type="submit">Login</button>
-  </form>
-</body>
-</html>"""
-
-
 class AdminHandler(BaseHTTPRequestHandler):
-    def _parse_cookies(self) -> dict:
-        header = self.headers.get("Cookie", "")
-        jar = cookies.SimpleCookie()
-        jar.load(header)
-        return {key: morsel.value for key, morsel in jar.items()}
+    def _get_session_user(self):
+        c = cookies.SimpleCookie(self.headers.get("Cookie", ""))
+        sid = c.get("session_id")
+        return auth.get_user_from_session(sid.value) if sid else None
 
-    def _is_authenticated(self) -> bool:
-        if not PASSWORD:
-            return False
-        return self._parse_cookies().get(COOKIE_NAME) == COOKIE_VALUE
-
-    def _send_html(self, html: str, status: int = 200) -> None:
-        body = html.encode("utf-8")
+    def _send_html(self, html: str, status: int = 200):
         self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
         self.end_headers()
-        self.wfile.write(body)
+        self.wfile.write(html.encode("utf-8"))
 
-    def _redirect(self, location: str, cookie_header: str = "") -> None:
+    def _redirect(self, target):
         self.send_response(303)
-        self.send_header("Location", location)
-        if cookie_header:
-            self.send_header("Set-Cookie", cookie_header)
+        self.send_header("Location", target)
         self.end_headers()
 
-    def _read_form(self) -> dict:
-        length = int(self.headers.get("Content-Length", "0"))
-        payload = self.rfile.read(length).decode("utf-8")
-        return parse_qs(payload, keep_blank_values=True)
+    def do_GET(self):
+        u = self._get_session_user()
+        p = urlparse(self.path)
+        if p.path == "/login": return self._send_html(_login_html())
+        if not u: return self._redirect(f"/login?next={escape(p.path)}")
+        if p.path == "/":
+            rf = Path(r"d:\Sprint Health Script\sprint_health_report.html")
+            return self._send_html(rf.read_text(encoding="utf-8") if rf.exists() else "Report not found.")
+        if p.path == "/admin":
+            if u["role"] == "viewer": return self._send_html("Access Denied", 403)
+            q = parse_qs(p.query)
+            m = "Saved." if "saved" in q else ("Reset." if "reset" in q else "")
+            return self._send_html(_dashboard_html(u, message=m))
+        if p.path == "/users":
+            if u["role"] != "admin": return self._send_html("Access Denied", 403)
+            return self._send_html(_users_html(u))
+        if p.path == "/logout":
+            sid = cookies.SimpleCookie(self.headers.get("Cookie", "")).get("session_id")
+            if sid: auth.delete_session(sid.value)
+            self.send_response(303)
+            self.send_header("Location", "/login")
+            self.send_header("Set-Cookie", "session_id=; Max-Age=0; Path=/")
+            self.end_headers()
 
-    def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        path = parsed.path
-
-        if path == "/logout":
-            self._redirect("/login", f"{COOKIE_NAME}=; Max-Age=0; Path=/; HttpOnly")
+    def do_POST(self):
+        l = int(self.headers.get("Content-Length", 0))
+        form = parse_qs(self.rfile.read(l).decode("utf-8"))
+        p = urlparse(self.path).path
+        if p == "/login":
+            un, pw = form.get("username", [""])[0], form.get("password", [""])[0]
+            nxt = form.get("next", ["/"])[0] or "/"
+            usr = auth.authenticate(un, pw)
+            if usr:
+                sid = auth.create_session(un)
+                self.send_response(303)
+                self.send_header("Location", nxt)
+                self.send_header("Set-Cookie", f"session_id={sid}; Max-Age={SESSION_EXPIRY_DAYS*86400}; Path=/; HttpOnly")
+                self.end_headers()
+            else: self._send_html(_login_html("Invalid login."), 401)
             return
-
-        if path == "/login":
-            self._send_html(_login_html())
-            return
-
-        if not self._is_authenticated():
-            self._redirect("/login")
-            return
-
-        message = "Saved successfully." if "saved=1" in parsed.query else ""
-        reset_message = "Defaults restored." if "reset=1" in parsed.query else ""
-        self._send_html(_dashboard_html(message or reset_message))
-
-    def do_POST(self) -> None:
-        parsed = urlparse(self.path)
-        path = parsed.path
-        form = self._read_form()
-
-        if path == "/login":
-            if not PASSWORD:
-                self._send_html(_login_html("Set ADMIN_DASHBOARD_PASSWORD in .env first."), status=400)
-                return
-            password = (form.get("password", [""])[0] or "").strip()
-            if password != PASSWORD:
-                self._send_html(_login_html("Wrong password."), status=401)
-                return
-            self._redirect("/", f"{COOKIE_NAME}={COOKIE_VALUE}; Path=/; HttpOnly; SameSite=Strict")
-            return
-
-        if not self._is_authenticated():
-            self._redirect("/login")
-            return
-
-        if path == "/save":
-            try:
-                sprint_health.save_metrics_config(_build_config_from_form(form))
-                sprint_health.reload_metrics_config()
-            except Exception as e:
-                self._send_html(_dashboard_html(error=str(e)), status=400)
-                return
-            self._redirect("/?saved=1")
-            return
-
-        if path == "/reset":
+        u = self._get_session_user()
+        if not u: return self._redirect("/login")
+        if p == "/save" and u["role"] in ["admin", "editor"]:
+            sprint_health.save_metrics_config(_build_config_from_form(form))
+            sprint_health.reload_metrics_config()
+            self._redirect("/admin?saved=1")
+        elif p == "/reset" and u["role"] in ["admin", "editor"]:
             sprint_health.save_metrics_config(sprint_health.DEFAULT_METRICS_CONFIG)
             sprint_health.reload_metrics_config()
-            self._redirect("/?reset=1")
-            return
+            self._redirect("/admin?reset=1")
+        elif p == "/users/add" and u["role"] == "admin":
+            nu, np, nr = form.get("new_username", [""])[0], form.get("new_password", [""])[0], form.get("new_role", ["viewer"])[0]
+            if auth.add_user(nu, np, nr): self._send_html(_users_html(u, "Added."))
+            else: self._send_html(_users_html(u, error="Exists."))
+        elif p == "/users/delete" and u["role"] == "admin":
+            du = form.get("username", [""])[0]
+            if auth.delete_user(du): self._send_html(_users_html(u, "Deleted."))
+        else: self.send_error(404)
 
-        self.send_error(404)
 
-
-def run_dashboard() -> None:
-    if HOST != "127.0.0.1":
-        print(f"[warn] Dashboard host is {HOST}. For private access, keep it on 127.0.0.1.")
-    server = ThreadingHTTPServer((HOST, PORT), AdminHandler)
-    print(f"[admin] Dashboard running at http://{HOST}:{PORT}")
-    print(f"[admin] Metrics config: {sprint_health.METRICS_CONFIG_PATH}")
-    server.serve_forever()
+def run_dashboard():
+    print(f"[admin] Server ready at http://{HOST}:{PORT}")
+    ThreadingHTTPServer((HOST, PORT), AdminHandler).serve_forever()
 
 
 if __name__ == "__main__":
