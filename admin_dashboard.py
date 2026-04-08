@@ -2,6 +2,8 @@ import hashlib
 import json
 import os
 import uuid
+import threading
+import time
 from datetime import datetime, timedelta
 from html import escape
 from http import cookies
@@ -377,7 +379,7 @@ def _generate_default_report():
             </div>
             
             <div class="timer">
-                Estimated time: <span class="timer-value" id="timer">0:22</span>
+                Processing time: <span class="timer-value" id="timer">0:22</span>
             </div>
             
             <div class="progress-bar-container">
@@ -385,13 +387,13 @@ def _generate_default_report():
             </div>
             
             <p class="subtitle">
-                Collecting data from Jira and calculating sprint metrics. Typically completes in 15-30 seconds.
+                Collecting data from Jira and calculating sprint metrics. Updates automatically every hour.
             </p>
             
             <div class="tips">
                 <div class="tip">Real-time data syncing from your Jira board</div>
                 <div class="tip">Computing sprint velocity and burndown</div>
-                <div class="tip">Analyzing team capacity and health metrics</div>
+                <div class="tip">Report refreshes hourly with latest metrics</div>
             </div>
         </div>
     </div>
@@ -1289,9 +1291,61 @@ class AdminHandler(BaseHTTPRequestHandler):
         else: self.send_error(404)
 
 
+def _background_report_generator(interval_hours: int = 1):
+    """Background thread that regenerates the report every N hours"""
+    report_path = Path(__file__).parent / "sprint_health_report.html"
+    
+    def generate_report():
+        try:
+            print(f"[reporter] Regenerating sprint health report...")
+            
+            # Load configuration
+            metrics_config = sprint_health.load_metrics_config()
+            
+            # Get sprint data
+            jira_config = metrics_config.get("jira", {})
+            if not jira_config.get("board_id"):
+                print("[reporter] Jira not configured - skipping report generation")
+                return
+            
+            # Generate report
+            print("[reporter] Fetching sprint data...")
+            issues = sprint_health.fetch_all_issues(
+                jira_config.get("base_url", ""),
+                jira_config.get("username", ""),
+                jira_config.get("api_token", ""),
+                jira_config.get("board_id", 0)
+            )
+            
+            sprint_info = sprint_health.get_sprint_info(issues)
+            prev_sprints = sprint_health.get_previous_sprints(issues, num_sprints=3)
+            report = sprint_health.build_report(issues, sprint_info, prev_sprints)
+            
+            print("[reporter] Building HTML...")
+            sprint_health.write_html_report(report, str(report_path))
+            print(f"[reporter] Report updated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            
+        except Exception as e:
+            print(f"[reporter] Error generating report: {e}")
+    
+    # Run immediately on startup
+    print(f"[reporter] Starting hourly report generator (interval: {interval_hours} hour(s))")
+    generate_report()
+    
+    # Then schedule at regular intervals
+    while True:
+        time.sleep(interval_hours * 3600)  # Convert hours to seconds
+        generate_report()
+
+
 def run_dashboard():
     print(f"[admin] Server ready at http://{HOST}:{PORT}")
     print(f"[admin] Environment: {os.getenv('RAILWAY_ENVIRONMENT', 'local')}")
+    
+    # Start background report generator
+    reporter_thread = threading.Thread(target=_background_report_generator, kwargs={"interval_hours": 1}, daemon=True)
+    reporter_thread.start()
+    
     ThreadingHTTPServer((HOST, PORT), AdminHandler).serve_forever()
 
 
