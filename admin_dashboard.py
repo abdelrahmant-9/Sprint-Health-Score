@@ -1482,9 +1482,9 @@ def _background_report_generator(interval_hours: int = 1):
             
             # Get previous sprints
             prev_sprint_start = time.time()
-            prev_sprints = sprint_health.get_previous_sprints(issues, num_sprints=3)
+            prev_sprints = sprint_health.fetch_last_n_sprints(n=3)
             step_times["previous_sprints"] = time.time() - prev_sprint_start
-            print(f"[reporter] Retrieved previous sprints in {step_times['previous_sprints']:.1f}s")
+            print(f"[reporter] Retrieved {len(prev_sprints)} previous sprints in {step_times['previous_sprints']:.1f}s")
             
             # Build report
             report_start = time.time()
