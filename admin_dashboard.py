@@ -419,9 +419,48 @@ def _generate_default_report():
             themeToggle.textContent = theme === 'light' ? '🌙' : '☀️';
         }
         
-        // Processing time countdown
-        let timeRemaining = 22; // seconds
+        // Processing time countdown - dynamically loaded from actual timing
+        let processingTime = 22; // seconds (default fallback)
+        let timeRemaining = processingTime;
         const timerElement = document.getElementById('timer');
+        let refreshTimeoutId = null;
+        
+        // Try to get actual timing from last report generation
+        async function loadActualTiming() {
+            try {
+                const response = await fetch('./.report_timing.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    processingTime = data.total_time || 22;
+                    timeRemaining = processingTime;
+                    console.log('[loading] Using actual timing: ' + processingTime + 's');
+                    updateTimer(); // Update display immediately
+                    
+                    // Clear any existing timeout and set new one with actual timing
+                    if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
+                    refreshTimeoutId = setTimeout(function() {
+                        console.log('[loading] Refresh triggered after ' + processingTime + 's');
+                        location.reload();
+                    }, processingTime * 1000);
+                } else {
+                    console.log('[loading] Using default 22s timing');
+                    startDefaultRefresh();
+                }
+            } catch (e) {
+                console.log('[loading] Using default 22s timing - ' + e);
+                startDefaultRefresh();
+            }
+        }
+        
+        function startDefaultRefresh() {
+            processingTime = 22;
+            timeRemaining = processingTime;
+            refreshTimeoutId = setTimeout(function() {
+                location.reload();
+            }, 22000);
+        }
+        
+        loadActualTiming();
         
         function updateTimer() {
             const minutes = Math.floor(timeRemaining / 60);
@@ -431,17 +470,12 @@ def _generate_default_report():
             if (timeRemaining > 0) {
                 timeRemaining--;
             } else {
-                timeRemaining = 22; // Reset
+                timeRemaining = processingTime; // Reset to current processing time
             }
         }
         
         updateTimer();
         setInterval(updateTimer, 1000);
-        
-        // Auto-refresh every 5 seconds to check for generated report
-        setTimeout(function() {
-            location.reload();
-        }, 5000);
     </script>
 </body>
 </html>"""
@@ -1226,6 +1260,27 @@ class AdminHandler(BaseHTTPRequestHandler):
         u = self._get_session_user()
         p = urlparse(self.path)
         if p.path == "/login": return self._send_html(_login_html())
+        
+        # Serve timing data without authentication (needed for loading page)
+        if p.path == "/.report_timing.json":
+            timing_file = Path(__file__).parent / ".report_timing.json"
+            if timing_file.exists():
+                try:
+                    data = json.loads(timing_file.read_text(encoding="utf-8"))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Expires", "0")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(data).encode())
+                    return
+                except:
+                    pass
+            self.send_response(404)
+            self.end_headers()
+            return
+        
         if not u: return self._redirect(f"/login?next={escape(p.path)}")
         if p.path == "/":
             rf = Path(__file__).parent / "sprint_health_report.html"
@@ -1294,13 +1349,19 @@ class AdminHandler(BaseHTTPRequestHandler):
 def _background_report_generator(interval_hours: int = 1):
     """Background thread that regenerates the report every N hours"""
     report_path = Path(__file__).parent / "sprint_health_report.html"
+    timing_file = Path(__file__).parent / ".report_timing.json"
     
     def generate_report():
         try:
+            start_time = time.time()
+            step_times = {}
+            
             print(f"[reporter] Regenerating sprint health report...")
             
             # Load configuration
+            config_start = time.time()
             metrics_config = sprint_health.load_metrics_config()
+            step_times["config_load"] = time.time() - config_start
             
             # Get sprint data
             jira_config = metrics_config.get("jira", {})
@@ -1308,25 +1369,63 @@ def _background_report_generator(interval_hours: int = 1):
                 print("[reporter] Jira not configured - skipping report generation")
                 return
             
-            # Generate report
+            # Fetch all issues
             print("[reporter] Fetching sprint data...")
+            fetch_start = time.time()
             issues = sprint_health.fetch_all_issues(
                 jira_config.get("base_url", ""),
                 jira_config.get("username", ""),
                 jira_config.get("api_token", ""),
                 jira_config.get("board_id", 0)
             )
+            step_times["fetch_issues"] = time.time() - fetch_start
+            print(f"[reporter] Fetched {len(issues)} issues in {step_times['fetch_issues']:.1f}s")
             
+            # Process sprint info
+            sprint_start = time.time()
             sprint_info = sprint_health.get_sprint_info(issues)
-            prev_sprints = sprint_health.get_previous_sprints(issues, num_sprints=3)
-            report = sprint_health.build_report(issues, sprint_info, prev_sprints)
+            step_times["sprint_info"] = time.time() - sprint_start
+            print(f"[reporter] Processed sprint info in {step_times['sprint_info']:.1f}s")
             
-            print("[reporter] Building HTML...")
+            # Get previous sprints
+            prev_sprint_start = time.time()
+            prev_sprints = sprint_health.get_previous_sprints(issues, num_sprints=3)
+            step_times["previous_sprints"] = time.time() - prev_sprint_start
+            print(f"[reporter] Retrieved previous sprints in {step_times['previous_sprints']:.1f}s")
+            
+            # Build report
+            report_start = time.time()
+            report = sprint_health.build_report(issues, sprint_info, prev_sprints)
+            step_times["build_report"] = time.time() - report_start
+            print(f"[reporter] Built report in {step_times['build_report']:.1f}s")
+            
+            # Write HTML
+            html_start = time.time()
             sprint_health.write_html_report(report, str(report_path))
-            print(f"[reporter] Report updated at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            step_times["write_html"] = time.time() - html_start
+            print(f"[reporter] Wrote HTML in {step_times['write_html']:.1f}s")
+            
+            total_time = time.time() - start_time
+            step_times["total"] = total_time
+            
+            print(f"[reporter] Report completed in {total_time:.1f}s")
+            print(f"[reporter] Breakdown: {', '.join([f'{k}={v:.1f}s' for k, v in sorted(step_times.items(), key=lambda x: x[1], reverse=True)])}")
+            
+            # Save timing info for loading page
+            try:
+                timing_data = {
+                    "total_time": round(total_time),
+                    "timestamp": datetime.now().isoformat(),
+                    "breakdown": {k: round(v, 1) for k, v in step_times.items()}
+                }
+                timing_file.write_text(json.dumps(timing_data), encoding="utf-8")
+            except:
+                pass
             
         except Exception as e:
             print(f"[reporter] Error generating report: {e}")
+            import traceback
+            traceback.print_exc()
     
     # Run immediately on startup
     print(f"[reporter] Starting hourly report generator (interval: {interval_hours} hour(s))")
