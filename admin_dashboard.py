@@ -15,9 +15,15 @@ import sprint_health_2 as sprint_health
 
 load_dotenv()
 
-HOST = os.getenv("ADMIN_DASHBOARD_HOST", "127.0.0.1").strip() or "127.0.0.1"
-PORT = int(os.getenv("ADMIN_DASHBOARD_PORT", "8765"))
-AUTH_FILE = Path(r"d:\Sprint Health Script\auth_users.json")
+# Use 0.0.0.0 for production (Railway, Heroku, etc), 127.0.0.1 for local
+DEFAULT_HOST = "0.0.0.0" if os.getenv("RAILWAY_ENVIRONMENT") else "127.0.0.1"
+HOST = os.getenv("ADMIN_DASHBOARD_HOST", DEFAULT_HOST).strip() or DEFAULT_HOST
+
+# Railway sets PORT env var, default to 8765 for local
+PORT = int(os.getenv("PORT", os.getenv("ADMIN_DASHBOARD_PORT", "8765")))
+
+# Make AUTH_FILE path relative
+AUTH_FILE = Path(__file__).parent / "auth_users.json"
 SESSION_EXPIRY_DAYS = 30
 
 
@@ -545,7 +551,7 @@ class AdminHandler(BaseHTTPRequestHandler):
         if p.path == "/login": return self._send_html(_login_html())
         if not u: return self._redirect(f"/login?next={escape(p.path)}")
         if p.path == "/":
-            rf = Path(r"d:\Sprint Health Script\sprint_health_report.html")
+            rf = Path(__file__).parent / "sprint_health_report.html"
             return self._send_html(rf.read_text(encoding="utf-8") if rf.exists() else "Report not found.")
         if p.path == "/admin":
             if u["role"] == "viewer": return self._send_html("Access Denied", 403)
@@ -606,6 +612,7 @@ class AdminHandler(BaseHTTPRequestHandler):
 
 def run_dashboard():
     print(f"[admin] Server ready at http://{HOST}:{PORT}")
+    print(f"[admin] Environment: {os.getenv('RAILWAY_ENVIRONMENT', 'local')}")
     ThreadingHTTPServer((HOST, PORT), AdminHandler).serve_forever()
 
 
