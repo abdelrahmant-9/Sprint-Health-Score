@@ -176,6 +176,19 @@ DEFAULT_METRICS_CONFIG = {
         "qa_names": [],
         "developer_names": [],
     },
+    "jira": {
+        "base_url": "",
+        "project_key": "",
+        "board_id": "",
+    },
+    "branding": {
+        "company_name": "Lumofy",
+        "report_title": "Sprint Health Score",
+        "logo_path": "",
+    },
+    "ui": {
+        "particle_density": 400,
+    },
 }
 
 
@@ -4491,8 +4504,8 @@ body[data-theme="light"] .qa-linked-story-value,
 body[data-theme="light"] .bug-person-name,
 body[data-theme="light"] .bug-ticket-summary,
 body[data-theme="light"] .interp-status,
-body[data-theme="light"] .ai-title{{color:var(--text-main)!important}}
-body[data-theme="light"] th{{background:rgba(66,104,156,.06);color:var(--text-accent)}}
+body[data-theme="light"] .ai-title{color:var(--text-main)!important}
+body[data-theme="light"] th{background:rgba(66,104,156,.06);color:var(--text-accent)}
 body[data-theme="light"] td,
 body[data-theme="light"] .formula-row,
 body[data-theme="light"] .ai-summary,
@@ -4518,14 +4531,22 @@ body[data-theme="light"] .bug-person-card{{box-shadow:0 16px 36px rgba(100,130,1
 .fab-dashboard:hover{{transform:translateY(-2px) scale(1.06);
   box-shadow:0 16px 34px rgba(26,107,255,.4),0 8px 18px rgba(0,0,0,.3)}}
 .fab-dashboard svg{{width:26px;height:26px;fill:#fff}}
-.fab-tooltip{{position:absolute;right:0;bottom:72px;padding:8px 12px;border-radius:10px;
+.fab-tooltip{{position:absolute;left:50%;bottom:72px;padding:8px 16px;border-radius:999px;
   background:rgba(10,20,40,.96);color:#e0eaff;font-size:12px;font-weight:700;
-  border:1px solid rgba(26,107,255,.3);white-space:nowrap;opacity:0;transform:translateY(4px);
+  border:1px solid rgba(26,107,255,.3);white-space:nowrap;opacity:0;transform:translateX(-50%) translateY(4px);
   pointer-events:none;transition:opacity .2s ease,transform .2s ease}}
-.fab-wrapper:hover .fab-tooltip{{opacity:1;transform:translateY(0)}}
+.fab-wrapper:hover .fab-tooltip{{opacity:1;transform:translateX(-50%) translateY(0)}}
 </style>
 </head>
 <body>
+<div class="fab-wrapper">
+  <a href="http://127.0.0.1:8765/admin" target="_blank" class="fab-dashboard" title="Open Admin Dashboard">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+    </svg>
+  </a>
+  <div class="fab-tooltip">Admin Dashboard</div>
+</div>
 <canvas id="reportParticles" class="report-particles" aria-hidden="true"></canvas>
 <div class="container">
   <div class="header">
@@ -4541,7 +4562,7 @@ body[data-theme="light"] .bug-person-card{{box-shadow:0 16px 36px rgba(100,130,1
         <span class="theme-toggle-icon" id="themeToggleIcon">DM</span>
         <span id="themeToggleText">Theme</span>
       </button>
-      <a href="http://127.0.0.1:8765" target="_blank" class="admin-cta" title="Open Admin Dashboard">
+      <a href="http://127.0.0.1:8765/admin" target="_blank" class="admin-cta" title="Open Admin Dashboard">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
         </svg>
@@ -4597,17 +4618,8 @@ body[data-theme="light"] .bug-person-card{{box-shadow:0 16px 36px rgba(100,130,1
       <div class="interp-item red"><div class="interp-range red">&lt;50</div><div class="interp-status">Sprint Breakdown</div><div class="interp-desc">Critical issues, act now</div></div>
     </div>
   </div>
-
-  <!-- Floating Admin Dashboard Button -->
-  <div class="fab-wrapper">
-    <a href="http://127.0.0.1:8765" target="_blank" class="fab-dashboard" title="Open Admin Dashboard">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-      </svg>
-    </a>
-    <div class="fab-tooltip">Admin Dashboard</div>
+    <div class="footer">Lumofy QA | Sprint Health Dashboard | {escape(r['generated_at'])}</div>
   </div>
-  <div class="footer">Lumofy QA | Sprint Health Dashboard | {escape(r['generated_at'])}</div>
 </div>
 <script>
 (() => {{
