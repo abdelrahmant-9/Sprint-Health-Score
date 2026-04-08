@@ -99,9 +99,21 @@ class AuthManager:
             self.save()
             return True
         return False
+    
+    def ensure_default_admin(self):
+        """Create default admin account if no users exist"""
+        if not self.data.get("users"):
+            default_email = "admin@lumofy.com"
+            default_password = "Lumofy123!"
+            self.add_user(default_email, default_password, "admin")
+            print(f"[auth] Created default admin account: {default_email}")
+            return True
+        return False
 
 
 auth = AuthManager(AUTH_FILE)
+# Ensure default admin exists on startup
+auth.ensure_default_admin()
 
 
 def _float_value(params: dict, key: str) -> float:
