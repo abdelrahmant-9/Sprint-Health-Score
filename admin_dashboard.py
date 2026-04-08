@@ -1451,15 +1451,15 @@ def _background_report_generator(interval_hours: int = 1):
                 error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
                 return
             
-            # Check for credentials (from config or environment variables)
-            username = jira_config.get("username") or os.getenv("JIRA_USERNAME", "")
-            api_token = jira_config.get("api_token") or os.getenv("JIRA_API_TOKEN", "")
+            # Check for credentials in environment (sprint_health_2.py uses these globally)
+            username = os.getenv("JIRA_USERNAME", "")
+            api_token = os.getenv("JIRA_API_TOKEN", "")
             
             print(f"[reporter] Using username: {username if username else 'NOT SET'}")
             print(f"[reporter] Using API token: {'SET' if api_token else 'NOT SET'}")
             
             if not username or not api_token:
-                error_msg = "Jira credentials not configured. Set JIRA_USERNAME and JIRA_API_TOKEN environment variables or add to config."
+                error_msg = "Jira credentials not configured. Set JIRA_USERNAME and JIRA_API_TOKEN environment variables."
                 print(f"[reporter] ERROR: {error_msg}")
                 error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
                 return
@@ -1468,12 +1468,7 @@ def _background_report_generator(interval_hours: int = 1):
             print("[reporter] Fetching sprint data...")
             fetch_start = time.time()
             try:
-                issues = sprint_health.fetch_all_issues(
-                    jira_config.get("base_url", ""),
-                    username,
-                    api_token,
-                    jira_config.get("board_id", 0)
-                )
+                issues, sprint_info = sprint_health.fetch_sprint_issues()
             except Exception as e:
                 error_msg = f"Failed to fetch Jira issues: {str(e)}"
                 print(f"[reporter] ERROR: {error_msg}")
@@ -1484,12 +1479,6 @@ def _background_report_generator(interval_hours: int = 1):
             
             step_times["fetch_issues"] = time.time() - fetch_start
             print(f"[reporter] Fetched {len(issues)} issues in {step_times['fetch_issues']:.1f}s")
-            
-            # Process sprint info
-            sprint_start = time.time()
-            sprint_info = sprint_health.get_sprint_info(issues)
-            step_times["sprint_info"] = time.time() - sprint_start
-            print(f"[reporter] Processed sprint info in {step_times['sprint_info']:.1f}s")
             
             # Get previous sprints
             prev_sprint_start = time.time()
