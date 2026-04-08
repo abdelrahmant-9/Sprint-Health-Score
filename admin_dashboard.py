@@ -116,6 +116,73 @@ auth = AuthManager(AUTH_FILE)
 auth.ensure_default_admin()
 
 
+def _generate_default_report():
+    """Generate a default placeholder report if file doesn't exist"""
+    report_path = Path(__file__).parent / "sprint_health_report.html"
+    
+    if report_path.exists():
+        return  # Report already exists
+    
+    # Create a minimal default report
+    default_html = """<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprint Health Report</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
+        .header { background: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        h1 { color: #1a73e8; margin-bottom: 10px; }
+        .status { font-size: 14px; color: #666; }
+        .card { background: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .info { background: #e8f0fe; border-left: 4px solid #1a73e8; padding: 15px; border-radius: 4px; }
+        .info-text { color: #1a73e8; font-size: 14px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Sprint Health Report</h1>
+            <p class="status">Last generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
+        </div>
+        
+        <div class="card">
+            <div class="info">
+                <p class="info-text">
+                    📊 <strong>Report Generation in Progress</strong><br><br>
+                    The sprint health report is being prepared. This is a placeholder page shown on first load.
+                    Please refresh this page in a few moments to see the full report with metrics, statistics, and insights.
+                </p>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2 style="color: #1a73e8; margin-bottom: 15px;">Getting Started</h2>
+            <ul style="margin-left: 20px; line-height: 1.8; color: #666;">
+                <li>Report data is synced from your Jira instance</li>
+                <li>Metrics update automatically at scheduled intervals</li>
+                <li>Use the Admin Dashboard to configure settings</li>
+                <li>Check back soon for detailed sprint analytics</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>"""
+    
+    try:
+        report_path.write_text(default_html, encoding="utf-8")
+        print("[report] Created default placeholder report")
+    except Exception as e:
+        print(f"[warning] Could not create default report: {e}")
+
+
+# Generate default report if needed
+_generate_default_report()
+
+
 def _float_value(params: dict, key: str) -> float:
     raw = (params.get(key, [""])[0] or "").strip()
     return float(raw) if raw else 0.0
