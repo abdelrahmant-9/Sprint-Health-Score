@@ -425,8 +425,45 @@ def _generate_default_report():
         const timerElement = document.getElementById('timer');
         let refreshTimeoutId = null;
         
+        // Try to get error data first
+        async function checkForErrors() {
+            try {
+                const response = await fetch('./.report_error.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    showError(data.error);
+                    return true;
+                }
+            } catch (e) {
+                // No error file - that's good
+            }
+            return false;
+        }
+        
+        // Display error message to user
+        function showError(errorMsg) {
+            if (timerInterval) clearInterval(timerInterval);
+            if (refreshTimeoutId) clearTimeout(refreshTimeoutId);
+            
+            document.querySelector('.status-message').textContent = '❌ Error';
+            document.querySelector('.subtitle').innerHTML = '<strong>Report generation failed:</strong><br>' + errorMsg;
+            document.querySelector('.spinner-wrapper').innerHTML = '';
+            document.querySelector('.progress-bar-container').style.display = 'none';
+            document.querySelector('.timer').style.display = 'none';
+            document.querySelector('.tips').style.display = 'none';
+            
+            // Try again in 60 seconds
+            setTimeout(function() {
+                location.reload();
+            }, 60000);
+        }
+        
         // Try to get actual timing from last report generation
         async function loadActualTiming() {
+            // Check for errors first
+            const hasError = await checkForErrors();
+            if (hasError) return;
+            
             try {
                 const response = await fetch('./.report_timing.json');
                 if (response.ok) {
@@ -474,8 +511,9 @@ def _generate_default_report():
             }
         }
         
+        let timerInterval = null;
         updateTimer();
-        setInterval(updateTimer, 1000);
+        timerInterval = setInterval(updateTimer, 1000);
     </script>
 </body>
 </html>"""
@@ -1281,6 +1319,26 @@ class AdminHandler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         
+        # Serve error data without authentication
+        if p.path == "/.report_error.json":
+            error_file = Path(__file__).parent / ".report_error.json"
+            if error_file.exists():
+                try:
+                    data = json.loads(error_file.read_text(encoding="utf-8"))
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                    self.send_header("Pragma", "no-cache")
+                    self.send_header("Expires", "0")
+                    self.end_headers()
+                    self.wfile.write(json.dumps(data).encode())
+                    return
+                except:
+                    pass
+            self.send_response(404)
+            self.end_headers()
+            return
+        
         if not u: return self._redirect(f"/login?next={escape(p.path)}")
         if p.path == "/":
             rf = Path(__file__).parent / "sprint_health_report.html"
@@ -1350,6 +1408,7 @@ def _background_report_generator(interval_hours: int = 1):
     """Background thread that regenerates the report every N hours"""
     report_path = Path(__file__).parent / "sprint_health_report.html"
     timing_file = Path(__file__).parent / ".report_timing.json"
+    error_file = Path(__file__).parent / ".report_error.json"
     
     def generate_report():
         try:
@@ -1365,19 +1424,43 @@ def _background_report_generator(interval_hours: int = 1):
             
             # Get sprint data
             jira_config = metrics_config.get("jira", {})
-            if not jira_config.get("board_id"):
-                print("[reporter] Jira not configured - skipping report generation")
+            
+            # Check for required Jira config
+            required_fields = ["base_url", "project_key", "board_id"]
+            missing_fields = [f for f in required_fields if not jira_config.get(f)]
+            
+            if missing_fields:
+                error_msg = f"Jira configuration incomplete. Missing: {', '.join(missing_fields)}"
+                print(f"[reporter] ERROR: {error_msg}")
+                error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
+                return
+            
+            # Check for credentials (from config or environment variables)
+            username = jira_config.get("username") or os.getenv("JIRA_USERNAME", "")
+            api_token = jira_config.get("api_token") or os.getenv("JIRA_API_TOKEN", "")
+            
+            if not username or not api_token:
+                error_msg = "Jira credentials not configured. Set JIRA_USERNAME and JIRA_API_TOKEN environment variables or add to config."
+                print(f"[reporter] ERROR: {error_msg}")
+                error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
                 return
             
             # Fetch all issues
             print("[reporter] Fetching sprint data...")
             fetch_start = time.time()
-            issues = sprint_health.fetch_all_issues(
-                jira_config.get("base_url", ""),
-                jira_config.get("username", ""),
-                jira_config.get("api_token", ""),
-                jira_config.get("board_id", 0)
-            )
+            try:
+                issues = sprint_health.fetch_all_issues(
+                    jira_config.get("base_url", ""),
+                    username,
+                    api_token,
+                    jira_config.get("board_id", 0)
+                )
+            except Exception as e:
+                error_msg = f"Failed to fetch Jira issues: {str(e)}"
+                print(f"[reporter] ERROR: {error_msg}")
+                error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
+                return
+            
             step_times["fetch_issues"] = time.time() - fetch_start
             print(f"[reporter] Fetched {len(issues)} issues in {step_times['fetch_issues']:.1f}s")
             
@@ -1408,6 +1491,10 @@ def _background_report_generator(interval_hours: int = 1):
             total_time = time.time() - start_time
             step_times["total"] = total_time
             
+            # Remove error file on success
+            if error_file.exists():
+                error_file.unlink()
+            
             print(f"[reporter] Report completed in {total_time:.1f}s")
             print(f"[reporter] Breakdown: {', '.join([f'{k}={v:.1f}s' for k, v in sorted(step_times.items(), key=lambda x: x[1], reverse=True)])}")
             
@@ -1419,13 +1506,18 @@ def _background_report_generator(interval_hours: int = 1):
                     "breakdown": {k: round(v, 1) for k, v in step_times.items()}
                 }
                 timing_file.write_text(json.dumps(timing_data), encoding="utf-8")
-            except:
-                pass
+            except Exception as e:
+                print(f"[reporter] Warning: Could not save timing file: {e}")
             
         except Exception as e:
-            print(f"[reporter] Error generating report: {e}")
+            error_msg = f"Unexpected error during report generation: {str(e)}"
+            print(f"[reporter] ERROR: {error_msg}")
             import traceback
             traceback.print_exc()
+            try:
+                error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
+            except:
+                pass
     
     # Run immediately on startup
     print(f"[reporter] Starting hourly report generator (interval: {interval_hours} hour(s))")
