@@ -52,9 +52,11 @@ class AuthManager:
             return user
         return None
 
-    def create_session(self, username):
+    def create_session(self, username, expiry_days=None):
+        if expiry_days is None:
+            expiry_days = SESSION_EXPIRY_DAYS
         session_id = str(uuid.uuid4())
-        expiry = (datetime.now() + timedelta(days=SESSION_EXPIRY_DAYS)).isoformat()
+        expiry = (datetime.now() + timedelta(days=expiry_days)).isoformat()
         self.data["sessions"][session_id] = {"username": username, "expires": expiry}
         self.save()
         return session_id
@@ -591,12 +593,19 @@ def _login_html(error: str = "") -> str:
     }}
     #login-particles {{ position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.5; }}
     .login-container {{ position: relative; z-index: 2; width: 380px; }}
+    .header-controls {{
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+      gap: 20px;
+    }}
     .logo-section {{
       display: flex;
       flex-direction: column;
       align-items: center;
-      margin-bottom: 40px;
       gap: 12px;
+      flex: 1;
     }}
     .logo-mark {{
       width: 48px;
@@ -604,9 +613,13 @@ def _login_html(error: str = "") -> str:
       display: flex;
       align-items: center;
       justify-content: center;
-      font-weight: 900;
-      font-size: 28px;
-      color: var(--button-bg);
+      flex-shrink: 0;
+    }}
+    .logo-mark img {{
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 0 8px rgba(22, 119, 255, 0.2));
     }}
     .logo-text {{
       font-size: 24px;
@@ -614,23 +627,24 @@ def _login_html(error: str = "") -> str:
       color: var(--text-main);
     }}
     .theme-toggle {{
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      background: var(--card-bg);
-      border: 1px solid var(--glass-border);
-      border-radius: 10px;
-      padding: 8px 12px;
+      background: transparent;
+      border: 2px solid var(--glass-border);
+      border-radius: 50%;
+      width: 44px;
+      height: 44px;
       cursor: pointer;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-soft);
-      transition: all 0.2s;
-      z-index: 100;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.3s;
+      color: var(--text-main);
+      flex-shrink: 0;
     }}
     .theme-toggle:hover {{
       background: var(--input-bg);
-      color: var(--text-main);
+      border-color: var(--button-bg);
+      transform: scale(1.1);
     }}
     .box {{
       background: var(--card-bg);
@@ -663,7 +677,9 @@ def _login_html(error: str = "") -> str:
       letter-spacing: 0.5px;
       margin-bottom: 8px;
     }}
-    input {{
+    input[type="text"],
+    input[type="email"],
+    input[type="password"] {{
       width: 100%;
       padding: 12px 16px;
       border-radius: 10px;
@@ -675,13 +691,36 @@ def _login_html(error: str = "") -> str:
       transition: all 0.2s;
       box-sizing: border-box;
     }}
-    input:focus {{
+    input[type="text"]:focus,
+    input[type="email"]:focus,
+    input[type="password"]:focus {{
       outline: none;
       border-color: var(--button-bg);
       box-shadow: 0 0 0 3px rgba(22, 119, 255, 0.1);
     }}
     input::placeholder {{ color: var(--text-soft); }}
-    button {{
+    .checkbox-group {{
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      font-size: 13px;
+      color: var(--text-soft);
+    }}
+    input[type="checkbox"] {{
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--checkbox-accent);
+    }}
+    .checkbox-group label {{
+      cursor: pointer;
+      user-select: none;
+      margin: 0;
+      text-transform: none;
+      font-weight: 500;
+    }}
+    button[type="submit"] {{
       width: 100%;
       padding: 12px 16px;
       border-radius: 10px;
@@ -694,17 +733,25 @@ def _login_html(error: str = "") -> str:
       transition: all 0.2s;
       margin-top: 8px;
     }}
-    button:hover {{ background: var(--button-hover); transform: translateY(-2px); box-shadow: 0 6px 20px rgba(22, 119, 255, 0.3); }}
-    button:active {{ transform: translateY(0); }}
+    button[type="submit"]:hover {{ 
+      background: var(--button-hover); 
+      transform: translateY(-2px); 
+      box-shadow: 0 6px 20px rgba(22, 119, 255, 0.3); 
+    }}
+    button[type="submit"]:active {{ transform: translateY(0); }}
   </style>
 </head>
 <body data-theme="light">
-  <button class="theme-toggle" id="themeToggle">🌙 Dark</button>
   <canvas id="login-particles"></canvas>
   <div class="login-container">
-    <div class="logo-section">
-      <div class="logo-mark">⚡</div>
-      <div class="logo-text">Lumofy</div>
+    <div class="header-controls">
+      <div class="logo-section">
+        <div class="logo-mark">
+          <img src="Icon.png" alt="Lumofy Logo" onerror="this.style.display='none'">
+        </div>
+        <div class="logo-text">Lumofy</div>
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
     </div>
     <div class="box">
       <h2>Platform Login</h2>
@@ -718,6 +765,10 @@ def _login_html(error: str = "") -> str:
         <div class="form-group">
           <label for="password">Password</label>
           <input type="password" id="password" name="password" placeholder="Enter your password" required>
+        </div>
+        <div class="checkbox-group">
+          <input type="checkbox" id="rememberMe" name="remember_me" value="1">
+          <label for="rememberMe">Remember me for 30 days</label>
         </div>
         <button type="submit">Sign In</button>
       </form>
@@ -850,12 +901,16 @@ class AdminHandler(BaseHTTPRequestHandler):
         if p == "/login":
             un, pw = form.get("username", [""])[0], form.get("password", [""])[0]
             nxt = form.get("next", ["/"])[0] or "/"
+            remember_me = _bool_value(form, "remember_me")
             usr = auth.authenticate(un, pw)
             if usr:
-                sid = auth.create_session(un)
+                # Create session with extended expiry if "Remember Me" is checked
+                expiry_days = 30 if remember_me else SESSION_EXPIRY_DAYS
+                sid = auth.create_session(un, expiry_days=expiry_days)
+                max_age = expiry_days * 86400
                 self.send_response(303)
                 self.send_header("Location", nxt)
-                self.send_header("Set-Cookie", f"session_id={sid}; Max-Age={SESSION_EXPIRY_DAYS*86400}; Path=/; HttpOnly")
+                self.send_header("Set-Cookie", f"session_id={sid}; Max-Age={max_age}; Path=/; HttpOnly")
                 self.end_headers()
             else: self._send_html(_login_html("Invalid login."), 401)
             return
