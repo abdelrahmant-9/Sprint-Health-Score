@@ -1409,6 +1409,7 @@ def _background_report_generator(interval_hours: int = 1):
     report_path = Path(__file__).parent / "sprint_health_report.html"
     timing_file = Path(__file__).parent / ".report_timing.json"
     error_file = Path(__file__).parent / ".report_error.json"
+    config_path = Path(__file__).parent / "health_metrics_config.json"
     
     def generate_report():
         try:
@@ -1417,13 +1418,28 @@ def _background_report_generator(interval_hours: int = 1):
             
             print(f"[reporter] Regenerating sprint health report...")
             
-            # Load configuration
+            # Load configuration directly from file
             config_start = time.time()
-            metrics_config = sprint_health.load_metrics_config()
+            if not config_path.exists():
+                error_msg = f"Config file not found: {config_path}"
+                print(f"[reporter] ERROR: {error_msg}")
+                error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
+                return
+            
+            try:
+                metrics_config = json.loads(config_path.read_text(encoding="utf-8-sig"))
+            except Exception as e:
+                error_msg = f"Failed to load config: {str(e)}"
+                print(f"[reporter] ERROR: {error_msg}")
+                error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
+                return
+            
             step_times["config_load"] = time.time() - config_start
+            print(f"[reporter] Loaded config in {step_times['config_load']:.1f}s")
             
             # Get sprint data
             jira_config = metrics_config.get("jira", {})
+            print(f"[reporter] Jira config keys: {list(jira_config.keys())}")
             
             # Check for required Jira config
             required_fields = ["base_url", "project_key", "board_id"]
@@ -1438,6 +1454,9 @@ def _background_report_generator(interval_hours: int = 1):
             # Check for credentials (from config or environment variables)
             username = jira_config.get("username") or os.getenv("JIRA_USERNAME", "")
             api_token = jira_config.get("api_token") or os.getenv("JIRA_API_TOKEN", "")
+            
+            print(f"[reporter] Using username: {username if username else 'NOT SET'}")
+            print(f"[reporter] Using API token: {'SET' if api_token else 'NOT SET'}")
             
             if not username or not api_token:
                 error_msg = "Jira credentials not configured. Set JIRA_USERNAME and JIRA_API_TOKEN environment variables or add to config."
@@ -1458,6 +1477,8 @@ def _background_report_generator(interval_hours: int = 1):
             except Exception as e:
                 error_msg = f"Failed to fetch Jira issues: {str(e)}"
                 print(f"[reporter] ERROR: {error_msg}")
+                import traceback
+                traceback.print_exc()
                 error_file.write_text(json.dumps({"error": error_msg, "timestamp": datetime.now().isoformat()}), encoding="utf-8")
                 return
             
