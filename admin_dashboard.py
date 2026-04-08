@@ -123,42 +123,104 @@ def _generate_default_report():
     if report_path.exists():
         return  # Report already exists
     
-    # Create an engaging loading state
+    # Create a loading state that matches the dashboard design system
     default_html = """<!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="refresh" content="5">
     <title>Sprint Health Report - Loading</title>
     <style>
+        :root {
+            --bg: #f4f7fa;
+            --card-bg: #ffffff;
+            --input-bg: #f9fbfd;
+            --glass-border: rgba(0, 0, 0, 0.06);
+            --text-main: #19314f;
+            --text-soft: #637d92;
+            --button-bg: #1677ff;
+            --button-hover: #0d5ccc;
+            --shadow: 0 10px 30px rgba(90, 121, 163, 0.08);
+        }
+        html[data-theme="dark"] {
+            --bg: #06090f;
+            --card-bg: #0b1220;
+            --input-bg: rgba(0, 0, 0, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f0f5ff;
+            --text-soft: #8c98ae;
+            --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        
         * { margin: 0; padding: 0; box-sizing: border-box; }
         html, body { width: 100%; height: 100%; }
+        
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--bg);
+            color: var(--text-main);
             display: flex;
             align-items: center;
             justify-content: center;
             min-height: 100vh;
-            color: white;
+            transition: background 0.3s ease;
         }
         
-        .loading-container {
-            text-align: center;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            padding: 60px 40px;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
             max-width: 500px;
-            animation: slideIn 0.6s ease-out;
+            padding: 20px;
+        }
+        
+        .header-controls {
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 30px;
+            padding-right: 20px;
+        }
+        
+        .theme-toggle {
+            background: transparent;
+            border: 2px solid var(--glass-border);
+            border-radius: 50%;
+            width: 44px;
+            height: 44px;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            color: var(--text-main);
+            flex-shrink: 0;
+        }
+        
+        .theme-toggle:hover {
+            background: var(--input-bg);
+            border-color: var(--button-bg);
+            transform: scale(1.1);
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 50px 40px;
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(10px);
+            text-align: center;
+            animation: slideIn 0.4s ease-out;
         }
         
         @keyframes slideIn {
             from {
                 opacity: 0;
-                transform: translateY(30px);
+                transform: translateY(20px);
             }
             to {
                 opacity: 1;
@@ -167,19 +229,19 @@ def _generate_default_report():
         }
         
         .spinner-wrapper {
-            margin: 30px 0;
-            height: 80px;
+            margin: 20px 0 30px 0;
+            height: 70px;
             display: flex;
             align-items: center;
             justify-content: center;
         }
         
         .spinner {
-            width: 60px;
-            height: 60px;
-            border: 4px solid rgba(102, 126, 234, 0.1);
-            border-top: 4px solid #667eea;
-            border-right: 4px solid #764ba2;
+            width: 50px;
+            height: 50px;
+            border: 3px solid var(--input-bg);
+            border-top: 3px solid var(--button-bg);
+            border-right: 3px solid #0d5ccc;
             border-radius: 50%;
             animation: spin 1.2s linear infinite;
         }
@@ -189,31 +251,32 @@ def _generate_default_report():
         }
         
         h1 {
-            color: #667eea;
-            font-size: 32px;
-            margin-bottom: 10px;
-            font-weight: 700;
+            color: var(--text-main);
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 12px;
         }
         
         .status-message {
-            color: #555;
-            font-size: 18px;
-            margin-bottom: 5px;
+            color: var(--text-soft);
+            font-size: 16px;
+            margin-bottom: 8px;
             font-weight: 500;
         }
         
         .loading-dots {
             display: inline-block;
-            color: #764ba2;
+            color: var(--button-bg);
+            margin-left: 4px;
         }
         
         .dot {
             display: inline-block;
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
             background: currentColor;
-            margin: 0 3px;
+            margin: 0 2px;
             animation: bounce 1.4s infinite;
         }
         
@@ -225,100 +288,165 @@ def _generate_default_report():
             40% { opacity: 1; transform: scale(1.2); }
         }
         
-        .subtitle {
-            color: #888;
+        .timer {
+            background: var(--input-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px 20px;
+            margin: 20px 0;
             font-size: 14px;
-            margin-top: 15px;
-            line-height: 1.5;
+            color: var(--text-soft);
+            font-weight: 600;
+        }
+        
+        .timer-value {
+            color: var(--button-bg);
+            font-size: 16px;
+            font-weight: 700;
         }
         
         .progress-bar-container {
             width: 100%;
             height: 4px;
-            background: rgba(102, 126, 234, 0.1);
+            background: var(--input-bg);
             border-radius: 2px;
-            margin-top: 25px;
+            margin: 20px 0;
             overflow: hidden;
         }
         
         .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, var(--button-bg), #0d5ccc);
             border-radius: 2px;
-            animation: progress 2s ease-in-out infinite;
+            animation: progress 3s ease-in-out infinite;
         }
         
         @keyframes progress {
             0% { width: 0%; }
-            50% { width: 70%; }
+            50% { width: 75%; }
             100% { width: 100%; }
         }
         
+        .subtitle {
+            color: var(--text-soft);
+            font-size: 13px;
+            line-height: 1.6;
+            margin: 20px 0;
+        }
+        
         .tips {
-            margin-top: 30px;
+            margin-top: 25px;
             padding-top: 25px;
-            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            border-top: 1px solid var(--glass-border);
             text-align: left;
         }
         
         .tip {
-            color: #666;
-            font-size: 13px;
-            margin: 8px 0;
+            color: var(--text-soft);
+            font-size: 12px;
+            margin: 10px 0;
             padding-left: 24px;
             position: relative;
-            line-height: 1.4;
+            line-height: 1.5;
+            font-weight: 500;
         }
         
         .tip:before {
             content: "✓";
             position: absolute;
             left: 0;
-            color: #667eea;
-            font-weight: bold;
+            color: var(--button-bg);
+            font-weight: 700;
         }
     </style>
 </head>
 <body>
-    <div class="loading-container">
-        <div class="spinner-wrapper">
-            <div class="spinner"></div>
+    <div class="container">
+        <div class="header-controls">
+            <button class="theme-toggle" id="themeToggle" title="Toggle theme">🌙</button>
         </div>
         
-        <h1>Sprint Health Report</h1>
-        <div class="status-message">
-            Generating your report<span class="loading-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
-        </div>
-        
-        <div class="progress-bar-container">
-            <div class="progress-bar"></div>
-        </div>
-        
-        <p class="subtitle">
-            We're collecting data from Jira and calculating sprint metrics. This typically takes 15-30 seconds.
-        </p>
-        
-        <div class="tips">
-            <div class="tip">Real-time data syncing from your Jira board</div>
-            <div class="tip">Computing sprint velocity and burndown</div>
-            <div class="tip">Analyzing team capacity and health metrics</div>
+        <div class="card">
+            <div class="spinner-wrapper">
+                <div class="spinner"></div>
+            </div>
+            
+            <h1>Sprint Health Report</h1>
+            <div class="status-message">
+                Generating your report<span class="loading-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
+            </div>
+            
+            <div class="timer">
+                Estimated time: <span class="timer-value" id="timer">0:22</span>
+            </div>
+            
+            <div class="progress-bar-container">
+                <div class="progress-bar"></div>
+            </div>
+            
+            <p class="subtitle">
+                Collecting data from Jira and calculating sprint metrics. Typically completes in 15-30 seconds.
+            </p>
+            
+            <div class="tips">
+                <div class="tip">Real-time data syncing from your Jira board</div>
+                <div class="tip">Computing sprint velocity and burndown</div>
+                <div class="tip">Analyzing team capacity and health metrics</div>
+            </div>
         </div>
     </div>
     
     <script>
-        // Auto-refresh every 5 seconds to check for generated report
-        window.addEventListener('load', function() {
-            setTimeout(function() {
-                location.reload();
-            }, 5000);
+        // Theme toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        html.setAttribute('data-theme', savedTheme);
+        updateThemeButton(savedTheme);
+        
+        themeToggle.addEventListener('click', function() {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeButton(newTheme);
         });
+        
+        function updateThemeButton(theme) {
+            themeToggle.textContent = theme === 'light' ? '🌙' : '☀️';
+        }
+        
+        // Processing time countdown
+        let timeRemaining = 22; // seconds
+        const timerElement = document.getElementById('timer');
+        
+        function updateTimer() {
+            const minutes = Math.floor(timeRemaining / 60);
+            const seconds = timeRemaining % 60;
+            timerElement.textContent = minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+            
+            if (timeRemaining > 0) {
+                timeRemaining--;
+            } else {
+                timeRemaining = 22; // Reset
+            }
+        }
+        
+        updateTimer();
+        setInterval(updateTimer, 1000);
+        
+        // Auto-refresh every 5 seconds to check for generated report
+        setTimeout(function() {
+            location.reload();
+        }, 5000);
     </script>
 </body>
 </html>"""
     
     try:
         report_path.write_text(default_html, encoding="utf-8")
-        print("[report] Created engaging loading state for report generation")
+        print("[report] Created aligned loading state for report generation")
     except Exception as e:
         print(f"[warning] Could not create default report: {e}")
 
