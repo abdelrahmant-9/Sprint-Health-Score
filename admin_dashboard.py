@@ -123,58 +123,202 @@ def _generate_default_report():
     if report_path.exists():
         return  # Report already exists
     
-    # Create a minimal default report
+    # Create an engaging loading state
     default_html = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sprint Health Report</title>
+    <meta http-equiv="refresh" content="5">
+    <title>Sprint Health Report - Loading</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f5f5; color: #333; }
-        .container { max-width: 1200px; margin: 0 auto; padding: 40px 20px; }
-        .header { background: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        h1 { color: #1a73e8; margin-bottom: 10px; }
-        .status { font-size: 14px; color: #666; }
-        .card { background: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .info { background: #e8f0fe; border-left: 4px solid #1a73e8; padding: 15px; border-radius: 4px; }
-        .info-text { color: #1a73e8; font-size: 14px; line-height: 1.6; }
+        html, body { width: 100%; height: 100%; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .loading-container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 60px 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            animation: slideIn 0.6s ease-out;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .spinner-wrapper {
+            margin: 30px 0;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(102, 126, 234, 0.1);
+            border-top: 4px solid #667eea;
+            border-right: 4px solid #764ba2;
+            border-radius: 50%;
+            animation: spin 1.2s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        h1 {
+            color: #667eea;
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .status-message {
+            color: #555;
+            font-size: 18px;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .loading-dots {
+            display: inline-block;
+            color: #764ba2;
+        }
+        
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            margin: 0 3px;
+            animation: bounce 1.4s infinite;
+        }
+        
+        .dot:nth-child(1) { animation-delay: -0.32s; }
+        .dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes bounce {
+            0%, 80%, 100% { opacity: 0.6; transform: scale(1); }
+            40% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        .subtitle {
+            color: #888;
+            font-size: 14px;
+            margin-top: 15px;
+            line-height: 1.5;
+        }
+        
+        .progress-bar-container {
+            width: 100%;
+            height: 4px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 2px;
+            margin-top: 25px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 2px;
+            animation: progress 2s ease-in-out infinite;
+        }
+        
+        @keyframes progress {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+        
+        .tips {
+            margin-top: 30px;
+            padding-top: 25px;
+            border-top: 1px solid rgba(0, 0, 0, 0.1);
+            text-align: left;
+        }
+        
+        .tip {
+            color: #666;
+            font-size: 13px;
+            margin: 8px 0;
+            padding-left: 24px;
+            position: relative;
+            line-height: 1.4;
+        }
+        
+        .tip:before {
+            content: "✓";
+            position: absolute;
+            left: 0;
+            color: #667eea;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>Sprint Health Report</h1>
-            <p class="status">Last generated: """ + datetime.now().strftime("%Y-%m-%d %H:%M:%S") + """</p>
+    <div class="loading-container">
+        <div class="spinner-wrapper">
+            <div class="spinner"></div>
         </div>
         
-        <div class="card">
-            <div class="info">
-                <p class="info-text">
-                    📊 <strong>Report Generation in Progress</strong><br><br>
-                    The sprint health report is being prepared. This is a placeholder page shown on first load.
-                    Please refresh this page in a few moments to see the full report with metrics, statistics, and insights.
-                </p>
-            </div>
+        <h1>Sprint Health Report</h1>
+        <div class="status-message">
+            Generating your report<span class="loading-dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></span>
         </div>
         
-        <div class="card">
-            <h2 style="color: #1a73e8; margin-bottom: 15px;">Getting Started</h2>
-            <ul style="margin-left: 20px; line-height: 1.8; color: #666;">
-                <li>Report data is synced from your Jira instance</li>
-                <li>Metrics update automatically at scheduled intervals</li>
-                <li>Use the Admin Dashboard to configure settings</li>
-                <li>Check back soon for detailed sprint analytics</li>
-            </ul>
+        <div class="progress-bar-container">
+            <div class="progress-bar"></div>
+        </div>
+        
+        <p class="subtitle">
+            We're collecting data from Jira and calculating sprint metrics. This typically takes 15-30 seconds.
+        </p>
+        
+        <div class="tips">
+            <div class="tip">Real-time data syncing from your Jira board</div>
+            <div class="tip">Computing sprint velocity and burndown</div>
+            <div class="tip">Analyzing team capacity and health metrics</div>
         </div>
     </div>
+    
+    <script>
+        // Auto-refresh every 5 seconds to check for generated report
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                location.reload();
+            }, 5000);
+        });
+    </script>
 </body>
 </html>"""
     
     try:
         report_path.write_text(default_html, encoding="utf-8")
-        print("[report] Created default placeholder report")
+        print("[report] Created engaging loading state for report generation")
     except Exception as e:
         print(f"[warning] Could not create default report: {e}")
 
