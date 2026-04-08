@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 import argparse
 import json
@@ -35,6 +35,8 @@ REPORT_PDF_URL  = os.getenv("REPORT_PDF_URL", "").strip()
 OPENAI_API_KEY  = os.getenv("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o").strip() or "gpt-4o"
 OPENAI_TIMEOUT  = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
+JIRA_REQUEST_RETRIES = max(1, int(os.getenv("JIRA_REQUEST_RETRIES", "4")))
+JIRA_RETRY_DELAY_SECONDS = max(1.0, float(os.getenv("JIRA_RETRY_DELAY_SECONDS", "2")))
 METRICS_CONFIG_PATH = Path(
     os.getenv("METRICS_CONFIG_PATH", str(Path(__file__).resolve().with_name("health_metrics_config.json")))
 )
@@ -371,29 +373,49 @@ def get_stale_threshold(issue_type: str, story_points: float | None) -> int:
 # ——— JIRA CLIENT ————————————————————————————————————————————————————————————————
 
 def jira_get(path: str, params: dict = None) -> dict:
-    url  = f"{JIRA_BASE_URL}/rest/api/3/{path}"
-    resp = requests.get(
-        url, params=params,
-        auth=(JIRA_EMAIL, JIRA_API_TOKEN),
-        headers={"Accept": "application/json"},
-        timeout=15,
-    )
-    if resp.status_code == 410 and path == "search":
-        url  = f"{JIRA_BASE_URL}/rest/api/3/search/jql"
-        resp = requests.get(url, params=params,
-                            auth=(JIRA_EMAIL, JIRA_API_TOKEN),
-                            headers={"Accept": "application/json"}, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+    last_error = None
+    for attempt in range(1, JIRA_REQUEST_RETRIES + 1):
+        try:
+            url  = f"{JIRA_BASE_URL}/rest/api/3/{path}"
+            resp = requests.get(
+                url, params=params,
+                auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+                headers={"Accept": "application/json"},
+                timeout=15,
+            )
+            if resp.status_code == 410 and path == "search":
+                url  = f"{JIRA_BASE_URL}/rest/api/3/search/jql"
+                resp = requests.get(url, params=params,
+                                    auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+                                    headers={"Accept": "application/json"}, timeout=15)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            last_error = e
+            if attempt >= JIRA_REQUEST_RETRIES:
+                break
+            print(f"[warn] Jira API retry {attempt}/{JIRA_REQUEST_RETRIES - 1} failed for '{path}': {e}")
+            time.sleep(JIRA_RETRY_DELAY_SECONDS * attempt)
+    raise last_error
 
 
 def agile_get(path: str, params: dict = None) -> dict:
-    url  = f"{JIRA_BASE_URL}/rest/agile/1.0/{path}"
-    resp = requests.get(url, params=params,
-                        auth=(JIRA_EMAIL, JIRA_API_TOKEN),
-                        headers={"Accept": "application/json"}, timeout=15)
-    resp.raise_for_status()
-    return resp.json()
+    last_error = None
+    for attempt in range(1, JIRA_REQUEST_RETRIES + 1):
+        try:
+            url  = f"{JIRA_BASE_URL}/rest/agile/1.0/{path}"
+            resp = requests.get(url, params=params,
+                                auth=(JIRA_EMAIL, JIRA_API_TOKEN),
+                                headers={"Accept": "application/json"}, timeout=15)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            last_error = e
+            if attempt >= JIRA_REQUEST_RETRIES:
+                break
+            print(f"[warn] Jira Agile retry {attempt}/{JIRA_REQUEST_RETRIES - 1} failed for '{path}': {e}")
+            time.sleep(JIRA_RETRY_DELAY_SECONDS * attempt)
+    raise last_error
 
 
 _BOARD_ID_CACHE = None
@@ -673,6 +695,107 @@ def _page_signature(items: list[dict]) -> tuple[str, str, int]:
     return (first_key, last_key, len(items))
 
 
+def _extend_unique_issues(target: list[dict], issues: list[dict], seen_keys: set[str]) -> int:
+    new_count = 0
+    for issue in issues:
+        key = str(issue.get("key", "")).strip()
+        if key and key in seen_keys:
+            continue
+        if key:
+            seen_keys.add(key)
+        target.append(issue)
+        new_count += 1
+    return new_count
+
+
+def _search_jira_issues(
+    jql: str,
+    fields: str,
+    page_size: int = 100,
+    repeated_warning: str = "[warn] Jira returned a repeated search page; stopping pagination early.",
+    duplicates_warning: str = "[warn] Jira search page contained only duplicates; stopping pagination early.",
+) -> list[dict]:
+    all_issues: list[dict] = []
+    seen_pages: set[tuple[str, str, int]] = set()
+    seen_issue_keys: set[str] = set()
+    next_page_token = None
+    start_at = 0
+
+    while True:
+        params = {
+            "jql": jql,
+            "fields": fields,
+            "maxResults": page_size,
+        }
+        if next_page_token:
+            params["nextPageToken"] = next_page_token
+        else:
+            params["startAt"] = start_at
+
+        data = jira_get("search", params)
+        issues = data.get("issues", []) or []
+        if not issues:
+            break
+
+        signature = _page_signature(issues)
+        new_unique = _extend_unique_issues(all_issues, issues, seen_issue_keys)
+        if signature in seen_pages and new_unique == 0:
+            raise RuntimeError(repeated_warning.replace("[warn] ", ""))
+        seen_pages.add(signature)
+        if new_unique == 0:
+            raise RuntimeError(duplicates_warning.replace("[warn] ", ""))
+
+        next_page_token = data.get("nextPageToken")
+        if next_page_token:
+            if data.get("isLast") is True:
+                break
+            continue
+
+        start_at += len(issues)
+        if data.get("isLast") is True or not _jira_page_has_more(data, start_at, page_size):
+            break
+
+    return all_issues
+
+
+def _fetch_agile_issue_pages(path: str, fields: str, page_size: int = 50) -> list[dict]:
+    all_issues: list[dict] = []
+    seen_issue_keys: set[str] = set()
+    seen_pages: set[tuple[str, str, int]] = set()
+    start_at = 0
+    expected_total = None
+
+    while True:
+        data = agile_get(path, {
+            "fields": fields,
+            "maxResults": page_size,
+            "startAt": start_at,
+        })
+        issues = data.get("issues", []) or []
+        if not issues:
+            break
+        if expected_total is None and isinstance(data.get("total"), int):
+            expected_total = int(data.get("total"))
+
+        signature = _page_signature(issues)
+        new_unique = _extend_unique_issues(all_issues, issues, seen_issue_keys)
+        if signature in seen_pages and new_unique == 0:
+            raise RuntimeError("Jira Agile returned a repeated sprint issues page.")
+        seen_pages.add(signature)
+        if new_unique == 0:
+            raise RuntimeError("Jira Agile sprint issues page contained only duplicates.")
+
+        start_at += len(issues)
+        if data.get("isLast") is True or not _jira_page_has_more(data, start_at, page_size):
+            break
+
+    if expected_total is not None and len(all_issues) < expected_total:
+        raise RuntimeError(
+            f"Jira Agile returned only {len(all_issues)} sprint issues out of expected {expected_total}."
+        )
+    return all_issues
+
+
 def fetch_sprint_issues() -> tuple[list, dict]:
     all_issues, sprint_info = [], {}
     board_id  = get_board_id()
@@ -689,21 +812,11 @@ def fetch_sprint_issues() -> tuple[list, dict]:
             sprint_info = raw
 
     if sprint_id and board_id:
-        start_at = 0
-        page_size = 50
-        while True:
-            data = agile_get(f"board/{board_id}/sprint/{sprint_id}/issue", {
-                "fields": fields,
-                "maxResults": page_size,
-                "startAt": start_at,
-            })
-            issues = data.get("issues", [])
-            if not issues:
-                break
-            all_issues.extend(issues)
-            start_at += len(issues)
-            if not _jira_page_has_more(data, start_at, page_size):
-                break
+        all_issues = _fetch_agile_issue_pages(
+            path=f"board/{board_id}/sprint/{sprint_id}/issue",
+            fields=fields,
+            page_size=50,
+        )
     else:
         if sprint_id:
             jql = f"project = {JIRA_PROJECT} AND sprint = {sprint_id}"
@@ -711,26 +824,13 @@ def fetch_sprint_issues() -> tuple[list, dict]:
             jql = f"project = {JIRA_PROJECT} AND sprint in activeSprints({board_id})"
         else:
             jql = f"project = {JIRA_PROJECT} AND sprint in activeSprints()"
-
-        start_at = 0
-        page_size = 50
-        seen_pages: set[tuple[str, str, int]] = set()
-        while True:
-            data   = jira_get("search/jql", {
-                "jql": jql,
-                "fields": fields,
-                "maxResults": page_size, "startAt": start_at,
-            })
-            issues = data.get("issues", [])
-            if not issues: break
-            signature = _page_signature(issues)
-            if signature in seen_pages:
-                print("[warn] Jira returned a repeated sprint page; stopping pagination early.")
-                break
-            seen_pages.add(signature)
-            all_issues.extend(issues)
-            start_at += len(issues)
-            if not _jira_page_has_more(data, start_at, page_size): break
+        all_issues = _search_jira_issues(
+            jql=jql,
+            fields=fields,
+            page_size=100,
+            repeated_warning="[warn] Jira returned a repeated sprint page; stopping pagination early.",
+            duplicates_warning="[warn] Jira sprint page contained only duplicates; stopping pagination early.",
+        )
 
     if all_issues and not sprint_info:
         sprints = all_issues[0]["fields"].get("customfield_10020") or []
@@ -746,89 +846,57 @@ def fetch_recent_project_issues(days: int = 7) -> list:
     """
     Fetch all project issues updated in the last N days (not limited to active sprint).
     """
-    all_issues = []
-    start_at = 0
-    page_size = 50
-    seen_pages: set[tuple[str, str, int]] = set()
     start_date = (datetime.now(LOCAL_TZ).date() - timedelta(days=max(0, days - 1))).strftime("%Y-%m-%d")
-    jql = f'project = {JIRA_PROJECT} AND updated >= "{start_date}" ORDER BY updated DESC'
-    while True:
-        data = jira_get("search/jql", {
-            "jql": jql,
-            "fields": (
-                "summary,status,issuetype,created,resolutiondate,"
-                "customfield_10016,customfield_10020,customfield_10021,"
-                "assignee,labels,updated,customfield_10014,priority"
-            ),
-            "maxResults": page_size,
-            "startAt": start_at,
-        })
-        issues = data.get("issues", [])
-        if not issues:
-            break
-        signature = _page_signature(issues)
-        if signature in seen_pages:
-            print("[warn] Jira returned a repeated project issues page; stopping pagination early.")
-            break
-        seen_pages.add(signature)
-        all_issues.extend(issues)
-        start_at += len(issues)
-        if not _jira_page_has_more(data, start_at, page_size):
-            break
-    return all_issues
+    jql = f'project = {JIRA_PROJECT} AND updated >= "{start_date}" ORDER BY updated DESC, key DESC'
+    return _search_jira_issues(
+        jql=jql,
+        fields=(
+            "summary,status,issuetype,created,resolutiondate,"
+            "customfield_10016,customfield_10020,customfield_10021,"
+            "assignee,labels,updated,customfield_10014,priority"
+        ),
+        page_size=100,
+        repeated_warning="[warn] Jira returned a repeated project issues page; stopping pagination early.",
+        duplicates_warning="[warn] Jira project issues page contained only duplicates; stopping pagination early.",
+    )
 
 
 def fetch_recent_created_bugs(days: int = 7) -> list:
     """
     Fetch bugs and enhancements created in the last N days across the whole project.
     """
-    all_issues = []
-    start_at = 0
-    page_size = 50
-    seen_pages: set[tuple[str, str, int]] = set()
     start_date = (datetime.now(LOCAL_TZ).date() - timedelta(days=max(0, days - 1))).strftime("%Y-%m-%d")
     jql = (
         f"project = {JIRA_PROJECT} "
         "AND issuetype in (\"Bug\", \"Feature Bug\", \"Enhancement\", \"Improvement\") "
         f'AND created >= "{start_date}" '
-        "ORDER BY created DESC"
+        "ORDER BY created DESC, key DESC"
     )
-    while True:
-        data = jira_get("search/jql", {
-            "jql": jql,
-            "fields": (
-                "summary,status,issuetype,created,updated,"
-                "customfield_10016,customfield_10020,"
-                "assignee,reporter,creator,parent,issuelinks"
-            ),
-            "maxResults": page_size,
-            "startAt": start_at,
-        })
-        issues = data.get("issues", [])
-        if not issues:
-            break
-        signature = _page_signature(issues)
-        if signature in seen_pages:
-            print("[warn] Jira returned a repeated created-items page; stopping pagination early.")
-            break
-        seen_pages.add(signature)
-        all_issues.extend(issues)
-        start_at += len(issues)
-        if not _jira_page_has_more(data, start_at, page_size):
-            break
-    return all_issues
+    return _search_jira_issues(
+        jql=jql,
+        fields=(
+            "summary,status,issuetype,created,updated,"
+            "customfield_10016,customfield_10020,"
+            "assignee,reporter,creator,parent,issuelinks"
+        ),
+        page_size=100,
+        repeated_warning="[warn] Jira returned a repeated created-items page; stopping pagination early.",
+        duplicates_warning="[warn] Jira created-items page contained only duplicates; stopping pagination early.",
+    )
 
 
 def fetch_last_n_sprints(n: int = 3) -> list[dict]:
     sprints_data = []
     try:
-        data = jira_get("search/jql", {
-            "jql": f"project = {JIRA_PROJECT} AND sprint in closedSprints() ORDER BY created DESC",
-            "fields": "resolutiondate,created,customfield_10020,status,issuetype",
-            "maxResults": 200,
-        })
+        issues = _search_jira_issues(
+            jql=f"project = {JIRA_PROJECT} AND sprint in closedSprints() ORDER BY created DESC, key DESC",
+            fields="resolutiondate,created,customfield_10020,status,issuetype",
+            page_size=100,
+            repeated_warning="[warn] Jira returned a repeated closed-sprints page; stopping pagination early.",
+            duplicates_warning="[warn] Jira closed-sprints page contained only duplicates; stopping pagination early.",
+        )
         sprint_map = {}
-        for issue in data.get("issues", []):
+        for issue in issues:
             for s in (issue["fields"].get("customfield_10020") or []):
                 sid = s.get("id")
                 if sid not in sprint_map:
@@ -1007,6 +1075,149 @@ def _person_avatar_html(name: str, avatar_url: str | None, class_name: str = "qa
     return f"<div class='{class_name}'><span class='{class_name}-fallback'>{initials}</span></div>"
 
 
+def calc_cycle_time_median_per_type(issues: list) -> dict:
+    import statistics
+    type_cycle_times = {}
+    for issue in issues:
+        key = issue["key"]
+        issue_type = issue["fields"]["issuetype"]["name"]
+        hist = _ISSUE_HISTORY_CACHE.get(key, {})
+        status_transitions = (hist.get("data") or {}).get("status") or []
+        
+        status_transitions = sorted(status_transitions, key=lambda x: str(x.get("datetime") or ""))
+        
+        first_in_progress = None
+        first_done = None
+        
+        for tx in status_transitions:
+            to_status = str(tx.get("to", "")).strip().upper()
+            dt = tx.get("datetime")
+            if not dt:
+                continue
+            if first_in_progress is None and "IN PROGRESS" in to_status:
+                first_in_progress = dt
+            if first_in_progress is not None and is_done(to_status):
+                if first_done is None:
+                    first_done = dt
+                    
+        if first_in_progress and first_done:
+            days = max(0.0, (first_done - first_in_progress).total_seconds() / 86400.0)
+            if issue_type not in type_cycle_times:
+                type_cycle_times[issue_type] = []
+            type_cycle_times[issue_type].append(days)
+            
+    medians = {}
+    for t, times in type_cycle_times.items():
+        if times:
+            medians[t] = statistics.median(times)
+            
+    return medians
+
+
+def calc_status_bottlenecks(issues: list) -> dict:
+    status_durations = {}
+    total_blocked_seconds = 0
+    total_active_seconds = 0
+    status_hits = {}
+    
+    waiting_states = {
+        "READY FOR TESTING", "PENDING FIXES", "READY FOR PM REVIEW", 
+        "BLOCKED", "ON HOLD"
+    }
+
+    for issue in issues:
+        key = issue["key"]
+        issue_type = issue["fields"]["issuetype"]["name"]
+        hist = _ISSUE_HISTORY_CACHE.get(key, {})
+        status_transitions = (hist.get("data") or {}).get("status") or []
+        created_str = issue["fields"].get("created")
+        created_dt = _parse_date_str(created_str) if created_str else None
+        
+        hits_for_issue = set()
+        
+        if not status_transitions:
+            s_name = issue["fields"]["status"]["name"]
+            if not is_done(s_name) and created_dt:
+                dur = max(0.0, (datetime.now(timezone.utc) - created_dt).total_seconds())
+                is_blocked = (s_name.upper() in waiting_states) or (s_name.upper() == "OPEN" and issue_type == BUG_TYPE)
+                if is_blocked:
+                    status_durations[s_name] = status_durations.get(s_name, 0) + dur
+                    total_blocked_seconds += dur
+                    hits_for_issue.add(s_name)
+                elif s_name.upper() == "IN PROGRESS":
+                    total_active_seconds += dur
+            for s in hits_for_issue:
+                status_hits[s] = status_hits.get(s, 0) + 1
+            continue
+            
+        status_transitions = sorted(status_transitions, key=lambda x: str(x.get("datetime") or ""))
+        
+        last_time = created_dt
+        last_status = status_transitions[0]["from"] if status_transitions[0].get("from") else "Open"
+        current_time_dt = datetime.now(timezone.utc)
+        
+        for tx in status_transitions:
+            to_status = tx["to"]
+            dt = tx["datetime"]
+            if not dt:
+                continue
+            
+            if last_time and last_status:
+                duration = max(0.0, (dt - last_time).total_seconds())
+                is_blocked = (last_status.upper() in waiting_states) or (last_status.upper() == "OPEN" and issue_type == BUG_TYPE)
+                if is_blocked:
+                    status_durations[last_status] = status_durations.get(last_status, 0) + duration
+                    total_blocked_seconds += duration
+                    hits_for_issue.add(last_status)
+                elif last_status.upper() == "IN PROGRESS":
+                    total_active_seconds += duration
+                    
+            last_status = to_status
+            last_time = dt
+            
+        if last_status and not is_done(last_status) and last_time:
+            duration = max(0.0, (current_time_dt - last_time).total_seconds())
+            is_blocked = (last_status.upper() in waiting_states) or (last_status.upper() == "OPEN" and issue_type == BUG_TYPE)
+            if is_blocked:
+                status_durations[last_status] = status_durations.get(last_status, 0) + duration
+                total_blocked_seconds += duration
+                hits_for_issue.add(last_status)
+            elif last_status.upper() == "IN PROGRESS":
+                total_active_seconds += duration
+
+        for s in hits_for_issue:
+            status_hits[s] = status_hits.get(s, 0) + 1
+
+    total_execution_seconds = total_active_seconds + total_blocked_seconds
+    blocked_ratio_pct = (total_blocked_seconds / total_execution_seconds * 100.0) if total_execution_seconds > 0 else 0.0
+    
+    sorted_bottlenecks = sorted(status_durations.items(), key=lambda x: x[1], reverse=True)
+    top_bottlenecks = []
+    
+    for st_name, seconds in sorted_bottlenecks[:3]:
+        pct = (seconds / total_blocked_seconds * 100.0) if total_blocked_seconds > 0 else 0.0
+        top_bottlenecks.append({
+            "name": st_name,
+            "pct": pct,
+            "days": seconds / 86400.0
+        })
+        
+    worst_bottleneck_name = None
+    worst_bottleneck_days = 0.0
+    if sorted_bottlenecks:
+        worst_name = sorted_bottlenecks[0][0]
+        worst_bottleneck_name = worst_name
+        hits = status_hits.get(worst_name, 1)
+        worst_bottleneck_days = (sorted_bottlenecks[0][1] / 86400.0) / hits if hits > 0 else 0.0
+        
+    return {
+        "blocked_ratio_pct": blocked_ratio_pct,
+        "top_bottlenecks": top_bottlenecks,
+        "worst_bottleneck_name": worst_bottleneck_name,
+        "worst_bottleneck_days": worst_bottleneck_days
+    }
+
+
 def calc_dev_progress_days(changelog: list[dict]) -> int:
     """
     Development duration:
@@ -1063,6 +1274,18 @@ def _activity_date_label(target_date) -> str:
 def _recent_activity_dates(days: int = 7) -> list:
     today_local = datetime.now(LOCAL_TZ).date()
     return [today_local - timedelta(days=offset) for offset in range(max(1, days))]
+
+
+def _sprint_activity_dates(sprint_start_str: str, fallback_days: int = 7) -> list:
+    today_local = datetime.now(LOCAL_TZ).date()
+    sprint_start_dt = _parse_date_str(sprint_start_str)
+    if not sprint_start_dt:
+        return _recent_activity_dates(fallback_days)
+    sprint_start_local = sprint_start_dt.astimezone(LOCAL_TZ).date()
+    if sprint_start_local > today_local:
+        return _recent_activity_dates(fallback_days)
+    total_days = max(1, (today_local - sprint_start_local).days + 1)
+    return [today_local - timedelta(days=offset) for offset in range(total_days)]
 
 
 # ——— BURNDOWN ————————————————————————————————————————————————————————————————
@@ -1563,6 +1786,7 @@ def generate_ai_insights(report: dict) -> dict | None:
 def build_developer_activity(
     issues: list,
     sprint_start_str: str,
+    target_dates: list | None = None,
     allowed_qa_names: set[str] | None = None,
     allowed_dev_names: set[str] | None = None,
 ) -> tuple[dict[str, list[dict]], dict[str, list[dict]]]:
@@ -1573,7 +1797,7 @@ def build_developer_activity(
     """
     qa_filter = allowed_qa_names or set()
     dev_filter = allowed_dev_names or set()
-    target_dates = _recent_activity_dates(7)
+    target_dates = target_dates or _sprint_activity_dates(sprint_start_str)
     date_keys = [_activity_date_key(target_date) for target_date in target_dates]
     dev_maps: dict[str, dict[str, dict]] = {date_key: {} for date_key in date_keys}
     qa_items_by_date: dict[str, list[dict]] = {date_key: [] for date_key in date_keys}
@@ -1826,8 +2050,8 @@ def _build_planned_scope_metrics(issues: list, sprint_start_dt: datetime | None)
     }
 
 
-def build_today_bug_reports() -> dict[str, list[dict]]:
-    target_dates = _recent_activity_dates(7)
+def build_today_bug_reports(target_dates: list | None = None) -> dict[str, list[dict]]:
+    target_dates = target_dates or _recent_activity_dates(7)
     date_keys = [_activity_date_key(target_date) for target_date in target_dates]
     bug_issues = fetch_recent_created_bugs(days=len(target_dates))
     rows_by_date: dict[str, list[dict]] = {date_key: [] for date_key in date_keys}
@@ -2007,7 +2231,7 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         if _normalize_person_name(str(name))
     }
 
-    activity_dates = _recent_activity_dates(7)
+    activity_dates = _sprint_activity_dates(ss.start_str)
     activity_date_options = [
         {"key": _activity_date_key(target_date), "label": _activity_date_label(target_date)}
         for target_date in activity_dates
@@ -2016,10 +2240,14 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     dev_activity, qa_activity = build_developer_activity(
         activity_issues,
         ss.start_str,
+        target_dates=activity_dates,
         allowed_qa_names=qa_name_filter,
         allowed_dev_names=dev_name_filter,
     )
-    today_bug_reports = build_today_bug_reports()
+    today_bug_reports = build_today_bug_reports(activity_dates)
+
+    cycle_time_medians = calc_cycle_time_median_per_type(issues)
+    bottlenecks = calc_status_bottlenecks(issues)
 
     ai_insights = generate_ai_insights({
         "sprint_name": ss.name, "health_score": health, "health_label": label,
@@ -2085,6 +2313,8 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
         "dev_activity": dev_activity,
         "qa_activity":  qa_activity,
         "today_bug_reports": today_bug_reports,
+        "cycle_time_medians": cycle_time_medians,
+        "bottlenecks": bottlenecks,
         "activity_date_options": activity_date_options,
         "bug_change_pct": bug_change_pct, "bug_change_arrow": bug_change_arrow,
         "current_avg_cycle_time": round(current_avg_ct, 1) if current_avg_ct is not None else None,
@@ -2411,8 +2641,86 @@ def _build_sprint_details_html(r: dict) -> str:
           </div>
           {_build_assignee_workload_panel(r.get('assignee_counts', {}), r.get('total', 0))}
         </div>
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Cycle Time (Median)</h3>
+            <span>"In Progress" &rarr; "Done"</span>
+          </div>
+          {_build_cycle_time_medians_panel_html(r.get('cycle_time_medians', {}))}
+        </div>
+        <div class="details-panel">
+          <div class="details-panel-head">
+            <h3>Blocked Time Ratio</h3>
+            <span>Where execution is getting stuck</span>
+          </div>
+          {_build_blocked_time_ratio_panel_html(r.get('bottlenecks', {}))}
+        </div>
       </div>
     </div>"""
+
+
+def _build_cycle_time_medians_panel_html(medians: dict) -> str:
+    if not medians:
+        return "<div style='color:#8ab4d9;font-size:13px;padding:20px'>No cycle times yet.</div>"
+    html = ""
+    max_median = max(medians.values()) if medians else 0.0
+    overall = round(sum(medians.values()) / len(medians), 1) if medians else 0.0
+    
+    html += f'<div class="details-big-metric" style="margin-bottom: 20px;">Overall Median: {overall} Days</div>'
+    html += '<div class="issue-type-list">'
+    
+    for t_name, days in sorted(medians.items(), key=lambda x: -x[1]):
+        icon, color = ALL_ISSUE_TYPES.get(t_name, DEFAULT_ISSUE_ICON)
+        pct = round((days / max_median) * 100) if max_median > 0 else 0
+        html += f"""
+        <div class="issue-type-row" style="grid-template-columns: minmax(0, 1.4fr) 42px 1fr;">
+          <div class="issue-type-name"><i style="background:{color}"></i>{escape(t_name)}</div>
+          <div class="issue-type-count">{round(days, 1)}d</div>
+          <div class="issue-type-track"><span style="width:{pct}%;background:{color}"></span></div>
+        </div>"""
+    html += '</div>'
+    return html
+
+
+def _build_blocked_time_ratio_panel_html(bottlenecks: dict) -> str:
+    if not bottlenecks:
+        return "<div style='color:#8ab4d9;font-size:13px;padding:20px'>No bottleneck data.</div>"
+    ratio_pct = bottlenecks.get("blocked_ratio_pct", 0.0)
+    top = bottlenecks.get("top_bottlenecks", [])
+    worst_name = bottlenecks.get("worst_bottleneck_name")
+    worst_days = bottlenecks.get("worst_bottleneck_days", 0.0)
+    
+    circumference = 263.89
+    dash = (ratio_pct / 100.0) * circumference
+    dash_array = f"{dash} {circumference}"
+    
+    legend_html = ""
+    colors = ["#fbbf24", "#ff4757", "#a78bfa"]
+    for i, t in enumerate(top):
+        c = colors[i % len(colors)]
+        legend_html += f'<div><i style="background:{c}"></i>{escape(t["name"])} <span style="color:#8ab4d9; font-size: 11px;">({round(t["pct"])}%)</span></div>'
+        
+    bottleneck_html = ""
+    if worst_name:
+        bottleneck_html = f"""
+        <div style="margin-top: 18px; font-size: 12px; line-height: 1.5; color: #8ab4d9; background: rgba(255,255,255,.03); padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(26,107,255,.12);">
+          <strong style="color:#e0eaff;">Top Bottleneck:</strong> Tickets sit longest in <em style="color:#fbbf24;">"{escape(worst_name)}"</em> status, costing an average of {round(worst_days, 1)} days per blocked issue.
+        </div>"""
+        
+    return f"""
+    <div class="details-progress-layout" style="margin-top: 14px;">
+      <svg viewBox="0 0 120 120" class="details-donut" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="60" cy="60" r="42" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="14" />
+        <circle cx="60" cy="60" r="42" fill="none" stroke="#fbbf24" stroke-width="14" stroke-linecap="round" stroke-dasharray="{dash_array}" transform="rotate(-90 60 60)" />
+        <circle cx="60" cy="60" r="30" fill="#101d34" />
+        <text x="60" y="56" text-anchor="middle" class="details-donut-value" style="font-size:15px;">{round(ratio_pct, 1)}%</text>
+        <text x="60" y="69" text-anchor="middle" class="details-donut-label" style="font-size:7.5px;">Blocked</text>
+      </svg>
+      <div class="details-legend">
+        {legend_html}
+      </div>
+    </div>
+    {bottleneck_html}"""
 
 
 def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
