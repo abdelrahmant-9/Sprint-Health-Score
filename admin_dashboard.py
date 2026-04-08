@@ -562,6 +562,7 @@ class AdminHandler(BaseHTTPRequestHandler):
             self.send_header("Location", "/login")
             self.send_header("Set-Cookie", "session_id=; Max-Age=0; Path=/")
             self.end_headers()
+            return
 
     def do_POST(self):
         l = int(self.headers.get("Content-Length", 0))
@@ -585,17 +586,21 @@ class AdminHandler(BaseHTTPRequestHandler):
             sprint_health.save_metrics_config(_build_config_from_form(form))
             sprint_health.reload_metrics_config()
             self._redirect("/admin?saved=1")
+            return
         elif p == "/reset" and u["role"] in ["admin", "editor"]:
             sprint_health.save_metrics_config(sprint_health.DEFAULT_METRICS_CONFIG)
             sprint_health.reload_metrics_config()
             self._redirect("/admin?reset=1")
+            return
         elif p == "/users/add" and u["role"] == "admin":
             nu, np, nr = form.get("new_username", [""])[0], form.get("new_password", [""])[0], form.get("new_role", ["viewer"])[0]
             if auth.add_user(nu, np, nr): self._send_html(_users_html(u, "Added."))
             else: self._send_html(_users_html(u, error="Exists."))
+            return
         elif p == "/users/delete" and u["role"] == "admin":
             du = form.get("username", [""])[0]
             if auth.delete_user(du): self._send_html(_users_html(u, "Deleted."))
+            return
         else: self.send_error(404)
 
 
