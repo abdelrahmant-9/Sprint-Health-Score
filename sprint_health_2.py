@@ -31,12 +31,12 @@ if hasattr(sys.stderr, "reconfigure"):
 
 #  —  —  —  CONFIG  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  — 
 
-JIRA_BASE_URL   = os.getenv("JIRA_BASE_URL", "https://lumofyinc.atlassian.net")
-JIRA_EMAIL      = os.getenv("JIRA_EMAIL")
-JIRA_API_TOKEN  = os.getenv("JIRA_API_TOKEN")
+JIRA_BASE_URL   = os.getenv("JIRA_SERVER") or os.getenv("JIRA_BASE_URL", "https://lumofyinc.atlassian.net")
+JIRA_EMAIL      = os.getenv("JIRA_USER") or os.getenv("JIRA_EMAIL")
+JIRA_API_TOKEN  = os.getenv("JIRA_TOKEN") or os.getenv("JIRA_API_TOKEN")
 JIRA_PROJECT    = os.getenv("JIRA_PROJECT_KEY", "PM")
 JIRA_BOARD_ID   = int(os.getenv("JIRA_BOARD_ID")) if os.getenv("JIRA_BOARD_ID") else None
-SLACK_TOKEN     = os.getenv("SLACK_BOT_TOKEN")
+SLACK_TOKEN     = os.getenv("SLACK_TOKEN") or os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL   = os.getenv("SLACK_CHANNEL_ID")
 REPORT_SITE_URL = os.getenv("REPORT_SITE_URL", "").strip()
 REPORT_PDF_URL  = os.getenv("REPORT_PDF_URL", "").strip()
@@ -2747,7 +2747,21 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = None) -> None:
     try:
         run(dry_run=True, export_html=True, no_slack=True)
     except Exception as e:
-        print(f"[watch] Initial refresh error: {e}")
+        print(f"[watch] Initial refresh data fetch failed (potentially creds): {e}")
+        # At least try to write something with placeholder data to trigger template update
+        try:
+            from dashboard_ui import write_html_report
+            dummy_report = {
+                "sprint_name": "Connecting to Jira...", "sprint_start": "", "sprint_end": "",
+                "health_score": 0, "health_color": "red", "health_label": "Unauthorized/Error",
+                "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "sprint_state": "active", "weights": {"commitment":1,"carryover":1,"cycle_time":1,"bug_ratio":1},
+                "signals": {}, "formula_breakdown": {}, "new_bugs": 0, "carried_bugs": 0, "total": 0, "bugs": 0,
+                "status_counts": {}, "blocked_count": 0
+            }
+            write_html_report(dummy_report, str(DATA_DIR / "sprint_health_report.html"))
+            print("[watch] Dashboard placeholder written with new template.")
+        except: pass
 
     print(f"[watch] Live mode enabled. Poll interval: {interval_seconds}s")
     print(f"[watch] Output: {html_output_path}")
