@@ -35,7 +35,14 @@ JIRA_BASE_URL   = os.getenv("JIRA_SERVER") or os.getenv("JIRA_BASE_URL", "https:
 JIRA_EMAIL      = os.getenv("JIRA_USER") or os.getenv("JIRA_EMAIL")
 JIRA_API_TOKEN  = os.getenv("JIRA_TOKEN") or os.getenv("JIRA_API_TOKEN")
 JIRA_PROJECT    = os.getenv("JIRA_PROJECT_KEY", "PM")
-JIRA_BOARD_ID   = int(os.getenv("JIRA_BOARD_ID")) if os.getenv("JIRA_BOARD_ID") else None
+
+# Defensive Board ID parsing for Railway builds
+_raw_board_id = os.getenv("JIRA_BOARD_ID", "").strip()
+try:
+    JIRA_BOARD_ID = int(_raw_board_id) if _raw_board_id else None
+except Exception:
+    JIRA_BOARD_ID = None
+
 SLACK_TOKEN     = os.getenv("SLACK_TOKEN") or os.getenv("SLACK_BOT_TOKEN")
 SLACK_CHANNEL   = os.getenv("SLACK_CHANNEL_ID")
 REPORT_SITE_URL = os.getenv("REPORT_SITE_URL", "").strip()
