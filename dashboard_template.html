@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sprint Health Dashboard - {{SPRINT_NAME}}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+{{DASHBOARD_CSS}}
+</style>
+</head>
+<body>
+
+<div class="fab-wrapper">
+  <a href="http://127.0.0.1:8765/admin" target="_blank" class="fab-dashboard" title="Open Admin Dashboard">
+    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+      <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+    </svg>
+  </a>
+  <div class="fab-tooltip">Admin Dashboard</div>
+</div>
+
+<canvas id="reportParticles" class="report-particles" aria-hidden="true"></canvas>
+
+<div class="container">
+  <div class="header">
+    <div class="lumofy-logo">
+      <div class="logo-mark"></div>
+      <div class="logo-text">Lumo<span>fy</span></div>
+    </div>
+    <h1>Sprint Health Score</h1>
+    <p>{{DATE_RANGE}} &nbsp;|&nbsp; Day {{ELAPSED_DAYS}}/{{TOTAL_DAYS}} ({{PROGRESS_PCT}}% through sprint)</p>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:{{PROGRESS_PCT}}%"></div></div>
+    <div class="header-actions">
+      <button type="button" class="theme-toggle" id="themeToggle" aria-label="Toggle color theme">
+        <span class="theme-toggle-icon" id="themeToggleIcon">DM</span>
+        <span id="themeToggleText">Theme</span>
+      </button>
+      <a href="http://127.0.0.1:8765/admin" target="_blank" class="admin-cta" title="Open Admin Dashboard">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
+        </svg>
+        <span>Open Admin Dashboard</span>
+      </a>
+    </div>
+  </div>
+
+  {{STATE_BANNER}}
+  {{NO_DATA_BANNER}}
+
+  <div class="card score-wrap">
+    <div class="score-circle {{SCORE_CLASS}}">
+      <div class="score-number {{SCORE_CLASS}}">{{SCORE}}</div>
+      <div class="score-label">/100</div>
+    </div>
+    <div class="health-status">{{HEALTH_LABEL}}</div>
+    <div class="health-sub">{{SPRINT_NAME}} &nbsp;|&nbsp; {{GENERATED_AT}}</div>
+  </div>
+
+  <div class="section-title">Health Signals</div>
+  {{HEALTH_SIGNALS_FORMULA_HTML}}
+  <div class="signals-grid">{{SIGNALS_HTML}}</div>
+
+  <div class="section-title">Bug Breakdown</div>
+  <div class="card">{{BUG_CARDS_HTML}}</div>
+
+  <div class="section-title">Total Scope Burndown</div>
+  <div class="card">
+    {{BURNDOWN_STATS}}
+    <div class="burndown-layout">
+      <div class="burndown-chart-panel">
+        {{BURNDOWN_SVG}}
+        {{BURNDOWN_BREAKDOWN_HTML}}
+      </div>
+      <div class="burndown-side-panel">
+        {{BURNDOWN_EXPLAINER_HTML}}
+        {{BURNDOWN_TAKEAWAYS_HTML}}
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title">Developer Activity</div>
+  <div class="card">
+    <div class="dev-grid">
+      {{DEV_ACTIVITY_HTML}}
+    </div>
+  </div>
+
+  <div class="section-title">QA Activity</div>
+  <div class="card">
+    {{QA_ACTIVITY_HTML}}
+  </div>
+
+  <div class="section-title">Bug & Enhancement Reports</div>
+  <div class="card">
+    {{TODAY_BUG_REPORTS_HTML}}
+  </div>
+
+  {{AI_HTML}}
+
+  <div class="section-title">Weighted Formula</div>
+  <div class="card">
+    <div class="formula-breakdown">
+      {{FORMULA_BREAKDOWN_HTML}}
+    </div>
+    <div class="formula-final">
+      {{FORMULA_FINAL_TEXT}}
+      <div class="value">= {{SCORE}}</div>
+    </div>
+  </div>
+
+  {{SPRINT_DETAILS_HTML}}
+
+  <div class="section-title">Score Interpretation</div>
+  <div class="card">
+    <div class="interp-grid">
+      <div class="interp-item green"><div class="interp-range green">85-100</div><div class="interp-status">Predictable Sprint</div><div class="interp-desc">Excellent execution and stability</div></div>
+      <div class="interp-item yellow"><div class="interp-range yellow">70-84</div><div class="interp-status">Some Instability</div><div class="interp-desc">Good progress, address minor risks</div></div>
+      <div class="interp-item orange"><div class="interp-range orange">50-69</div><div class="interp-status">Execution Issues</div><div class="interp-desc">Needs attention on delivery</div></div>
+      <div class="interp-item red"><div class="interp-range red">&lt;50</div><div class="interp-status">Sprint Breakdown</div><div class="interp-desc">Critical issues, act now</div></div>
+    </div>
+  </div>
+
+  <div class="footer">Lumofy QA | Sprint Health Dashboard | {{GENERATED_AT}}</div>
+</div>
+
+<script>
+{{DASHBOARD_JS}}
+</script>
+</body>
+</html>
