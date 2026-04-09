@@ -2757,7 +2757,6 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = None) -> None:
         print(f"[watch] Initial refresh data fetch failed (potentially creds): {e}")
         # At least try to write something with placeholder data to trigger template update
         try:
-            from dashboard_ui import write_html_report
             dummy_report = {
                 "sprint_name": "Connecting to Jira...", "sprint_start": "", "sprint_end": "",
                 "health_score": 0, "health_color": "red", "health_label": "Unauthorized/Error",
