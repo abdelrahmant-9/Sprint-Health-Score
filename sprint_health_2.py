@@ -45,12 +45,15 @@ OPENAI_MODEL    = os.getenv("OPENAI_MODEL", "gpt-4o").strip() or "gpt-4o"
 OPENAI_TIMEOUT  = int(os.getenv("OPENAI_TIMEOUT_SECONDS", "30"))
 JIRA_REQUEST_RETRIES = max(1, int(os.getenv("JIRA_REQUEST_RETRIES", "4")))
 JIRA_RETRY_DELAY_SECONDS = max(1.0, float(os.getenv("JIRA_RETRY_DELAY_SECONDS", "2")))
-METRICS_CONFIG_PATH = Path(
-    os.getenv("METRICS_CONFIG_PATH", str(Path(__file__).resolve().with_name("health_metrics_config.json")))
-)
-ISSUE_CACHE_PATH = Path(
-    os.getenv("ISSUE_CACHE_PATH", str(Path(__file__).resolve().with_name("issue_history_cache.json")))
-)
+#  —  —  PERSISTENCE & DATA DIR  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  —  — 
+# For Railway/Docker with Volumes, use /app/data. Otherwise, fallback to local.
+DATA_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__).resolve().parent
+
+METRICS_CONFIG_PATH = Path(os.getenv("METRICS_CONFIG_PATH", str(DATA_DIR / "health_metrics_config.json")))
+ISSUE_CACHE_PATH    = Path(os.getenv("ISSUE_CACHE_PATH",    str(DATA_DIR / "issue_history_cache.json")))
+
+# Global state for background thread communication
+FORCE_REFRESH_REQUESTED = False
 LOCAL_TIMEZONE = os.getenv("REPORT_TIMEZONE", "Africa/Cairo").strip() or "Africa/Cairo"
 try:
     import pytz
@@ -2738,11 +2741,18 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health
 
     while True:
         started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        global FORCE_REFRESH_REQUESTED
+        
         try:
             issues, sprint_info = fetch_sprint_issues()
             current_fp = _issues_fingerprint(issues, sprint_info)
 
-            if current_fp != last_fp:
+            # Refresh if issues changed OR if a manual refresh was requested
+            if current_fp != last_fp or FORCE_REFRESH_REQUESTED:
+                if FORCE_REFRESH_REQUESTED:
+                    print(f"[watch:{started_at}] Manual refresh triggered via Admin UI...")
+                    FORCE_REFRESH_REQUESTED = False # Reset trigger
+
                 prev_sprints = fetch_last_n_sprints(n=3)
                 report = build_report(issues, sprint_info, prev_sprints)
                 write_html_report(report, output_path=html_output_path)
@@ -2758,7 +2768,11 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health
         except Exception as e:
             print(f"[watch:{started_at}] Error while refreshing dashboard: {e}")
 
-        time.sleep(interval_seconds)
+        # Wait for the next poll, but check frequently for the FORCE_REFRESH_REQUESTED flag
+        for _ in range(interval_seconds):
+            if FORCE_REFRESH_REQUESTED:
+                break
+            time.sleep(1)
 
 
 def _is_admin_dashboard_running(host: str, port: int, timeout_seconds: float = 0.6) -> bool:

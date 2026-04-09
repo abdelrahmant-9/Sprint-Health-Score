@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import uuid
+import threading
 from datetime import datetime, timedelta
 from html import escape
 from http import cookies
@@ -22,8 +23,8 @@ HOST = os.getenv("ADMIN_DASHBOARD_HOST", DEFAULT_HOST).strip() or DEFAULT_HOST
 # Railway sets PORT env var, default to 8765 for local
 PORT = int(os.getenv("PORT", os.getenv("ADMIN_DASHBOARD_PORT", "8765")))
 
-# Make AUTH_FILE path relative
-AUTH_FILE = Path(__file__).parent / "auth_users.json"
+# Use the persistent DATA_DIR from the core logic script
+AUTH_FILE = sprint_health.DATA_DIR / "auth_users.json"
 SESSION_EXPIRY_DAYS = 30
 
 
@@ -591,11 +592,15 @@ class AdminHandler(BaseHTTPRequestHandler):
         if p == "/save" and u["role"] in ["admin", "editor"]:
             sprint_health.save_metrics_config(_build_config_from_form(form))
             sprint_health.reload_metrics_config()
+            # Trigger immediate background refresh
+            sprint_health.FORCE_REFRESH_REQUESTED = True
             self._redirect("/admin?saved=1")
             return
         elif p == "/reset" and u["role"] in ["admin", "editor"]:
             sprint_health.save_metrics_config(sprint_health.DEFAULT_METRICS_CONFIG)
             sprint_health.reload_metrics_config()
+            # Trigger immediate background refresh
+            sprint_health.FORCE_REFRESH_REQUESTED = True
             self._redirect("/admin?reset=1")
             return
         elif p == "/users/add" and u["role"] == "admin":
@@ -611,8 +616,17 @@ class AdminHandler(BaseHTTPRequestHandler):
 
 
 def run_dashboard():
+    # Start the background reporter thread
+    bg_thread = threading.Thread(
+        target=sprint_health.run_watch,
+        kwargs={"interval_seconds": 600}, # Check every 10 mins normally
+        daemon=True
+    )
+    bg_thread.start()
+    
     print(f"[admin] Server ready at http://{HOST}:{PORT}")
     print(f"[admin] Environment: {os.getenv('RAILWAY_ENVIRONMENT', 'local')}")
+    print(f"[admin] Persistence Dir: {sprint_health.DATA_DIR}")
     ThreadingHTTPServer((HOST, PORT), AdminHandler).serve_forever()
 
 
