@@ -2673,9 +2673,12 @@ def run_scheduled(hour=9, minute=0) -> None:
 
 def run_every_hours(
     hours: int = 1,
-    html_output_path: str = "sprint_health_report.html",
+    html_output_path: str = None,
     export_pdf: bool = False,
 ) -> None:
+    if html_output_path is None:
+        html_output_path = str(DATA_DIR / "sprint_health_report.html")
+
     hours = max(1, int(hours))
     ensure_admin_dashboard_running()
 
@@ -2738,6 +2741,14 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = None) -> None:
         
     interval_seconds = max(10, int(interval_seconds))
     ensure_admin_dashboard_running()
+    
+    # Force one immediate refresh on startup to ensure latest template is used
+    print(f"[watch] Initial startup refresh...")
+    try:
+        run(dry_run=True, export_html=True, no_slack=True)
+    except Exception as e:
+        print(f"[watch] Initial refresh error: {e}")
+
     print(f"[watch] Live mode enabled. Poll interval: {interval_seconds}s")
     print(f"[watch] Output: {html_output_path}")
 
