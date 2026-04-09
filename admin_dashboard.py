@@ -34,12 +34,35 @@ class AuthManager:
         self.data = self._load()
 
     def _load(self):
-        if not self.file_path.exists():
-            return {"users": {}, "sessions": {}}
         try:
-            return json.loads(self.file_path.read_text(encoding="utf-8"))
+            data = json.loads(self.file_path.read_text(encoding="utf-8"))
+            # Bootstrap: If no users exist, create a default admin
+            if not data.get("users"):
+                data["users"] = {
+                    "admin@lumofy.com": {
+                        "password": self.hash_password("admin1234"),
+                        "role": "admin",
+                        "created_at": datetime.now().isoformat()
+                    }
+                }
+                self.file_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            return data
         except:
-            return {"users": {}, "sessions": {}}
+            # Bootstrap for missing file
+            initial_data = {
+                "users": {
+                    "admin@lumofy.com": {
+                        "password": self.hash_password("admin1234"),
+                        "role": "admin",
+                        "created_at": datetime.now().isoformat()
+                    }
+                },
+                "sessions": {}
+            }
+            if not self.file_path.parent.exists():
+                self.file_path.parent.mkdir(parents=True, exist_ok=True)
+            self.file_path.write_text(json.dumps(initial_data, indent=2), encoding="utf-8")
+            return initial_data
 
     def save(self):
         self.file_path.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
