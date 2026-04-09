@@ -417,7 +417,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       <h2 style="font-size:18px; margin-bottom:20px;">Lumofy Platform</h2>
       <nav>
         <ul class="nav-list">
-          <li class="nav-item {'active' if active_path == '/' else ''}"><a href="/">Main Dashboard</a></li>
+          <li class="nav-item {'active' if active_path == '/' else ''}"><a href="/">Main Report</a></li>
           <li class="nav-item {'active' if active_path == '/admin' else ''}" {admin_only}><a href="/admin">Settings</a></li>
           <li class="nav-item {'active' if active_path == '/users' else ''}" {user_mgmt_only}><a href="/users">User Management</a></li>
           <li class="nav-item"><a href="/logout" style="color:var(--error-main)">Logout</a></li>
@@ -575,8 +575,15 @@ class AdminHandler(BaseHTTPRequestHandler):
         if p.path == "/login": return self._send_html(_login_html())
         if not u: return self._redirect(f"/login?next={escape(p.path)}")
         if p.path == "/":
+            iframe_html = """
+            <div style="height: calc(100vh - 120px); width: 100%; overflow: hidden; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); background: #f8fafc;">
+                <iframe src="/raw-report?embedded=1" style="width: 100%; height: 100%; border: none;"></iframe>
+            </div>
+            """
+            return self._send_html(_layout_html(iframe_html, title="Main Report", user_role=u["role"], active_path="/"))
+
+        if p.path == "/raw-report":
             rf = sprint_health.DATA_DIR / "sprint_health_report.html"
-            # Fallback to local if not found in volume yet
             if not rf.exists():
                 rf = Path(__file__).parent / "sprint_health_report.html"
             return self._send_html(rf.read_text(encoding="utf-8") if rf.exists() else "Report not found.")

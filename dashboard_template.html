@@ -126,5 +126,20 @@
 <script>
 {{DASHBOARD_JS}}
 </script>
+  <!-- Initialization for Unified Console -->
+  <script>
+    (function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('embedded') === '1') {
+        document.body.classList.add('is-embedded');
+        // Hide specific elements
+        const elementsToHide = [
+          document.querySelector('.fab-wrapper'),
+          document.querySelector('.admin-cta')
+        ];
+        elementsToHide.forEach(el => { if (el) el.style.display = 'none'; });
+      }
+    })();
+  </script>
 </body>
 </html>
