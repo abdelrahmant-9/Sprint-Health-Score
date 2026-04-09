@@ -52,7 +52,8 @@ DATA_DIR = Path("/app/data") if Path("/app/data").exists() else Path(__file__).r
 METRICS_CONFIG_PATH = Path(os.getenv("METRICS_CONFIG_PATH", str(DATA_DIR / "health_metrics_config.json")))
 ISSUE_CACHE_PATH    = Path(os.getenv("ISSUE_CACHE_PATH",    str(DATA_DIR / "issue_history_cache.json")))
 
-# Global state for background thread communication
+# Global state for background thread communication (now also uses a file for multi-process safety)
+TRIGGER_FILE = DATA_DIR / "refresh.trigger"
 FORCE_REFRESH_REQUESTED = False
 LOCAL_TIMEZONE = os.getenv("REPORT_TIMEZONE", "Africa/Cairo").strip() or "Africa/Cairo"
 try:
@@ -2728,14 +2729,17 @@ def _issues_fingerprint(issues: list, sprint_info: dict) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
-def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health_report.html") -> None:
+def run_watch(interval_seconds: int = 30, html_output_path: str = None) -> None:
     """
     Poll Jira and refresh the HTML dashboard whenever sprint issues change.
     """
+    if html_output_path is None:
+        html_output_path = str(DATA_DIR / "sprint_health_report.html")
+        
     interval_seconds = max(10, int(interval_seconds))
     ensure_admin_dashboard_running()
     print(f"[watch] Live mode enabled. Poll interval: {interval_seconds}s")
-    print("[watch] Press Ctrl+C to stop.")
+    print(f"[watch] Output: {html_output_path}")
 
     last_fp = None
 
@@ -2743,6 +2747,10 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health
         started_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         global FORCE_REFRESH_REQUESTED
         
+        # Check both the global flag AND the trigger file
+        if TRIGGER_FILE.exists():
+            FORCE_REFRESH_REQUESTED = True
+
         try:
             issues, sprint_info = fetch_sprint_issues()
             current_fp = _issues_fingerprint(issues, sprint_info)
@@ -2750,8 +2758,11 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health
             # Refresh if issues changed OR if a manual refresh was requested
             if current_fp != last_fp or FORCE_REFRESH_REQUESTED:
                 if FORCE_REFRESH_REQUESTED:
-                    print(f"[watch:{started_at}] Manual refresh triggered via Admin UI...")
-                    FORCE_REFRESH_REQUESTED = False # Reset trigger
+                    print(f"[watch:{started_at}] Manual refresh triggered (Admin UI or Trigger File)...")
+                    FORCE_REFRESH_REQUESTED = False # Reset flag
+                    if TRIGGER_FILE.exists():
+                        try: TRIGGER_FILE.unlink() # Delete trigger file
+                        except: pass
 
                 prev_sprints = fetch_last_n_sprints(n=3)
                 report = build_report(issues, sprint_info, prev_sprints)
@@ -2768,9 +2779,9 @@ def run_watch(interval_seconds: int = 30, html_output_path: str = "sprint_health
         except Exception as e:
             print(f"[watch:{started_at}] Error while refreshing dashboard: {e}")
 
-        # Wait for the next poll, but check frequently for the FORCE_REFRESH_REQUESTED flag
+        # Wait for the next poll, but check frequently for the FORCE_REFRESH_REQUESTED/TRIGGER_FILE
         for _ in range(interval_seconds):
-            if FORCE_REFRESH_REQUESTED:
+            if FORCE_REFRESH_REQUESTED or TRIGGER_FILE.exists():
                 break
             time.sleep(1)
 

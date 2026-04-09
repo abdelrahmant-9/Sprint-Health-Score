@@ -575,7 +575,10 @@ class AdminHandler(BaseHTTPRequestHandler):
         if p.path == "/login": return self._send_html(_login_html())
         if not u: return self._redirect(f"/login?next={escape(p.path)}")
         if p.path == "/":
-            rf = Path(__file__).parent / "sprint_health_report.html"
+            rf = sprint_health.DATA_DIR / "sprint_health_report.html"
+            # Fallback to local if not found in volume yet
+            if not rf.exists():
+                rf = Path(__file__).parent / "sprint_health_report.html"
             return self._send_html(rf.read_text(encoding="utf-8") if rf.exists() else "Report not found.")
         if p.path == "/admin":
             if u["role"] == "viewer": return self._send_html("Access Denied", 403)
@@ -615,15 +618,19 @@ class AdminHandler(BaseHTTPRequestHandler):
         if p == "/save" and u["role"] in ["admin", "editor"]:
             sprint_health.save_metrics_config(_build_config_from_form(form))
             sprint_health.reload_metrics_config()
-            # Trigger immediate background refresh
+            # Trigger immediate background refresh via global flag AND trigger file
             sprint_health.FORCE_REFRESH_REQUESTED = True
+            try: sprint_health.TRIGGER_FILE.touch()
+            except: pass
             self._redirect("/admin?saved=1")
             return
         elif p == "/reset" and u["role"] in ["admin", "editor"]:
             sprint_health.save_metrics_config(sprint_health.DEFAULT_METRICS_CONFIG)
             sprint_health.reload_metrics_config()
-            # Trigger immediate background refresh
+            # Trigger immediate background refresh via global flag AND trigger file
             sprint_health.FORCE_REFRESH_REQUESTED = True
+            try: sprint_health.TRIGGER_FILE.touch()
+            except: pass
             self._redirect("/admin?reset=1")
             return
         elif p == "/users/add" and u["role"] == "admin":
