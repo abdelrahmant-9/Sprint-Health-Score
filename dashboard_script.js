@@ -13,7 +13,7 @@
   }
 
   const savedTheme = localStorage.getItem(storageKey);
-  const preferredTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  const preferredTheme = savedTheme || 'light';
   applyTheme(preferredTheme);
 
   themeToggle?.addEventListener('click', () => {
