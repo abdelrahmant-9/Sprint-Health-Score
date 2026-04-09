@@ -17,7 +17,7 @@ body.is-embedded .container { max-width: 100% !important; border-radius: 0 !impo
       if (new URLSearchParams(window.location.search).get('embedded') === '1') {
         document.documentElement.classList.add('is-embedded');
         const style = document.createElement('style');
-        style.innerHTML = '.fab-wrapper, .admin-cta { display: none !important; } body { padding: 0 !important; }';
+        style.innerHTML = '.fab-wrapper, .admin-cta, .theme-toggle { display: none !important; } body { padding: 0 !important; }';
         document.head.appendChild(style);
       }
     })();
