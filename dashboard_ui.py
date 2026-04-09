@@ -4,6 +4,66 @@ from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 from pathlib import Path
 
+class SprintState:
+    def __init__(self, sprint: dict | None):
+        self.sprint    = sprint or {}
+        self.state     = self._detect()
+        self.name      = self.sprint.get('name', 'Unknown Sprint')
+        self.start_str = _parse_sprint_date(self.sprint, 'startDate', 'start_date')
+        self.end_str   = _parse_sprint_date(self.sprint, 'endDate', 'end_date', 'completeDate')
+
+    def _detect(self) -> str:
+        if not self.sprint: return 'empty'
+        raw = (self.sprint.get('state') or '').lower()
+        if raw == 'active':
+            end_str = _parse_sprint_date(self.sprint, 'endDate', 'end_date')
+            if end_str:
+                end_dt = _parse_date_str(end_str)
+                if end_dt and datetime.now(timezone.utc).date() > end_dt.date():
+                    return 'extended'
+            return 'active'
+        if raw == 'closed': return 'closed'
+        return 'active'
+
+    @property
+    def is_active(self): return self.state in ('active', 'extended')
+
+    @property
+    def elapsed_days(self) -> int | None:
+        start = _parse_date_str(self.start_str)
+        if not start: return None
+        return max(0, (datetime.now(timezone.utc).date() - start.date()).days)
+
+    @property
+    def total_days(self) -> int | None:
+        start = _parse_date_str(self.start_str)
+        end   = _parse_date_str(self.end_str)
+        if not start or not end: return None
+        return max(1, (end.date() - start.date()).days)
+
+    @property
+    def sprint_progress_pct(self) -> float | None:
+        el, to = self.elapsed_days, self.total_days
+        if el is None or to is None: return None
+        return round(min(100.0, el / to * 100), 1)
+
+
+def _parse_date_str(value: str) -> datetime | None:
+    if not value: return None
+    try:
+        return datetime.fromisoformat(value.replace('Z', '+00:00')).replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _parse_sprint_date(sprint_info: dict, *keys: str) -> str:
+    for key in keys:
+        val = sprint_info.get(key)
+        if val: return str(val)[:10]
+    return ''
+
+
+
 # High-Fidelity UI Logic Restored from Main Branch
 
 def _format_decimal(value: float, places: int = 2) -> str:
@@ -4149,60 +4209,3 @@ def send_to_slack(message: str) -> None:
 
 # ΓÇöΓÇöΓÇö MAIN RUN ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
 
-class SprintState:
-    def __init__(self, sprint: dict | None):
-        self.sprint    = sprint or {}
-        self.state     = self._detect()
-        self.name      = self.sprint.get('name', 'Unknown Sprint')
-        self.start_str = _parse_sprint_date(self.sprint, 'startDate', 'start_date')
-        self.end_str   = _parse_sprint_date(self.sprint, 'endDate', 'end_date', 'completeDate')
-
-    def _detect(self) -> str:
-        if not self.sprint: return 'empty'
-        raw = (self.sprint.get('state') or '').lower()
-        if raw == 'active':
-            end_str = _parse_sprint_date(self.sprint, 'endDate', 'end_date')
-            if end_str:
-                end_dt = _parse_date_str(end_str)
-                if end_dt and datetime.now(timezone.utc).date() > end_dt.date():
-                    return 'extended'
-            return 'active'
-        if raw == 'closed': return 'closed'
-        return 'active'
-
-    @property
-    def is_active(self): return self.state in ('active', 'extended')
-
-    @property
-    def elapsed_days(self) -> int | None:
-        start = _parse_date_str(self.start_str)
-        if not start: return None
-        return max(0, (datetime.now(timezone.utc).date() - start.date()).days)
-
-    @property
-    def total_days(self) -> int | None:
-        start = _parse_date_str(self.start_str)
-        end   = _parse_date_str(self.end_str)
-        if not start or not end: return None
-        return max(1, (end.date() - start.date()).days)
-
-    @property
-    def sprint_progress_pct(self) -> float | None:
-        el, to = self.elapsed_days, self.total_days
-        if el is None or to is None: return None
-        return round(min(100.0, el / to * 100), 1)
-
-
-def _parse_date_str(value: str) -> datetime | None:
-    if not value: return None
-    try:
-        return datetime.fromisoformat(value.replace('Z', '+00:00')).replace(tzinfo=timezone.utc)
-    except Exception:
-        return None
-
-
-def _parse_sprint_date(sprint_info: dict, *keys: str) -> str:
-    for key in keys:
-        val = sprint_info.get(key)
-        if val: return str(val)[:10]
-    return ''
