@@ -68,6 +68,7 @@ def _parse_sprint_date(sprint_info: dict, *keys: str) -> str:
 
 def _format_decimal(value: float, places: int = 2) -> str:
     text = f"{value:.{places}f}"
+    return text
 
 def format_duration_hours(hours_value: float | int | None) -> str:
     if hours_value is None:
@@ -89,12 +90,12 @@ def format_duration_hours(hours_value: float | int | None) -> str:
 
 def format_slack_message(r: dict) -> str:
     score      = r["health_score"]
-    health_dot = "≡ƒƒó" if score >= 85 else "≡ƒƒí" if score >= 70 else "≡ƒƒá" if score >= 50 else "≡ƒö┤"
+    health_dot = "🟢" if score >= 85 else "🟡" if score >= 70 else "🟠" if score >= 50 else "🔴"
     filled     = round(score / 10)
-    bar        = "Γûê" * filled + "Γûæ" * (10 - filled)
+    bar        = "█" * filled + "░" * (10 - filled)
 
-    def sig_dot(s): return "≡ƒƒó" if s >= 85 else "≡ƒƒí" if s >= 70 else "≡ƒƒá" if s >= 50 else "≡ƒö┤"
-    def nd(k): return " _ΓÇö no data yet_" if r["signals"][k].get("no_data") else ""
+    def sig_dot(s): return "🟢" if s >= 85 else "🟡" if s >= 70 else "🟠" if s >= 50 else "🔴"
+    def nd(k): return " _— no data yet_" if r["signals"][k].get("no_data") else ""
 
     sigs    = r["signals"]
     fb      = r["formula_breakdown"]
@@ -105,13 +106,13 @@ def format_slack_message(r: dict) -> str:
         f"{sig_dot(sigs['carryover']['score'])}  *Carryover*   {sigs['carryover']['raw']}  ΓåÆ  *{sigs['carryover']['score']} pts*{nd('carryover')}\n"
         f"{sig_dot(sigs['cycle_time']['score'])}  *Cycle Time*  {sigs['cycle_time']['raw']}  ΓåÆ  *{sigs['cycle_time']['score']} pts*{nd('cycle_time')}\n"
         f"{sig_dot(sigs['bug_ratio']['score'])}  *Bug Ratio*   {sigs['bug_ratio']['raw']}  ΓåÆ  *{sigs['bug_ratio']['score']} pts*{nd('bug_ratio')}\n"
-        f"≡ƒÉ¢  *New Bugs*  {r['new_bugs']} created ({r['new_bugs_done']} resolved)   |   ≡ƒôª *Carried* {r['carried_bugs']}"
+        f"🐛  *New Bugs*  {r['new_bugs']} created ({r['new_bugs_done']} resolved)   |   📦 *Carried* {r['carried_bugs']}"
     )
 
     bd = r.get("burndown", {})
     bd_line = ""
     if bd:
-        track_icon = "Γ£à" if bd.get("on_track") else ("ΓÜá∩╕Å" if not bd.get("is_extended") else "≡ƒö┤")
+        track_icon = "✅" if bd.get("on_track") else ("⚠️" if not bd.get("is_extended") else "🔴")
         ext_note   = " _(sprint overran)_" if bd.get("is_extended") else ""
         bd_line    = (
             f"\n*Burndown*  Day {bd['elapsed_days']}/{bd['total_days']}  ┬╖  "
@@ -134,10 +135,10 @@ def format_slack_message(r: dict) -> str:
         f"  ΓÇó {k}: {v}" for k, v in sorted(r["status_counts"].items(), key=lambda x: -x[1])
     ) or "  ΓÇó No issues found"
 
-    no_data_note   = "\n> Γä╣∩╕Å _No issues yet ΓÇö neutral score of 70 used._\n" if r["no_data_signals"] else ""
+    no_data_note   = "\n> Γä╣∩╕Å _No issues yet — neutral score of 70 used._\n" if r["no_data_signals"] else ""
     state_banner   = ""
     if r["sprint_state"] == "extended":
-        state_banner = "\n> ΓÜá∩╕Å _Sprint passed end date ΓÇö not yet closed._\n"
+        state_banner = "\n> ⚠️ _Sprint passed end date — not yet closed._\n"
     elif r["sprint_state"] == "closed":
         state_banner = "\n> ≡ƒôï _Showing last closed sprint._\n"
 
@@ -156,14 +157,14 @@ def format_slack_message(r: dict) -> str:
     # Dev activity for Slack
     dev_lines = ""
     if dev_activity_for_slack:
-        dev_lines = f"\n*Developer Activity ΓÇö {selected_activity_label}*\n"
+        dev_lines = f"\n*Developer Activity — {selected_activity_label}*\n"
         for dev in dev_activity_for_slack:
             stale_count = sum(1 for i in dev["issues"] if i["is_stale"])
-            stale_note  = f" ΓÜá∩╕Å {stale_count} stale" if stale_count else ""
-            dev_lines  += f"  ≡ƒæñ *{dev['name']}* ΓÇö {len(dev['issues'])} issue(s){stale_note}\n"
+            stale_note  = f" ⚠️ {stale_count} stale" if stale_count else ""
+            dev_lines  += f"  ≡ƒæñ *{dev['name']}* — {len(dev['issues'])} issue(s){stale_note}\n"
             for iss in dev["issues"]:
                 icon, _ = ALL_ISSUE_TYPES.get(iss["type"], DEFAULT_ISSUE_ICON)
-                stale_tag  = " ≡ƒö┤ _stale_" if iss["is_stale"] else ""
+                stale_tag  = " 🔴 _stale_" if iss["is_stale"] else ""
                 active_tag = f" _(active {iss['active_days']}d)_" if iss["active_days"] > 1 else ""
                 rft_tag    = f" _(≡ƒòÉ {format_duration_hours(iss['time_in_rft'])} testing)_" if iss.get("time_in_rft", 0) > 0 else ""
                 dev_lines += f"    {icon} {iss['key']} ┬╖ {iss['status']}{active_tag}{rft_tag}{stale_tag}\n"
@@ -171,46 +172,46 @@ def format_slack_message(r: dict) -> str:
     # QA activity for Slack
     qa_lines = ""
     if qa_activity_for_slack:
-        qa_lines = f"\n*QA Activity ΓÇö {selected_activity_label}*\n"
+        qa_lines = f"\n*QA Activity — {selected_activity_label}*\n"
         for item in qa_activity_for_slack:
             icon, _ = ALL_ISSUE_TYPES.get(item["type"], DEFAULT_ISSUE_ICON)
             rft_tag  = f" _(≡ƒòÉ {format_duration_hours(item['time_in_rft'])})_" if item.get("time_in_rft", 0) > 0 else ""
             qa_lines += f"  {icon} *{item['key']}* {item['label']}{rft_tag} ┬╖ {item['summary'][:50]}\n"
 
     return (
-        f"≡ƒôè  *Sprint Health Report*  ΓÇö  Lumofy QA\n"
+        f"≡ƒôè  *Sprint Health Report*  —  Lumofy QA\n"
         f"*{r['sprint_name']}*   ┬╖   {date_range}{progress_note}\n"
-        f"{'ΓÇö' * 44}\n\n"
+        f"{'—' * 44}\n\n"
         f"{health_dot}  *Health Score:  {score} / 100*\n"
         f"`{bar}`\n_{r['health_label'].title()}_\n"
         f"{state_banner}{no_data_note}\n"
         f"*Signals*\n{sig_rows}\n{bd_line}\n"
         f"*Formula*\n{formula_line}\n\n"
-        f"{'ΓÇö' * 44}\n"
+        f"{'—' * 44}\n"
         f"*Issue Status*\n{status_lines}\n"
         f"{dev_lines}{qa_lines}\n"
-        f"≡ƒÉ¢ Bugs: *{r['bugs']}*   |   ≡ƒôª Scope: *{r['total']}*   |   ≡ƒÜº Blockers: *{r['blocked_count']}*\n\n"
+        f"🐛 Bugs: *{r['bugs']}*   |   📦 Scope: *{r['total']}*   |   ≡ƒÜº Blockers: *{r['blocked_count']}*\n\n"
         f"_Generated {r['generated_at']}  ┬╖  Lumofy QA Dashboard_"
     )
 
 
 def format_slack_site_message(r: dict, site_url: str, pdf_url: str = "") -> str:
     score      = r["health_score"]
-    health_dot = "≡ƒƒó" if score >= 85 else "≡ƒƒí" if score >= 70 else "≡ƒƒá" if score >= 50 else "≡ƒö┤"
+    health_dot = "🟢" if score >= 85 else "🟡" if score >= 70 else "🟠" if score >= 50 else "🔴"
     bugs_line  = f"New Bugs: {r['new_bugs']} | Carried: {r['carried_bugs']}"
     if r.get("bug_change_pct") is not None:
         p = abs(r["bug_change_pct"])
         bugs_line = f"New Bugs: {r['new_bugs']} ({r['bug_change_arrow']} {int(p) if float(p).is_integer() else p}%) | Carried: {r['carried_bugs']}"
     cycle_time = f"{r['current_avg_cycle_time']} days" if r.get("current_avg_cycle_time") is not None else "N/A"
     bd      = r.get("burndown", {})
-    bd_note = f"\nBurndown: {_format_decimal(float(bd['current_remaining']), 0)} scope remaining ┬╖ {'Γ£à On track' if bd.get('on_track') else 'ΓÜá∩╕Å Behind'}" if bd else ""
+    bd_note = f"\nBurndown: {_format_decimal(float(bd['current_remaining']), 0)} scope remaining ┬╖ {'✅ On track' if bd.get('on_track') else '⚠️ Behind'}" if bd else ""
     return (
-        f"≡ƒÜÇ Sprint Health Report Ready ΓÇö Lumofy QA\n\nScore: {score}/100 {health_dot}\n"
+        f"≡ƒÜÇ Sprint Health Report Ready — Lumofy QA\n\nScore: {score}/100 {health_dot}\n"
         f"{bugs_line}\nCycle Time: {cycle_time}{bd_note}\n\n≡ƒöù View Report:\n{site_url}"
     )
 
 
-# ΓÇöΓÇöΓÇö HTML REPORT ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— HTML REPORT ——————————————————————————————————————————————————————————————
 
 
 def _person_initials(name: str) -> str:
@@ -472,7 +473,7 @@ def _sprint_activity_dates(sprint_start_str: str, fallback_days: int = 7) -> lis
     ]
 
 
-# ΓÇöΓÇöΓÇö BURNDOWN ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— BURNDOWN ————————————————————————————————————————————————————————————————
 
 def build_burndown(issues: list, ss: SprintState) -> dict:
     if not ss.start_str or not ss.end_str: return {}
@@ -531,7 +532,7 @@ def build_burndown(issues: list, ss: SprintState) -> dict:
     }
 
 
-# ΓÇöΓÇöΓÇö CALCULATIONS ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— CALCULATIONS —————————————————————————————————————————————————————————————
 
 def calc_cycle_time_days(created: str, resolved: str) -> float | None:
     if not created or not resolved: return None
@@ -836,7 +837,7 @@ def calculate_sprint_carryover_metrics(
     return result
 
 
-# ΓÇöΓÇöΓÇö SCORING ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— SCORING ————————————————————————————————————————————————————————————————
 
 def _progress_weight(sprint_pct: float | None) -> float:
     if sprint_pct is None: return 1.0
@@ -985,7 +986,7 @@ def generate_ai_insights(report: dict) -> dict | None:
                 "summary": f"AI request failed: {e}", "actions": []}
 
 
-# ΓÇöΓÇöΓÇö DEVELOPER & QA ACTIVITY ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— DEVELOPER & QA ACTIVITY ————————————————————————————————————————————————
 
 def build_developer_activity(
     issues: list,
@@ -996,8 +997,8 @@ def build_developer_activity(
 ) -> tuple[dict[str, list[dict]], dict[str, list[dict]]]:
     """
     Returns:
-      dev_activity ΓÇö developer-owned status transitions grouped by date then assignee
-      qa_activity  ΓÇö QA status transitions grouped by date then actor
+      dev_activity — developer-owned status transitions grouped by date then assignee
+      qa_activity  — QA status transitions grouped by date then actor
     """
     qa_filter = allowed_qa_names or set()
     dev_filter = allowed_dev_names or set()
@@ -1021,13 +1022,13 @@ def build_developer_activity(
         url          = f"{JIRA_BASE_URL}/browse/{key}"
         linked_story, linked_story_summary = _extract_linked_story_details(f)
 
-        # ΓÇöΓÇö Fetch changelog for every sprint issue ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+        # —— Fetch changelog for every sprint issue ———————————————
         changelog = fetch_issue_changelog(key, updated_raw or "")
 
         # Time in "IN TESTING" from entry until it exits to the next QA outcome.
         time_in_rft = calc_time_in_status(changelog, "IN TESTING")
 
-        # ΓÇöΓÇö Developer Activity ΓÇö developer-owned transitions today ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+        # —— Developer Activity — developer-owned transitions today ———————————
         dev_name   = (assignee or {}).get("displayName", "Unassigned")
         dev_avatar = (assignee or {}).get("avatarUrls", {}).get("48x48", "")
         dev_name_norm = _normalize_person_name(dev_name)
@@ -1065,12 +1066,12 @@ def build_developer_activity(
                 elif from_upper in qa_upper and to_upper in pm_review_upper:
                     qa_items_by_date[date_key].append(_qa_event(
                         key, summary, issue_type, t, "pm_review",
-                        "Γ£à Ready for PM Review", "#00d4aa", time_in_rft, url, story_points
+                        "✅ Ready for PM Review", "#00d4aa", time_in_rft, url, story_points
                     ))
                 elif from_upper in qa_upper and is_effectively_done_status(t["to"], issue_type):
                     qa_items_by_date[date_key].append(_qa_event(
                         key, summary, issue_type, t, "done",
-                        "Γ£à Done", "#00d4aa", time_in_rft, url, story_points
+                        "✅ Done", "#00d4aa", time_in_rft, url, story_points
                     ))
                 else:
                     qa_items_by_date[date_key].append(_qa_event(
@@ -1138,7 +1139,7 @@ def _qa_event(key, summary, issue_type, transition, event, label, color,
     }
 
 
-# ΓÇöΓÇöΓÇö REPORT BUILDER ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— REPORT BUILDER ———————————————————————————————————————————————————————————
 
 def _extract_linked_story_key(fields: dict) -> str:
     parent = fields.get("parent") or {}
@@ -1698,7 +1699,7 @@ def build_report(issues: list, sprint_info: dict, prev_sprints: list) -> dict:
     }
 
 
-# ΓÇöΓÇöΓÇö HTML HELPERS ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— HTML HELPERS —————————————————————————————————————————————————————————————
 
 def _build_burndown_svg(bd: dict) -> str:
     if not bd or not bd.get("actual_line"):
@@ -2112,7 +2113,7 @@ def _issue_row_html(iss: dict, show_rft: bool = True) -> str:
     icon, color = ALL_ISSUE_TYPES.get(iss["type"], DEFAULT_ISSUE_ICON)
     done_style  = "opacity:0.6;text-decoration:line-through;" if iss.get("is_done") else ""
     stale_tag   = (
-        f'<span class="issue-stale-tag">≡ƒö┤ Stale ({iss["active_days"]}d / {iss["stale_threshold"]}d)</span>'
+        f'<span class="issue-stale-tag">🔴 Stale ({iss["active_days"]}d / {iss["stale_threshold"]}d)</span>'
         if iss.get("is_stale") else ""
     )
     active_tag = (
@@ -2582,7 +2583,7 @@ def _build_qa_activity_html(qa_items: dict[str, list], date_options: list[dict])
     html += "</div>"
     return html
 
-# ΓÇöΓÇöΓÇö SLACK ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— SLACK ————————————————————————————————————————————————————————————————
 
 def _build_todays_bug_reports_html(bugs: dict[str, list], date_options: list[dict]) -> str:
     if not any(bugs.get(option["key"], []) for option in date_options):
@@ -2715,12 +2716,12 @@ def _build_todays_bug_reports_html(bugs: dict[str, list], date_options: list[dic
 
 def format_slack_message(r: dict) -> str:
     score      = r["health_score"]
-    health_dot = "≡ƒƒó" if score >= 85 else "≡ƒƒí" if score >= 70 else "≡ƒƒá" if score >= 50 else "≡ƒö┤"
+    health_dot = "🟢" if score >= 85 else "🟡" if score >= 70 else "🟠" if score >= 50 else "🔴"
     filled     = round(score / 10)
-    bar        = "Γûê" * filled + "Γûæ" * (10 - filled)
+    bar        = "█" * filled + "░" * (10 - filled)
 
-    def sig_dot(s): return "≡ƒƒó" if s >= 85 else "≡ƒƒí" if s >= 70 else "≡ƒƒá" if s >= 50 else "≡ƒö┤"
-    def nd(k): return " _ΓÇö no data yet_" if r["signals"][k].get("no_data") else ""
+    def sig_dot(s): return "🟢" if s >= 85 else "🟡" if s >= 70 else "🟠" if s >= 50 else "🔴"
+    def nd(k): return " _— no data yet_" if r["signals"][k].get("no_data") else ""
 
     sigs    = r["signals"]
     fb      = r["formula_breakdown"]
@@ -2731,13 +2732,13 @@ def format_slack_message(r: dict) -> str:
         f"{sig_dot(sigs['carryover']['score'])}  *Carryover*   {sigs['carryover']['raw']}  ΓåÆ  *{sigs['carryover']['score']} pts*{nd('carryover')}\n"
         f"{sig_dot(sigs['cycle_time']['score'])}  *Cycle Time*  {sigs['cycle_time']['raw']}  ΓåÆ  *{sigs['cycle_time']['score']} pts*{nd('cycle_time')}\n"
         f"{sig_dot(sigs['bug_ratio']['score'])}  *Bug Ratio*   {sigs['bug_ratio']['raw']}  ΓåÆ  *{sigs['bug_ratio']['score']} pts*{nd('bug_ratio')}\n"
-        f"≡ƒÉ¢  *New Bugs*  {r['new_bugs']} created ({r['new_bugs_done']} resolved)   |   ≡ƒôª *Carried* {r['carried_bugs']}"
+        f"🐛  *New Bugs*  {r['new_bugs']} created ({r['new_bugs_done']} resolved)   |   📦 *Carried* {r['carried_bugs']}"
     )
 
     bd = r.get("burndown", {})
     bd_line = ""
     if bd:
-        track_icon = "Γ£à" if bd.get("on_track") else ("ΓÜá∩╕Å" if not bd.get("is_extended") else "≡ƒö┤")
+        track_icon = "✅" if bd.get("on_track") else ("⚠️" if not bd.get("is_extended") else "🔴")
         ext_note   = " _(sprint overran)_" if bd.get("is_extended") else ""
         bd_line    = (
             f"\n*Burndown*  Day {bd['elapsed_days']}/{bd['total_days']}  ┬╖  "
@@ -2760,10 +2761,10 @@ def format_slack_message(r: dict) -> str:
         f"  ΓÇó {k}: {v}" for k, v in sorted(r["status_counts"].items(), key=lambda x: -x[1])
     ) or "  ΓÇó No issues found"
 
-    no_data_note   = "\n> Γä╣∩╕Å _No issues yet ΓÇö neutral score of 70 used._\n" if r["no_data_signals"] else ""
+    no_data_note   = "\n> Γä╣∩╕Å _No issues yet — neutral score of 70 used._\n" if r["no_data_signals"] else ""
     state_banner   = ""
     if r["sprint_state"] == "extended":
-        state_banner = "\n> ΓÜá∩╕Å _Sprint passed end date ΓÇö not yet closed._\n"
+        state_banner = "\n> ⚠️ _Sprint passed end date — not yet closed._\n"
     elif r["sprint_state"] == "closed":
         state_banner = "\n> ≡ƒôï _Showing last closed sprint._\n"
 
@@ -2782,14 +2783,14 @@ def format_slack_message(r: dict) -> str:
     # Dev activity for Slack
     dev_lines = ""
     if dev_activity_for_slack:
-        dev_lines = f"\n*Developer Activity ΓÇö {selected_activity_label}*\n"
+        dev_lines = f"\n*Developer Activity — {selected_activity_label}*\n"
         for dev in dev_activity_for_slack:
             stale_count = sum(1 for i in dev["issues"] if i["is_stale"])
-            stale_note  = f" ΓÜá∩╕Å {stale_count} stale" if stale_count else ""
-            dev_lines  += f"  ≡ƒæñ *{dev['name']}* ΓÇö {len(dev['issues'])} issue(s){stale_note}\n"
+            stale_note  = f" ⚠️ {stale_count} stale" if stale_count else ""
+            dev_lines  += f"  ≡ƒæñ *{dev['name']}* — {len(dev['issues'])} issue(s){stale_note}\n"
             for iss in dev["issues"]:
                 icon, _ = ALL_ISSUE_TYPES.get(iss["type"], DEFAULT_ISSUE_ICON)
-                stale_tag  = " ≡ƒö┤ _stale_" if iss["is_stale"] else ""
+                stale_tag  = " 🔴 _stale_" if iss["is_stale"] else ""
                 active_tag = f" _(active {iss['active_days']}d)_" if iss["active_days"] > 1 else ""
                 rft_tag    = f" _(≡ƒòÉ {format_duration_hours(iss['time_in_rft'])} testing)_" if iss.get("time_in_rft", 0) > 0 else ""
                 dev_lines += f"    {icon} {iss['key']} ┬╖ {iss['status']}{active_tag}{rft_tag}{stale_tag}\n"
@@ -2797,46 +2798,46 @@ def format_slack_message(r: dict) -> str:
     # QA activity for Slack
     qa_lines = ""
     if qa_activity_for_slack:
-        qa_lines = f"\n*QA Activity ΓÇö {selected_activity_label}*\n"
+        qa_lines = f"\n*QA Activity — {selected_activity_label}*\n"
         for item in qa_activity_for_slack:
             icon, _ = ALL_ISSUE_TYPES.get(item["type"], DEFAULT_ISSUE_ICON)
             rft_tag  = f" _(≡ƒòÉ {format_duration_hours(item['time_in_rft'])})_" if item.get("time_in_rft", 0) > 0 else ""
             qa_lines += f"  {icon} *{item['key']}* {item['label']}{rft_tag} ┬╖ {item['summary'][:50]}\n"
 
     return (
-        f"≡ƒôè  *Sprint Health Report*  ΓÇö  Lumofy QA\n"
+        f"≡ƒôè  *Sprint Health Report*  —  Lumofy QA\n"
         f"*{r['sprint_name']}*   ┬╖   {date_range}{progress_note}\n"
-        f"{'ΓÇö' * 44}\n\n"
+        f"{'—' * 44}\n\n"
         f"{health_dot}  *Health Score:  {score} / 100*\n"
         f"`{bar}`\n_{r['health_label'].title()}_\n"
         f"{state_banner}{no_data_note}\n"
         f"*Signals*\n{sig_rows}\n{bd_line}\n"
         f"*Formula*\n{formula_line}\n\n"
-        f"{'ΓÇö' * 44}\n"
+        f"{'—' * 44}\n"
         f"*Issue Status*\n{status_lines}\n"
         f"{dev_lines}{qa_lines}\n"
-        f"≡ƒÉ¢ Bugs: *{r['bugs']}*   |   ≡ƒôª Scope: *{r['total']}*   |   ≡ƒÜº Blockers: *{r['blocked_count']}*\n\n"
+        f"🐛 Bugs: *{r['bugs']}*   |   📦 Scope: *{r['total']}*   |   ≡ƒÜº Blockers: *{r['blocked_count']}*\n\n"
         f"_Generated {r['generated_at']}  ┬╖  Lumofy QA Dashboard_"
     )
 
 
 def format_slack_site_message(r: dict, site_url: str, pdf_url: str = "") -> str:
     score      = r["health_score"]
-    health_dot = "≡ƒƒó" if score >= 85 else "≡ƒƒí" if score >= 70 else "≡ƒƒá" if score >= 50 else "≡ƒö┤"
+    health_dot = "🟢" if score >= 85 else "🟡" if score >= 70 else "🟠" if score >= 50 else "🔴"
     bugs_line  = f"New Bugs: {r['new_bugs']} | Carried: {r['carried_bugs']}"
     if r.get("bug_change_pct") is not None:
         p = abs(r["bug_change_pct"])
         bugs_line = f"New Bugs: {r['new_bugs']} ({r['bug_change_arrow']} {int(p) if float(p).is_integer() else p}%) | Carried: {r['carried_bugs']}"
     cycle_time = f"{r['current_avg_cycle_time']} days" if r.get("current_avg_cycle_time") is not None else "N/A"
     bd      = r.get("burndown", {})
-    bd_note = f"\nBurndown: {_format_decimal(float(bd['current_remaining']), 0)} scope remaining ┬╖ {'Γ£à On track' if bd.get('on_track') else 'ΓÜá∩╕Å Behind'}" if bd else ""
+    bd_note = f"\nBurndown: {_format_decimal(float(bd['current_remaining']), 0)} scope remaining ┬╖ {'✅ On track' if bd.get('on_track') else '⚠️ Behind'}" if bd else ""
     return (
-        f"≡ƒÜÇ Sprint Health Report Ready ΓÇö Lumofy QA\n\nScore: {score}/100 {health_dot}\n"
+        f"≡ƒÜÇ Sprint Health Report Ready — Lumofy QA\n\nScore: {score}/100 {health_dot}\n"
         f"{bugs_line}\nCycle Time: {cycle_time}{bd_note}\n\n≡ƒöù View Report:\n{site_url}"
     )
 
 
-# ΓÇöΓÇöΓÇö HTML REPORT ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— HTML REPORT ——————————————————————————————————————————————————————————————
 
 def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -> str:
     score       = r["health_score"]
@@ -2851,7 +2852,7 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
 
     def signal_color(s): return "green" if s >= 85 else "yellow" if s >= 70 else "orange" if s >= 50 else "red"
     def nd_badge(k):
-        return '<span class="no-data-badge">no data ΓÇö neutral</span>' if r["signals"][k].get("no_data") else ""
+        return '<span class="no-data-badge">no data — neutral</span>' if r["signals"][k].get("no_data") else ""
     def bug_linkage_html(counts: dict) -> str:
         counts = counts or {}
         parts = [
@@ -3022,6 +3023,9 @@ def write_html_report(r: dict, output_path: str = "sprint_health_report.html") -
     <div class="ai-summary">{escape(ai_insights.get('summary',''))}</div>
     {'<ul class="ai-actions">' + actions_html + '</ul>' if actions_html else ''}
   </div>"""
+
+    site_url = os.getenv("SITE_URL", "http://127.0.0.1:8765").rstrip("/")
+    admin_url = f"{site_url}/admin"
 
     html_text = f"""<!DOCTYPE html>
 <html lang="en">
@@ -3666,7 +3670,7 @@ body[data-theme="light"] .bug-person-card{{box-shadow:0 16px 36px rgba(100,130,1
 </head>
 <body>
 <div class="fab-wrapper">
-  <a href="http://127.0.0.1:8765/admin" target="_blank" class="fab-dashboard" title="Open Admin Dashboard">
+  <a href="{admin_url}" target="_blank" class="fab-dashboard" title="Open Admin Dashboard">
     <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
       <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
     </svg>
@@ -3688,7 +3692,7 @@ body[data-theme="light"] .bug-person-card{{box-shadow:0 16px 36px rgba(100,130,1
         <span class="theme-toggle-icon" id="themeToggleIcon">DM</span>
         <span id="themeToggleText">Theme</span>
       </button>
-      <a href="http://127.0.0.1:8765/admin" target="_blank" class="admin-cta" title="Open Admin Dashboard">
+      <a href="{admin_url}" target="_blank" class="admin-cta" title="Open Admin Dashboard">
         <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
         </svg>
@@ -3819,8 +3823,9 @@ body[data-theme="light"] .bug-person-card{{box-shadow:0 16px 36px rgba(100,130,1
       const offscreen = document.createElement('canvas');
       offscreen.width = size;
       offscreen.height = size;
-      const ictx = offscreen.getContext('2d');
-      drawFn(ictx, size);
+      const ctx = offscreen.getContext('2d');
+      if (!ctx) return;
+      drawFn(ctx, size);
       return offscreen;
     }}
 
@@ -4123,7 +4128,7 @@ body[data-theme="light"] .bug-person-card{{box-shadow:0 16px 36px rgba(100,130,1
     return str(out.resolve())
 
 
-# ΓÇöΓÇöΓÇö PDF REPORT ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— PDF REPORT ———————————————————————————————————————————————————————————————
 
 def write_pdf_report(r: dict, output_path: str | None = None) -> str | None:
     try:
@@ -4141,12 +4146,12 @@ def write_pdf_report(r: dict, output_path: str | None = None) -> str | None:
     fb   = r["formula_breakdown"]
     bd   = r.get("burndown", {})
     lines = [
-        "Lumofy ΓÇö Sprint Health Report",
+        "Lumofy — Sprint Health Report",
         f"Sprint: {r['sprint_name']}",
         f"Dates:  {r['sprint_start']} ΓåÆ {r['sprint_end']}",
         f"State:  {r['sprint_state'].upper()}",
         "",
-        f"Health Score: {r['health_score']}/100  ΓÇö  {r['health_label']}",
+        f"Health Score: {r['health_score']}/100  —  {r['health_label']}",
         "",
         "Signals:",
         f"  Commitment:  {r['signals']['commitment']['raw']}  ΓåÆ {r['signals']['commitment']['score']} pts",
@@ -4191,7 +4196,7 @@ def write_pdf_report(r: dict, output_path: str | None = None) -> str | None:
     return str(out.resolve())
 
 
-# ΓÇöΓÇöΓÇö SLACK SEND ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— SLACK SEND ———————————————————————————————————————————————————————————————
 
 def send_to_slack(message: str) -> None:
     resp = requests.post(
@@ -4207,5 +4212,5 @@ def send_to_slack(message: str) -> None:
     print(f"[ok] Slack ts={result.get('ts')}")
 
 
-# ΓÇöΓÇöΓÇö MAIN RUN ΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇöΓÇö
+# ——— MAIN RUN ————————————————————————————————————————————————————————————————
 

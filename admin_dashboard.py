@@ -13,6 +13,7 @@ from urllib.parse import parse_qs, urlparse
 from dotenv import load_dotenv
 
 import sprint_health_2 as sprint_health
+import bcrypt
 
 load_dotenv()
 
@@ -27,6 +28,13 @@ PORT = int(os.getenv("PORT", os.getenv("ADMIN_DASHBOARD_PORT", "8765")))
 AUTH_FILE = sprint_health.DATA_DIR / "auth_users.json"
 SESSION_EXPIRY_DAYS = 30
 
+# Simple In-Memory Rate Limiting: {ip: {count: N, reset_time: timestamp}}
+LOGIN_ATTEMPTS = {}
+RATE_LIMIT_LOGIN = 5 # 5 attempts per 60s
+RATE_LIMIT_WINDOW = 60
+ATTEMPTS_LOCK = threading.Lock()
+
+
 
 class AuthManager:
     def __init__(self, file_path: Path):
@@ -38,9 +46,10 @@ class AuthManager:
             data = json.loads(self.file_path.read_text(encoding="utf-8"))
             # Bootstrap: If no users exist, create a default admin
             if not data.get("users"):
+                init_pw = os.getenv("INITIAL_ADMIN_PASSWORD", "admin1234")
                 data["users"] = {
                     "admin@lumofy.com": {
-                        "password": self.hash_password("admin1234"),
+                        "password": self.hash_password(init_pw),
                         "role": "admin",
                         "created_at": datetime.now().isoformat()
                     }
@@ -49,10 +58,11 @@ class AuthManager:
             return data
         except:
             # Bootstrap for missing file
+            init_pw = os.getenv("INITIAL_ADMIN_PASSWORD", "admin1234")
             initial_data = {
                 "users": {
                     "admin@lumofy.com": {
-                        "password": self.hash_password("admin1234"),
+                        "password": self.hash_password(init_pw),
                         "role": "admin",
                         "created_at": datetime.now().isoformat()
                     }
@@ -68,12 +78,19 @@ class AuthManager:
         self.file_path.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
 
     def hash_password(self, password: str) -> str:
-        return hashlib.sha256(password.encode()).hexdigest()
+        return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
     def authenticate(self, username, password):
         user = self.data["users"].get(username)
-        if user and user["password"] == self.hash_password(password):
-            return user
+        if not user:
+            return None
+        # Verify using bcrypt
+        try:
+            stored = user["password"]
+            if bcrypt.checkpw(password.encode(), stored.encode()):
+                return user
+        except Exception:
+            return None
         return None
 
     def create_session(self, username):
@@ -613,12 +630,34 @@ class AdminHandler(BaseHTTPRequestHandler):
         if p == "/login":
             un, pw = form.get("username", [""])[0], form.get("password", [""])[0]
             nxt = form.get("next", ["/"])[0] or "/"
+            
+            # Rate Limiting Logic
+            ip = self.client_address[0]
+            with ATTEMPTS_LOCK:
+                rec = LOGIN_ATTEMPTS.get(ip, {"count": 0, "reset": 0})
+                if datetime.now().timestamp() > rec["reset"]:
+                    rec = {"count": 0, "reset": datetime.now().timestamp() + RATE_LIMIT_WINDOW}
+                
+                if rec["count"] >= RATE_LIMIT_LOGIN:
+                    return self._send_html(_login_html("Too many attempts. Wait a minute."), 429)
+                
+                rec["count"] += 1
+                LOGIN_ATTEMPTS[ip] = rec
+
             usr = auth.authenticate(un, pw)
             if usr:
+                # Reset rate limit on success
+                with ATTEMPTS_LOCK: 
+                    if ip in LOGIN_ATTEMPTS: del LOGIN_ATTEMPTS[ip]
+                    
                 sid = auth.create_session(un)
                 self.send_response(303)
                 self.send_header("Location", nxt)
-                self.send_header("Set-Cookie", f"session_id={sid}; Max-Age={SESSION_EXPIRY_DAYS*86400}; Path=/; HttpOnly")
+                # Secure Flag Added
+                sc = f"session_id={sid}; Max-Age={SESSION_EXPIRY_DAYS*86400}; Path=/; HttpOnly; SameSite=Lax"
+                if os.getenv("RAILWAY_ENVIRONMENT"):
+                    sc += "; Secure"
+                self.send_header("Set-Cookie", sc)
                 self.end_headers()
             else: self._send_html(_login_html("Invalid login."), 401)
             return
