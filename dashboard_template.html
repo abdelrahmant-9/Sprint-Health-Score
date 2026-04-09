@@ -6,7 +6,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 {{DASHBOARD_CSS}}
+body.is-embedded { padding: 0 !important; background: transparent !important; }
+body.is-embedded .container { max-width: 100% !important; border-radius: 0 !important; }
 </style>
+  <!-- Early Detection for Unified Console -->
+  <script>
+    (function() {
+      if (new URLSearchParams(window.location.search).get('embedded') === '1') {
+        document.documentElement.classList.add('is-embedded');
+        const style = document.createElement('style');
+        style.innerHTML = '.fab-wrapper, .admin-cta { display: none !important; } body { padding: 0 !important; }';
+        document.head.appendChild(style);
+      }
+    })();
+  </script>
 </head>
 <body data-theme="light">
 

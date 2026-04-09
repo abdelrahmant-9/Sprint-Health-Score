@@ -385,7 +385,8 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       width: 260px; background: var(--sidebar); border-right: 1px solid var(--glass-border);
       height: 100vh; position: sticky; top: 0; padding: 40px 24px; display: flex; flex-direction: column; gap: 32px;
     }}
-    .main-content {{ flex: 1; padding: 20px 40px; max-width: 1200px; margin: 0 auto; }}
+    .main-content { flex: 1; padding: 20px 40px; width: 100%; transition: all 0.3s ease; }
+    .main-content.full-page { padding: 0; max-width: none; height: 100vh; overflow: hidden; }
     .nav-list {{ list-style: none; display: flex; flex-direction: column; gap: 8px; }}
     .nav-item a {{
       display: block; padding: 12px 16px; border-radius: 12px; color: var(--text-soft);
@@ -424,7 +425,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
         </ul>
       </nav>
     </aside>
-    <main class="main-content">
+    <main class="main-content {'full-page' if active_path == '/' else ''}">
       {content}
     </main>
   </div>
@@ -575,9 +576,9 @@ class AdminHandler(BaseHTTPRequestHandler):
         if p.path == "/login": return self._send_html(_login_html())
         if not u: return self._redirect(f"/login?next={escape(p.path)}")
         if p.path == "/":
-            iframe_html = """
-            <div style="height: calc(100vh - 120px); width: 100%; overflow: hidden; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); background: #f8fafc;">
-                <iframe src="/raw-report?embedded=1" style="width: 100%; height: 100%; border: none;"></iframe>
+            iframe_html = f"""
+            <div style="height: 100vh; width: 100%; overflow: hidden; background: var(--page-bg);">
+                <iframe src="/raw-report?embedded=1" style="width: 100%; height: 100%; border: none;" id="reportFrame"></iframe>
             </div>
             """
             return self._send_html(_layout_html(iframe_html, title="Main Report", user_role=u["role"], active_path="/"))
