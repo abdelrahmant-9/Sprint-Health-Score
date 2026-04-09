@@ -2,11 +2,19 @@
 .venv/
 __pycache__/
 *.pyc
-output.txt
-tunnel.out.txt
-tunnel.err.txt
-admin_dashboard.out.txt
-admin_dashboard.err.txt
+
+# Log files (auto-generated at runtime)
+*.log
+*.out.log
+*.err.log
+*.out.txt
+*.err.txt
+
+# Generated reports & cache (runtime artifacts)
+sprint_health_report.html
+issue_history_cache.json
+
+# Secrets / credentials
 *.key
 *.pem
 *.token
