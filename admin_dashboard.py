@@ -385,8 +385,8 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       width: 260px; background: var(--sidebar); border-right: 1px solid var(--glass-border);
       height: 100vh; position: sticky; top: 0; padding: 40px 24px; display: flex; flex-direction: column; gap: 32px;
     }}
-    .main-content { flex: 1; padding: 20px 40px; width: 100%; transition: all 0.3s ease; }
-    .main-content.full-page { padding: 0; max-width: none; height: 100vh; overflow: hidden; }
+    .main-content {{ flex: 1; padding: 20px 40px; width: 100%; transition: all 0.3s ease; }}
+    .main-content.full-page {{ padding: 0; max-width: none; height: 100vh; overflow: hidden; }}
     .nav-list {{ list-style: none; display: flex; flex-direction: column; gap: 8px; }}
     .nav-item a {{
       display: block; padding: 12px 16px; border-radius: 12px; color: var(--text-soft);
@@ -425,7 +425,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
         </ul>
       </nav>
     </aside>
-    <main class="main-content {'full-page' if active_path == '/' else ''}">
+    <main class="main-content {{'full-page' if active_path == '/' else ''}}">
       {content}
     </main>
   </div>
