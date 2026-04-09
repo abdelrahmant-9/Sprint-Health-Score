@@ -12,9 +12,12 @@
     if (themeToggleIcon) themeToggleIcon.textContent = theme === 'light' ? 'DM' : 'LM';
   }
 
-  const savedTheme = localStorage.getItem(storageKey);
-  const preferredTheme = savedTheme || 'light';
-  applyTheme(preferredTheme);
+  applyTheme(localStorage.getItem(storageKey) || 'light');
+
+  // Listen for theme changes from the parent console (Unified UI)
+  window.addEventListener('storage', (e) => {
+    if (e.key === storageKey) applyTheme(e.newValue);
+  });
 
   themeToggle?.addEventListener('click', () => {
     const nextTheme = document.body.dataset.theme === 'light' ? 'dark' : 'light';
