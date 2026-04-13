@@ -43,7 +43,7 @@ jobs:
 
       - name: Generate report files
         run: |
-          python sprint_health_2.py --html --no-slack
+          python -m app.main --format html
 
       - name: Prepare Pages artifact
         run: |
@@ -66,4 +66,4 @@ jobs:
         env:
           SITE_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: |
-          python sprint_health_2.py --slack-link-only --site-url "$SITE_URL"
+          REPORT_FORMAT=html python -m app.main --notify

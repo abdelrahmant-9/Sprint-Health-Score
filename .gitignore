@@ -19,3 +19,6 @@ issue_history_cache.json
 *.pem
 *.token
 health_metrics_config.json
+
+# Local SQLite data directory
+data/

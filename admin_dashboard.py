@@ -11,7 +11,7 @@ from urllib.parse import parse_qs, urlparse
 
 from dotenv import load_dotenv
 
-import sprint_health_2 as sprint_health
+from app import config as sprint_health
 
 load_dotenv()
 

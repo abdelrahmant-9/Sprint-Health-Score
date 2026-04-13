@@ -4,7 +4,6 @@ setlocal
 cd /d "%~dp0"
 
 set "PYTHON_EXE=%~dp0.venv\Scripts\python.exe"
-set "SCRIPT_PATH=%~dp0sprint_health_2.py"
 set "OUT_LOG=%~dp0hourly.out.log"
 set "ERR_LOG=%~dp0hourly.err.log"
 
@@ -16,7 +15,7 @@ if not exist "%PYTHON_EXE%" (
 )
 
 start "Sprint Health Hourly Dashboard" /min powershell -NoProfile -WindowStyle Hidden -Command ^
-  "& { Set-Location -LiteralPath '%~dp0'; & '%PYTHON_EXE%' '%SCRIPT_PATH%' --hourly --hourly-every 1 1>>'%OUT_LOG%' 2>>'%ERR_LOG%' }"
+  "& { Set-Location -LiteralPath '%~dp0'; & '%PYTHON_EXE%' -m app.main --mode watch --interval 3600 --format html 1>>'%OUT_LOG%' 2>>'%ERR_LOG%' }"
 
 echo Hourly dashboard refresh started in background.
 echo Admin dashboard will auto-start if needed.
