@@ -6,6 +6,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 
 import requests
 
@@ -80,7 +81,7 @@ class JiraClient:
         logger.info("Detected board '%s' with id=%s", chosen.get("name"), self._board_id_cache)
         return self._board_id_cache
 
-    def fetch_sprint_issues(self) -> tuple[list[dict], dict]:
+    def fetch_sprint_issues(self, *, include_activity_fields: bool = False) -> tuple[list[dict], dict]:
         """Fetch active sprint issues with de-duplication and request-level cache."""
         board_id = self.get_board_id()
         if not board_id:
@@ -97,7 +98,12 @@ class JiraClient:
             "summary,status,issuetype,created,resolutiondate,customfield_10016,"
             "assignee,labels,updated,customfield_10021"
         )
-        cache_key = json.dumps({"board": board_id, "sprint": sprint_id, "fields": fields}, sort_keys=True)
+        if include_activity_fields:
+            fields = f"{fields},reporter"
+        cache_key = json.dumps(
+            {"board": board_id, "sprint": sprint_id, "fields": fields, "expand": "changelog" if include_activity_fields else ""},
+            sort_keys=True,
+        )
         if cache_key in self._cache:
             logger.info("Using cached sprint issue payload for sprint %s", sprint_id)
             return self._cache[cache_key]["issues"], sprint
@@ -106,10 +112,10 @@ class JiraClient:
         seen = set()
         start_at = 0
         while True:
-            data = self.agile_get(
-                f"board/{board_id}/sprint/{sprint_id}/issue",
-                {"fields": fields, "startAt": start_at, "maxResults": 50},
-            )
+            params = {"fields": fields, "startAt": start_at, "maxResults": 50}
+            if include_activity_fields:
+                params["expand"] = "changelog"
+            data = self.agile_get(f"board/{board_id}/sprint/{sprint_id}/issue", params)
             page_issues = data.get("issues", [])
             if not page_issues:
                 break
@@ -124,3 +130,51 @@ class JiraClient:
 
         self._cache[cache_key] = {"issues": issues}
         return issues, sprint
+
+    def fetch_issues_updated_between(self, since: datetime, until: datetime | None = None) -> list[dict]:
+        """Fetch project issues updated within the provided UTC range with changelog."""
+        since_utc = since.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+        until_utc = until.astimezone(timezone.utc).isoformat().replace("+00:00", "Z") if until else ""
+        fields = "summary,status,issuetype,created,resolutiondate,assignee,reporter,updated"
+        cache_key = json.dumps(
+            {"query": "updated_between", "since": since_utc, "until": until_utc, "fields": fields, "expand": "changelog"},
+            sort_keys=True,
+        )
+        if cache_key in self._cache:
+            logger.info("Using cached updated issue payload since %s until %s", since_utc, until_utc or "open")
+            return self._cache[cache_key]["issues"]
+
+        jql_parts = [
+            f'project = "{self.settings.jira_project_key}"',
+            f'updated >= "{since_utc}"',
+        ]
+        if until_utc:
+            jql_parts.append(f'updated < "{until_utc}"')
+        jql = " AND ".join(jql_parts) + " ORDER BY updated DESC"
+        issues: list[dict] = []
+        start_at = 0
+        while True:
+            data = self.api_get(
+                "search",
+                {
+                    "jql": jql,
+                    "fields": fields,
+                    "expand": "changelog",
+                    "startAt": start_at,
+                    "maxResults": 50,
+                },
+            )
+            page_issues = data.get("issues", [])
+            if not page_issues:
+                break
+            issues.extend(page_issues)
+            start_at += len(page_issues)
+            if start_at >= int(data.get("total", 0) or 0):
+                break
+
+        self._cache[cache_key] = {"issues": issues}
+        return issues
+
+    def fetch_issues_updated_since(self, since: datetime) -> list[dict]:
+        """Fetch project issues updated since the provided timestamp with changelog."""
+        return self.fetch_issues_updated_between(since=since, until=None)

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 DONE_STATUSES = {"DONE", "CLOSED", "RESOLVED"}
 STORY_DONE_STATUSES = {"READY TO RELEASE"}
+TESTER_VERIFIED_STATUSES = {"READY FOR PM REVIEW", "READY TO RELEASE", "DONE", "CLOSED", "RESOLVED"}
 
 
 def parse_jira_datetime(value: str | None) -> datetime | None:
@@ -19,6 +21,14 @@ def parse_jira_datetime(value: str | None) -> datetime | None:
         return None
 
 
+def get_timezone(tz_name: str) -> ZoneInfo:
+    """Return configured timezone or UTC when the name is invalid."""
+    try:
+        return ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        return ZoneInfo("UTC")
+
+
 def is_effectively_done_status(status_name: str, issue_type: str = "") -> bool:
     """Return True when an issue status should be treated as completed."""
     normalized_status = (status_name or "").strip().upper()
@@ -28,6 +38,11 @@ def is_effectively_done_status(status_name: str, issue_type: str = "") -> bool:
     if normalized_type == "story" and normalized_status in STORY_DONE_STATUSES:
         return True
     return False
+
+
+def is_tester_verified_status(status_name: str) -> bool:
+    """Return True when a tester-oriented status means verification/closure."""
+    return (status_name or "").strip().upper() in TESTER_VERIFIED_STATUSES
 
 
 def issue_weight(issue: dict) -> float:

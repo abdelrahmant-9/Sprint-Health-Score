@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import Mock, patch
 
-import pytest
 import requests
 
 from app.config import Settings
@@ -16,6 +15,7 @@ def _settings(**overrides) -> Settings:
         "jira_email": "user@example.com",
         "jira_api_token": "token",
         "jira_project_key": "PM",
+        "api_key": "test-api-key",
     }
     base.update(overrides)
     return Settings(**base)
@@ -38,7 +38,6 @@ def test_send_slack_message_uses_bot_token() -> None:
     assert post_mock.called
 
 
-def test_send_slack_message_raises_on_webhook_failure() -> None:
+def test_send_slack_message_swallows_webhook_failure() -> None:
     with patch("app.notifications.requests.post", side_effect=requests.RequestException("network")):
-        with pytest.raises(RuntimeError):
-            send_slack_message(_settings(slack_webhook="https://hooks.slack.com/services/x"), "hello")
+        send_slack_message(_settings(slack_webhook="https://hooks.slack.com/services/x"), "hello")

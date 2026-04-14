@@ -7,19 +7,29 @@ import logging
 
 import requests
 
-from app.config import Settings
+from app.config import Settings, load_settings
 
 
 logger = logging.getLogger(__name__)
 
 
-def send_slack_message(settings: Settings, message: str) -> None:
-    """Send a Slack message via webhook or bot token."""
+def send_slack_message(settings_or_message: Settings | str, message: str | None = None) -> None:
+    """Send a Slack message via webhook or bot token without crashing callers."""
+    if isinstance(settings_or_message, Settings):
+        settings = settings_or_message
+        payload = message or ""
+    else:
+        settings = load_settings()
+        payload = str(settings_or_message)
+
+    if not payload.strip():
+        logger.info("Slack integration skipped because message is empty")
+        return
     if settings.slack_webhook:
-        _send_via_webhook(settings.slack_webhook, message)
+        _send_via_webhook(settings.slack_webhook, payload)
         return
     if settings.slack_bot_token and settings.slack_channel_id:
-        _send_via_bot_token(settings.slack_bot_token, settings.slack_channel_id, message)
+        _send_via_bot_token(settings.slack_bot_token, settings.slack_channel_id, payload)
         return
     logger.info("Slack integration skipped because no Slack credentials are configured")
 
@@ -36,7 +46,7 @@ def _send_via_webhook(webhook_url: str, message: str) -> None:
         response.raise_for_status()
     except requests.RequestException as exc:
         logger.error("Failed sending Slack webhook notification: %s", exc)
-        raise RuntimeError("Slack webhook notification failed") from exc
+        return
     logger.info("Slack webhook notification sent successfully")
 
 
@@ -55,5 +65,5 @@ def _send_via_bot_token(token: str, channel_id: str, message: str) -> None:
             raise RuntimeError(payload.get("error", "unknown_slack_error"))
     except (requests.RequestException, RuntimeError) as exc:
         logger.error("Failed sending Slack bot notification: %s", exc)
-        raise RuntimeError("Slack bot notification failed") from exc
+        return
     logger.info("Slack bot notification sent successfully")

@@ -13,6 +13,7 @@ services:
       SQLITE_PATH: /data/sprint_health.db
     volumes:
       - sprint_data:/data
+    stop_grace_period: 10s
     restart: unless-stopped
 
   dashboard:
@@ -27,8 +28,30 @@ services:
       DEBUG: "false"
       LOG_LEVEL: INFO
       API_BASE_URL: http://api:8000
+    command: streamlit run dashboard.py --server.port=8501 --server.address=0.0.0.0 --browser.gatherUsageStats=false
     depends_on:
       - api
+    stop_grace_period: 10s
+    restart: unless-stopped
+
+  admin_dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    ports:
+      - "8502:8502"
+    env_file:
+      - .env
+    environment:
+      DEBUG: "false"
+      LOG_LEVEL: INFO
+      PORT: "8502"
+      ADMIN_DASHBOARD_PORT: "8502"
+      ADMIN_DASHBOARD_HOST: 0.0.0.0
+    command: python admin_dashboard.py
+    depends_on:
+      - api
+    stop_grace_period: 10s
     restart: unless-stopped
 
 volumes:

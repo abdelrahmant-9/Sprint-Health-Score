@@ -1,6 +1,9 @@
 import hashlib
 import json
+import logging
 import os
+import signal
+import threading
 import uuid
 from datetime import datetime, timedelta
 from html import escape
@@ -12,8 +15,11 @@ from urllib.parse import parse_qs, urlparse
 from dotenv import load_dotenv
 
 from app import config as sprint_health
+from app.notifications import send_slack_message
 
 load_dotenv()
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 # Use 0.0.0.0 for production (Railway, Heroku, etc), 127.0.0.1 for local
 DEFAULT_HOST = "0.0.0.0" if os.getenv("RAILWAY_ENVIRONMENT") else "127.0.0.1"
@@ -235,6 +241,8 @@ def _build_config_from_form(params: dict) -> dict:
 
     conf["activity_people"]["qa_names"] = _list_values(params, "ap_qa")
     conf["activity_people"]["developer_names"] = _list_values(params, "ap_dev")
+    conf["activity_thresholds"]["bugs_today_warning"] = _int_value(params, "at_bugwarn")
+    conf["activity_thresholds"]["low_completed_tasks"] = _int_value(params, "at_lowcomp")
 
     conf["jira"]["base_url"] = _text_value(params, "j_url")
     conf["jira"]["project_key"] = _text_value(params, "j_proj")
@@ -251,10 +259,10 @@ def _build_config_from_form(params: dict) -> dict:
 
 
 def _build_sections(config: dict) -> list[str]:
-    w, p, c, co, ct, br, bd, st, l, fs, ap, j, b, u = (
+    w, p, c, co, ct, br, bd, st, l, fs, ap, at, j, b, u = (
         config["weights"], config["points"], config["commitment"], config["carryover"],
         config["cycle_time"], config["bug_ratio"], config["burndown"], config["stale_thresholds"],
-        config["labels"], config["final_score"], config["activity_people"], config["jira"],
+        config["labels"], config["final_score"], config["activity_people"], config["activity_thresholds"], config["jira"],
         config["branding"], config["ui"]
     )
     return [
@@ -320,6 +328,10 @@ def _build_sections(config: dict) -> list[str]:
         _section("Activity Filters", "Who appears in activity logs.", [
             _field_textarea("QA Names", "ap_qa", "\n".join(ap["qa_names"])),
             _field_textarea("Dev Names", "ap_dev", "\n".join(ap["developer_names"])),
+        ], compact=True),
+        _section("Activity Thresholds", "Controls alerts and insight sensitivity.", [
+            _field_input("Bug Warning", "at_bugwarn", at["bugs_today_warning"]),
+            _field_input("Low Completion", "at_lowcomp", at["low_completed_tasks"]),
         ], compact=True),
     ]
 
@@ -574,46 +586,85 @@ class AdminHandler(BaseHTTPRequestHandler):
         l = int(self.headers.get("Content-Length", 0))
         form = parse_qs(self.rfile.read(l).decode("utf-8"))
         p = urlparse(self.path).path
-        if p == "/login":
-            un, pw = form.get("username", [""])[0], form.get("password", [""])[0]
-            nxt = form.get("next", ["/"])[0] or "/"
-            usr = auth.authenticate(un, pw)
-            if usr:
-                sid = auth.create_session(un)
-                self.send_response(303)
-                self.send_header("Location", nxt)
-                self.send_header("Set-Cookie", f"session_id={sid}; Max-Age={SESSION_EXPIRY_DAYS*86400}; Path=/; HttpOnly")
-                self.end_headers()
-            else: self._send_html(_login_html("Invalid login."), 401)
-            return
-        u = self._get_session_user()
-        if not u: return self._redirect("/login")
-        if p == "/save" and u["role"] in ["admin", "editor"]:
-            sprint_health.save_metrics_config(_build_config_from_form(form))
-            sprint_health.reload_metrics_config()
-            self._redirect("/admin?saved=1")
-            return
-        elif p == "/reset" and u["role"] in ["admin", "editor"]:
-            sprint_health.save_metrics_config(sprint_health.DEFAULT_METRICS_CONFIG)
-            sprint_health.reload_metrics_config()
-            self._redirect("/admin?reset=1")
-            return
-        elif p == "/users/add" and u["role"] == "admin":
-            nu, np, nr = form.get("new_username", [""])[0], form.get("new_password", [""])[0], form.get("new_role", ["viewer"])[0]
-            if auth.add_user(nu, np, nr): self._send_html(_users_html(u, "Added."))
-            else: self._send_html(_users_html(u, error="Exists."))
-            return
-        elif p == "/users/delete" and u["role"] == "admin":
-            du = form.get("username", [""])[0]
-            if auth.delete_user(du): self._send_html(_users_html(u, "Deleted."))
-            return
-        else: self.send_error(404)
+        try:
+            if p == "/login":
+                un, pw = form.get("username", [""])[0], form.get("password", [""])[0]
+                nxt = form.get("next", ["/"])[0] or "/"
+                usr = auth.authenticate(un, pw)
+                if usr:
+                    sid = auth.create_session(un)
+                    self.send_response(303)
+                    self.send_header("Location", nxt)
+                    self.send_header("Set-Cookie", f"session_id={sid}; Max-Age={SESSION_EXPIRY_DAYS*86400}; Path=/; HttpOnly")
+                    self.end_headers()
+                else:
+                    self._send_html(_login_html("Invalid login."), 401)
+                return
+            u = self._get_session_user()
+            if not u:
+                return self._redirect("/login")
+            if p == "/save" and u["role"] in ["admin", "editor"]:
+                previous = sprint_health.load_metrics_config()
+                updated = sprint_health.save_metrics_config(_build_config_from_form(form))
+                sprint_health.reload_metrics_config()
+                changes = sprint_health.describe_config_changes(previous, updated)
+                if changes:
+                    send_slack_message("Config updated:\n" + "\n".join(f"- {item}" for item in changes))
+                self._redirect("/admin?saved=1")
+                return
+            elif p == "/reset" and u["role"] in ["admin", "editor"]:
+                previous = sprint_health.load_metrics_config()
+                updated = sprint_health.save_metrics_config(sprint_health.DEFAULT_METRICS_CONFIG)
+                sprint_health.reload_metrics_config()
+                changes = sprint_health.describe_config_changes(previous, updated)
+                if changes:
+                    send_slack_message("Config updated:\n" + "\n".join(f"- {item}" for item in changes))
+                self._redirect("/admin?reset=1")
+                return
+            elif p == "/users/add" and u["role"] == "admin":
+                nu, np, nr = form.get("new_username", [""])[0], form.get("new_password", [""])[0], form.get("new_role", ["viewer"])[0]
+                if auth.add_user(nu, np, nr):
+                    self._send_html(_users_html(u, "Added."))
+                else:
+                    self._send_html(_users_html(u, error="Exists."))
+                return
+            elif p == "/users/delete" and u["role"] == "admin":
+                du = form.get("username", [""])[0]
+                if auth.delete_user(du):
+                    self._send_html(_users_html(u, "Deleted."))
+                return
+            self.send_error(404)
+        except ValueError as exc:
+            u = self._get_session_user() or {"role": "viewer"}
+            if p in {"/save", "/reset"}:
+                self._send_html(_dashboard_html(u, error=str(exc)), 400)
+                return
+            self._send_html(str(exc), 400)
+
+
+class GracefulThreadingHTTPServer(ThreadingHTTPServer):
+    """Threading HTTP server configured to shut down cleanly."""
+
+    daemon_threads = True
+    allow_reuse_address = True
 
 
 def run_dashboard():
-    print(f"[admin] Server ready at http://{HOST}:{PORT}")
-    print(f"[admin] Environment: {os.getenv('RAILWAY_ENVIRONMENT', 'local')}")
-    ThreadingHTTPServer((HOST, PORT), AdminHandler).serve_forever()
+    logger.info("Admin dashboard startup host=%s port=%s env=%s", HOST, PORT, os.getenv("RAILWAY_ENVIRONMENT", "local"))
+    server = GracefulThreadingHTTPServer((HOST, PORT), AdminHandler)
+
+    def _shutdown(signum, _frame) -> None:
+        logger.info("Admin dashboard stopping cleanly after signal=%s", signum)
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+    signal.signal(signal.SIGTERM, _shutdown)
+    signal.signal(signal.SIGINT, _shutdown)
+
+    try:
+        server.serve_forever(poll_interval=0.5)
+    finally:
+        server.server_close()
+        logger.info("Admin dashboard shutdown complete")
 
 
 if __name__ == "__main__":

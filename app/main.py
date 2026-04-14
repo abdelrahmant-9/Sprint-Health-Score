@@ -61,7 +61,8 @@ def run_cycle(settings: Settings, output_json: bool = False, notify: bool = Fals
         write_html_report(report, report_path)
 
     if output_json:
-        logger.info("JSON report payload: %s", json.dumps(report, ensure_ascii=False))
+        print(json.dumps(report, ensure_ascii=False))
+        logger.info("JSON report payload generated")
     else:
         logger.info("Report summary\n%s", format_console_report(report))
     logger.info("Report artifact generated at %s", report_path)

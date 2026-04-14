@@ -16,6 +16,7 @@ def _settings() -> Settings:
         jira_api_token="token",
         jira_project_key="PM",
         jira_board_id=55,
+        api_key="test-api-key",
     )
 
 

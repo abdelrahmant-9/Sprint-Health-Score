@@ -7,9 +7,11 @@ __pycache__
 .env
 data
 *.db
-sprint_health_report.html
 issue_history_cache.json
 .github
 Icon.png
 tunnel.*.txt
 output.txt
+tests
+dashboard.err.log
+sprint_health_report.html
