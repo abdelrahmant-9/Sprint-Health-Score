@@ -357,51 +357,62 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{escape(title)}</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     :root {{
-      --bg-page: #0A0F1E;
-      --bg-surface: #111827;
-      --bg-elevated: #1A2235;
-      --bg-overlay: #243049;
+      --bg-page:      #060D1F;
+      --glass-bg:     rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.09);
+      --glass-blur:   14px;
+      --glass-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
       --brand-primary: #3B82F6;
-      --brand-hover: #2563EB;
-      --brand-soft: rgba(59,130,246,0.12);
-      --green: #22C55E;
-      --green-soft: rgba(34,197,94,0.12);
-      --yellow: #FACC15;
-      --yellow-soft: rgba(250,204,21,0.12);
-      --orange: #FB923C;
-      --orange-soft: rgba(251,146,60,0.12);
-      --red: #EF4444;
-      --red-soft: rgba(239,68,68,0.12);
-      --text-primary: #F1F5F9;
+      --brand-hover:   #2563EB;
+      --brand-soft:    rgba(59,130,246,0.14);
+      --green:         #22C55E;
+      --green-soft:    rgba(34,197,94,0.13);
+      --yellow:        #FACC15;
+      --yellow-soft:   rgba(250,204,21,0.13);
+      --orange:        #FB923C;
+      --orange-soft:   rgba(251,146,60,0.13);
+      --red:           #EF4444;
+      --red-soft:      rgba(239,68,68,0.13);
+      --teal:          #14B8A6;
+      --text-primary:   #F1F5F9;
       --text-secondary: #94A3B8;
-      --text-muted: #475569;
-      --border: rgba(148,163,184,0.10);
-      --border-hover: rgba(148,163,184,0.22);
-      --border-focus: rgba(59,130,246,0.50);
-      --radius-md: 10px;
-      --radius-lg: 16px;
-      --radius-xl: 22px;
+      --text-muted:     #4E6080;
+      --border:         rgba(148,163,184,0.09);
+      --border-hover:   rgba(148,163,184,0.20);
+      --border-focus:   rgba(59,130,246,0.50);
+      --radius-sm:   6px;
+      --radius-md:   10px;
+      --radius-lg:   16px;
+      --radius-xl:   22px;
       --radius-full: 999px;
-      --shadow-card: 0 4px 24px rgba(0,0,0,0.30);
+      --shadow-card: 0 4px 24px rgba(0,0,0,0.28);
+      --glow-blue:   0 0 24px rgba(59,130,246,0.22);
+      --glow-green:  0 0 24px rgba(34,197,94,0.22);
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      font-family: 'Segoe UI', Tahoma, sans-serif;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
       background:
-        radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 30%),
-        linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg-page) 20%, var(--bg-page) 100%);
+        radial-gradient(ellipse 70% 55% at 10% -5%, rgba(59,130,246,0.18) 0%, transparent 55%),
+        radial-gradient(ellipse 55% 40% at 90% 5%,  rgba(20,184,166,0.14) 0%, transparent 45%),
+        radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99,102,241,0.08) 0%, transparent 60%),
+        linear-gradient(170deg, #0C1428 0%, #060D1F 40%, #020817 100%);
       color: var(--text-primary);
       min-height: 100vh;
       display: flex;
       overflow-x: hidden;
     }}
-    #admin-particles {{ position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.45; }}
+    #admin-particles {{ position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.38; }}
     .app-container {{ display: flex; width: 100%; z-index: 2; position: relative; }}
     .sidebar {{
       width: 240px;
-      background: var(--bg-surface);
-      border-right: 1px solid var(--border);
+      background: rgba(10,17,35,0.72);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-right: 1px solid var(--glass-border);
+      box-shadow: 4px 0 24px rgba(0,0,0,0.30);
       height: 100vh;
       position: sticky;
       top: 0;
@@ -421,12 +432,14 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       height: 36px;
       border-radius: 12px;
       background: linear-gradient(135deg, var(--brand-primary), #14B8A6);
-      box-shadow: var(--shadow-card);
+      box-shadow: 0 4px 16px rgba(59,130,246,0.40);
+      flex-shrink: 0;
     }}
     .brand-name {{
       font-size: 18px;
       font-weight: 700;
       color: var(--text-primary);
+      letter-spacing: -0.02em;
     }}
     .main-content {{
       flex: 1;
@@ -435,7 +448,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       margin: 0 auto;
       width: 100%;
     }}
-    .nav-list {{ list-style: none; display: flex; flex-direction: column; gap: 8px; }}
+    .nav-list {{ list-style: none; display: flex; flex-direction: column; gap: 6px; }}
     .nav-item a {{
       display: block;
       padding: 10px 14px;
@@ -445,11 +458,12 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       font-size: 14px;
       font-weight: 500;
       border-left: 2px solid transparent;
-      transition: all 160ms ease;
+      transition: all 180ms cubic-bezier(0.16,1,0.3,1);
     }}
     .nav-item a:hover {{
-      background: var(--bg-elevated);
+      background: var(--glass-bg);
       color: var(--text-primary);
+      border-left-color: rgba(148,163,184,0.20);
     }}
     .nav-item.active a {{
       background: var(--brand-soft);
@@ -457,16 +471,17 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       border-left-color: var(--brand-primary);
     }}
     .logout-link a {{ color: var(--red) !important; }}
-    .logout-link a:hover {{ background: var(--red-soft); }}
+    .logout-link a:hover {{ background: var(--red-soft) !important; border-left-color: var(--red) !important; }}
     .header {{
       margin-bottom: 32px;
       padding-bottom: 20px;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--glass-border);
     }}
     .header h1 {{
       font-size: 22px;
       font-weight: 700;
       color: var(--text-primary);
+      letter-spacing: -0.02em;
     }}
     .header p {{
       margin-top: 4px;
@@ -474,36 +489,58 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       color: var(--text-muted);
     }}
     section {{
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
       border-radius: var(--radius-xl);
       padding: 24px 28px;
-      box-shadow: var(--shadow-card);
+      box-shadow: var(--glass-shadow);
       margin-bottom: 20px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }}
+    section::before {{
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+      pointer-events: none;
+    }}
+    section:hover {{
+      border-color: rgba(59,130,246,0.18);
+      box-shadow: var(--glow-blue), var(--glass-shadow);
     }}
     .section-head {{ margin-bottom: 20px; }}
     .section-head h3 {{
-      font-size: 14px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       color: var(--text-primary);
-      border-left: 3px solid var(--brand-primary);
+      border-left: 2px solid var(--brand-primary);
       padding-left: 12px;
       margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
     }}
     .section-head p {{
       font-size: 12px;
       color: var(--text-muted);
-      padding-left: 15px;
+      padding-left: 14px;
     }}
     .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }}
+    .compact-grid {{ grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }}
     .field {{
       display: flex;
       flex-direction: column;
       gap: 4px;
       padding: 12px 14px;
-      background: var(--bg-elevated);
+      background: rgba(255,255,255,0.03);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       border-radius: var(--radius-md);
-      border: 1px solid var(--border);
+      border: 1px solid var(--glass-border);
       transition: border-color 160ms ease, box-shadow 160ms ease;
     }}
     .field:focus-within {{
@@ -515,7 +552,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       font-weight: 700;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.07em;
     }}
     .field small {{
       color: var(--text-muted);
@@ -529,6 +566,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       font-weight: 500;
       width: 100%;
       outline: none;
+      font-family: inherit;
     }}
     button, .btn {{
       padding: 11px 24px;
@@ -536,43 +574,65 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       font-weight: 600;
       cursor: pointer;
       border: none;
-      transition: all 160ms ease;
+      transition: all 180ms cubic-bezier(0.16,1,0.3,1);
       text-decoration: none;
       display: inline-block;
       font-size: 14px;
+      font-family: inherit;
     }}
     button:focus, .btn:focus, input:focus, select:focus, textarea:focus {{
       outline: none;
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.40);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.35) !important;
     }}
-    .save {{ background: var(--brand-primary); color: #fff; }}
-    .save:hover {{ background: var(--brand-hover); }}
+    .save {{
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      color: #fff;
+      border: 1px solid rgba(59,130,246,0.50);
+      box-shadow: 0 4px 20px rgba(59,130,246,0.35);
+    }}
+    .save:hover {{
+      background: linear-gradient(135deg, #4F94F8, #3B82F6);
+      box-shadow: 0 6px 28px rgba(59,130,246,0.50);
+      transform: translateY(-2px);
+    }}
     .reset {{
-      background: transparent;
+      background: var(--glass-bg);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       color: var(--text-secondary);
-      border: 1px solid var(--border-hover);
+      border: 1px solid var(--glass-border);
     }}
-    .reset:hover {{ background: var(--bg-elevated); }}
+    .reset:hover {{
+      background: rgba(255,255,255,0.07);
+      transform: translateY(-2px);
+      border-color: var(--border-hover);
+    }}
     .banner {{
       padding: 12px 16px;
       margin-bottom: 24px;
       border-left: 3px solid transparent;
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
       font-size: 13px;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
     }}
     .banner.ok {{ background: var(--green-soft); border-left-color: var(--green); color: #4ADE80; }}
     .banner.error {{ background: var(--red-soft); border-left-color: var(--red); color: #F87171; }}
     .table-wrap {{
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
       border-radius: var(--radius-xl);
       overflow: hidden;
+      box-shadow: var(--glass-shadow);
     }}
     table {{
       width: 100%;
       border-collapse: collapse;
     }}
     th {{
-      background: var(--bg-elevated);
+      background: rgba(255,255,255,0.03);
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
@@ -580,15 +640,15 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       color: var(--text-muted);
       padding: 12px 20px;
       text-align: left;
-      border-bottom: 1px solid var(--border);
+      border-bottom: 1px solid var(--glass-border);
     }}
     td {{
       padding: 14px 20px;
       font-size: 14px;
       color: var(--text-secondary);
-      border-bottom: 1px solid rgba(148,163,184,0.05);
+      border-bottom: 1px solid rgba(148,163,184,0.06);
     }}
-    tbody tr:hover td {{ background: var(--bg-elevated); }}
+    tbody tr:hover td {{ background: rgba(255,255,255,0.02); }}
     tbody tr:last-child td {{ border-bottom: none; }}
     .email-cell {{ font-weight: 500; color: var(--text-primary); }}
     .pill {{
@@ -596,26 +656,47 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       align-items: center;
       justify-content: center;
       width: fit-content;
-      padding: 4px 10px;
+      padding: 3px 8px;
       border-radius: var(--radius-full);
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.05em;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
     }}
-    .status-active {{ background: var(--green-soft); color: var(--green); }}
-    .status-locked {{ background: var(--red-soft); color: var(--red); }}
-    .role-super_admin {{ background: #312E81; color: #A5B4FC; }}
-    .role-admin {{ background: #1E3A5F; color: #93C5FD; }}
-    .role-editor {{ background: #064E3B; color: #6EE7B7; }}
-    .role-user {{ background: #1F2937; color: #9CA3AF; }}
-    .role-viewer {{ background: #1F2937; color: #6B7280; }}
+    .status-active {{ background: var(--green-soft); color: var(--green); border: 1px solid rgba(34,197,94,0.22); }}
+    .status-locked {{ background: var(--red-soft);   color: var(--red);   border: 1px solid rgba(239,68,68,0.22); }}
+    .role-super_admin {{ background: rgba(49,46,129,0.70);  color: #A5B4FC; border: 1px solid rgba(165,180,252,0.20); }}
+    .role-admin        {{ background: rgba(30,58,95,0.70);   color: #93C5FD; border: 1px solid rgba(147,197,253,0.20); }}
+    .role-editor       {{ background: rgba(6,78,59,0.70);    color: #6EE7B7; border: 1px solid rgba(110,231,183,0.20); }}
+    .role-user         {{ background: rgba(31,41,55,0.70);   color: #9CA3AF; border: 1px solid rgba(156,163,175,0.15); }}
+    .role-viewer       {{ background: rgba(31,41,55,0.55);   color: #6B7280; border: 1px solid rgba(107,114,128,0.15); }}
     .action-card {{
-      background: var(--bg-surface);
-      border: 1px solid var(--border);
+      background: var(--glass-bg);
+      backdrop-filter: blur(var(--glass-blur));
+      -webkit-backdrop-filter: blur(var(--glass-blur));
+      border: 1px solid var(--glass-border);
       border-radius: var(--radius-xl);
       padding: 20px 24px;
       margin-bottom: 12px;
+      box-shadow: var(--glass-shadow);
+      position: relative;
+      overflow: hidden;
+      transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+    }}
+    .action-card::before {{
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+      pointer-events: none;
+    }}
+    .action-card:hover {{
+      transform: translateY(-2px);
+      border-color: rgba(59,130,246,0.22);
+      box-shadow: var(--glow-blue), var(--glass-shadow);
     }}
     .action-summary {{
       display: flex;
@@ -629,14 +710,16 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       width: 36px;
       height: 36px;
       border-radius: 50%;
-      background: var(--bg-elevated);
-      border: 1px solid var(--border-hover);
+      background: var(--brand-soft);
+      border: 1px solid rgba(59,130,246,0.30);
       color: var(--brand-primary);
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       display: inline-flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 0 12px rgba(59,130,246,0.18);
+      flex-shrink: 0;
     }}
     .action-row {{
       display: grid;
@@ -645,15 +728,17 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       align-items: end;
     }}
     .ghost-btn {{
-      background: transparent;
-      border: 1px solid var(--border-hover);
+      background: var(--glass-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--glass-border);
       color: var(--text-primary);
     }}
-    .ghost-btn:hover {{ background: var(--bg-elevated); }}
-    .ghost-green:hover {{ color: var(--green); }}
-    .ghost-yellow:hover {{ color: var(--yellow); }}
-    .ghost-red:hover {{ color: var(--red); background: var(--red-soft); }}
-    .ghost-blue:hover {{ color: var(--brand-primary); }}
+    .ghost-btn:hover {{ background: rgba(255,255,255,0.07); transform: translateY(-1px); }}
+    .ghost-green:hover {{ color: var(--green);        border-color: rgba(34,197,94,0.30); }}
+    .ghost-yellow:hover {{ color: var(--yellow);      border-color: rgba(250,204,21,0.30); }}
+    .ghost-red:hover {{ color: var(--red); background: var(--red-soft); border-color: rgba(239,68,68,0.30); }}
+    .ghost-blue:hover {{ color: var(--brand-primary); border-color: rgba(59,130,246,0.30); }}
     @media (max-width: 1279px) {{
       .sidebar {{
         width: 76px;
@@ -844,65 +929,248 @@ def _users_html(user, message: str = "", error: str = "") -> str:
 def _login_html(error: str = "") -> str:
     error_banner = f"<div class='error'>{escape(error)}</div>" if error else ""
     return f"""<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sprint Health — Sign In</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     :root {{
-      --bg-page:#0A0F1E; --bg-surface:#111827; --bg-elevated:#1A2235; --bg-overlay:#243049;
-      --brand-primary:#3B82F6; --brand-hover:#2563EB; --brand-soft:rgba(59,130,246,0.12);
-      --text-primary:#F1F5F9; --text-secondary:#94A3B8; --text-muted:#475569;
-      --border:rgba(148,163,184,0.10); --red:#EF4444; --red-soft:rgba(239,68,68,0.12);
+      --glass-bg:     rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.09);
+      --glass-blur:   14px;
+      --glass-shadow: 0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+      --brand-primary: #3B82F6;
+      --brand-hover:   #2563EB;
+      --teal:          #14B8A6;
+      --text-primary:   #F1F5F9;
+      --text-secondary: #94A3B8;
+      --text-muted:     #4E6080;
+      --border-focus:   rgba(59,130,246,0.50);
+      --red:      #EF4444;
+      --red-soft: rgba(239,68,68,0.13);
+      --radius-md:   10px;
+      --radius-xl:   22px;
+      --radius-full: 999px;
+      --glow-blue:   0 0 24px rgba(59,130,246,0.22);
     }}
-    * {{ box-sizing:border-box; }}
+    * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      font-family:'Segoe UI', Tahoma, sans-serif;
-      margin:0;
-      min-height:100vh;
-      display:grid;
-      grid-template-columns:1.3fr 0.9fr;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      display: grid;
+      grid-template-columns: 1.3fr 0.9fr;
       background:
-        radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 30%),
-        linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg-page) 20%, var(--bg-page) 100%);
-      color:var(--text-primary);
+        radial-gradient(ellipse 70% 55% at 10% -5%, rgba(59,130,246,0.18) 0%, transparent 55%),
+        radial-gradient(ellipse 55% 40% at 90% 5%,  rgba(20,184,166,0.14) 0%, transparent 45%),
+        radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99,102,241,0.08) 0%, transparent 60%),
+        linear-gradient(170deg, #0C1428 0%, #060D1F 40%, #020817 100%);
+      color: var(--text-primary);
     }}
     .visual {{
-      display:flex; align-items:center; justify-content:center; padding:48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px;
     }}
     .visual-card {{
-      width:100%; min-height:560px; border-radius:22px; background:var(--bg-surface); border:1px solid var(--border);
-      padding:48px; position:relative; overflow:hidden;
+      width: 100%;
+      min-height: 560px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(59,130,246,0.22), transparent 40%),
+        radial-gradient(circle at 70% 75%, rgba(20,184,166,0.18), transparent 35%),
+        var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow), var(--glow-blue);
+      padding: 48px;
+      position: relative;
+      overflow: hidden;
+    }}
+    .visual-card::before {{
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+      pointer-events: none;
+    }}
+    .eyebrow {{
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }}
+    .visual-title {{
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      max-width: 520px;
+      line-height: 1.25;
+      margin-bottom: 12px;
+    }}
+    .visual-sub {{
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--text-secondary);
+      max-width: 420px;
+    }}
+    .arc-wrap {{
+      margin-top: 48px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      flex-wrap: wrap;
     }}
     .arc {{
-      width:260px; height:260px; border-radius:50%; border:18px solid rgba(59,130,246,0.10);
-      border-top-color:var(--brand-primary); border-right-color:#14B8A6; margin-top:44px;
+      width: 200px;
+      height: 200px;
+      border-radius: 50%;
+      border: 14px solid rgba(59,130,246,0.10);
+      border-top-color: var(--brand-primary);
+      border-right-color: var(--teal);
+      position: relative;
+      box-shadow: 0 0 32px rgba(59,130,246,0.24);
+      animation: spinArc 8s linear infinite;
+      flex-shrink: 0;
+    }}
+    .arc::after {{
+      content: "";
+      position: absolute;
+      inset: 24px;
+      border-radius: 50%;
+      border: 1px dashed rgba(148,163,184,0.22);
+      animation: pulseRing 3s ease-in-out infinite;
+    }}
+    .arc-label {{ flex: 1; min-width: 160px; }}
+    .arc-label .metric-eyebrow {{
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }}
+    .arc-label .metric-big {{
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: #3B82F6;
+      line-height: 1;
+      margin-bottom: 6px;
+    }}
+    .arc-label .metric-sub {{
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
     }}
     .panel {{
-      display:flex; align-items:center; justify-content:center; padding:40px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 16px;
     }}
     .box {{
-      background:var(--bg-surface); padding:40px; border-radius:22px; border:1px solid var(--border); width:400px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      box-shadow: var(--glass-shadow);
+      padding: 40px;
+      border-radius: var(--radius-xl);
+      width: 400px;
+      position: relative;
+      overflow: hidden;
     }}
-    .eyebrow {{ font-size:14px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:700; }}
-    h2 {{ margin:10px 0 8px; font-size:22px; font-weight:700; }}
-    .sub {{ color:var(--text-secondary); font-size:14px; line-height:1.6; margin-bottom:24px; }}
-    .divider {{ height:1px; background:var(--border); margin:24px 0; }}
-    label {{ display:block; font-size:12px; color:var(--text-secondary); margin-bottom:8px; }}
+    .box::before {{
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent);
+      pointer-events: none;
+    }}
+    .login-title {{ font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin: 8px 0 6px; }}
+    .login-sub {{ font-size: 14px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 24px; }}
+    .divider {{ height: 1px; background: var(--glass-border); margin: 20px 0 24px; }}
+    label {{
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }}
     input {{
-      width:100%; padding:10px 14px; margin-bottom:14px; border-radius:10px; background:var(--bg-elevated);
-      border:1px solid var(--border); color:var(--text-primary); box-sizing:border-box;
+      width: 100%;
+      padding: 11px 14px;
+      margin-bottom: 14px;
+      border-radius: var(--radius-md);
+      background: rgba(255,255,255,0.03);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border: 1px solid var(--glass-border);
+      color: var(--text-primary);
+      box-sizing: border-box;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 160ms ease, box-shadow 160ms ease;
     }}
-    input:focus {{ outline:none; box-shadow:0 0 0 3px rgba(59,130,246,0.40); border-color:rgba(59,130,246,0.50); }}
+    input:focus {{
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.35);
+      border-color: var(--border-focus);
+    }}
     button {{
-      width:100%; padding:12px; border-radius:10px; background:var(--brand-primary); color:#fff; border:none; cursor:pointer; font-weight:600; font-size:14px;
+      width: 100%;
+      padding: 12px;
+      border-radius: var(--radius-md);
+      background: linear-gradient(135deg, #3B82F6, #2563EB);
+      color: #fff;
+      border: 1px solid rgba(59,130,246,0.50);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      font-family: inherit;
+      box-shadow: 0 4px 20px rgba(59,130,246,0.35);
+      transition: all 180ms cubic-bezier(0.16,1,0.3,1);
     }}
-    button:hover {{ background:var(--brand-hover); }}
-    .error {{ background:var(--red-soft); border-left:3px solid var(--red); color:#FCA5A5; padding:12px 16px; margin-bottom:20px; font-size:13px; }}
-    .foot {{ margin-top:14px; text-align:center; color:var(--text-muted); font-size:12px; }}
+    button:hover {{
+      background: linear-gradient(135deg, #4F94F8, #3B82F6);
+      box-shadow: 0 6px 28px rgba(59,130,246,0.50);
+      transform: translateY(-2px);
+    }}
+    .error {{
+      background: var(--red-soft);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      border-left: 3px solid var(--red);
+      border-radius: 0 var(--radius-md) var(--radius-md) 0;
+      color: #FCA5A5;
+      padding: 12px 16px;
+      margin-bottom: 20px;
+      font-size: 13px;
+    }}
+    .foot {{ margin-top: 14px; text-align: center; color: var(--text-muted); font-size: 12px; }}
+    @keyframes spinArc {{
+      from {{ transform: rotate(0deg); }}
+      to   {{ transform: rotate(360deg); }}
+    }}
+    @keyframes pulseRing {{
+      0%, 100% {{ transform: scale(1);    opacity: 0.9; }}
+      50%       {{ transform: scale(1.05); opacity: 0.50; }}
+    }}
     @media (max-width: 900px) {{
-      body {{ grid-template-columns:1fr; }}
-      .visual {{ display:none; }}
-      .panel {{ padding:24px; }}
-      .box {{ width:min(100%, 400px); }}
+      body {{ grid-template-columns: 1fr; }}
+      .visual {{ display: none; }}
+      .panel {{ padding: 24px; }}
+      .box {{ width: min(100%, 400px); }}
     }}
   </style>
 </head>
@@ -910,24 +1178,31 @@ def _login_html(error: str = "") -> str:
   <div class="visual">
     <div class="visual-card">
       <div class="eyebrow">Sprint Health</div>
-      <h1 style="margin:12px 0 10px; font-size:28px; max-width:520px;">A calmer control room for sprint delivery, quality, and team flow.</h1>
-      <p class="sub" style="max-width:420px;">Track delivery health, bug pressure, and workspace activity with one cohesive operational surface.</p>
-      <div class="arc" aria-label="Sprint score illustration" title="Sprint score illustration"></div>
+      <div class="visual-title">A calmer control room for sprint delivery, quality, and team flow.</div>
+      <p class="visual-sub">Track delivery health, bug pressure, and workspace activity with one cohesive operational surface.</p>
+      <div class="arc-wrap">
+        <div class="arc" aria-hidden="true"></div>
+        <div class="arc-label">
+          <div class="metric-eyebrow">Workspace</div>
+          <div class="metric-big">Sprint Health</div>
+          <div class="metric-sub">Delivery quality, blocked time, bugs, and weekly momentum in one place.</div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="panel">
     <div class="box">
       <div class="eyebrow">Sprint Health</div>
-      <h2>Sign in to your workspace</h2>
-      <p class="sub">Track delivery health, bugs, and team activity.</p>
+      <div class="login-title">Sign in to your workspace</div>
+      <p class="login-sub">Track delivery health, bugs, and team activity.</p>
       <div class="divider"></div>
       {error_banner}
       <form method="post" action="/login">
         <input type="hidden" id="nextField" name="next">
         <label for="username">Email address</label>
-        <input id="username" type="text" name="username" placeholder="Email" required autofocus>
+        <input id="username" type="email" name="username" placeholder="admin@example.com" required autofocus autocomplete="email">
         <label for="password">Password</label>
-        <input id="password" type="password" name="password" placeholder="Password" required>
+        <input id="password" type="password" name="password" placeholder="Enter your password" required autocomplete="current-password">
         <button type="submit">Sign In</button>
       </form>
       <div class="foot">Secured with JWT authentication</div>

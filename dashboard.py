@@ -375,6 +375,49 @@ def _enable_auto_refresh(interval_seconds: int = 30) -> None:
     )
 
 
+def _inject_websocket_listener(api_base_url: str) -> None:
+    """Inject a WebSocket client that reloads the page when metrics change.
+
+    Falls back silently if the WebSocket endpoint is unavailable so HTTP-only
+    deployments continue to work without errors.
+    """
+    ws_url = api_base_url.replace("http://", "ws://").replace("https://", "wss://") + "/ws"
+    components.html(
+        f"""
+        <script>
+        (function() {{
+            var wsUrl = {repr(ws_url)};
+            function connect() {{
+                var ws;
+                try {{
+                    ws = new WebSocket(wsUrl);
+                }} catch(e) {{
+                    return;
+                }}
+                ws.onmessage = function(event) {{
+                    try {{
+                        var msg = JSON.parse(event.data);
+                        if (msg.type === "metric_updated" || msg.type === "health_updated") {{
+                            window.parent.location.reload();
+                        }}
+                    }} catch(e) {{}}
+                }};
+                ws.onclose = function() {{
+                    setTimeout(connect, 5000);
+                }};
+                ws.onerror = function() {{
+                    ws.close();
+                }};
+            }}
+            connect();
+        }})();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
 def _build_trend_dataframe(weekly: dict) -> pd.DataFrame:
     """Build a dataframe for Plotly trend charts."""
     rows: list[dict] = []
@@ -498,53 +541,84 @@ def _run_now_and_refresh() -> None:
 
 
 def _inject_base_styles(theme: dict) -> None:
-    """Apply the design system and layout rules."""
+    """Apply the Liquid Glass design system and layout rules."""
+    is_dark = not st.session_state.get("light_mode", False)
     st.markdown(
         f"""
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
             :root {{
-                --bg-page: {"#0A0F1E" if not st.session_state.get("light_mode", False) else "#F5F7FB"};
-                --bg-surface: {"#111827" if not st.session_state.get("light_mode", False) else "#FFFFFF"};
-                --bg-elevated: {"#1A2235" if not st.session_state.get("light_mode", False) else "#EEF2F7"};
-                --bg-overlay: {"#243049" if not st.session_state.get("light_mode", False) else "#DCE6F2"};
+                /* ── Page canvas ── */
+                --bg-page:    {"#060D1F" if is_dark else "#EFF3FA"};
+                --bg-surface: {"rgba(15, 23, 42, 0.55)" if is_dark else "rgba(255,255,255,0.60)"};
+                --bg-elevated:{"rgba(26, 34, 53, 0.60)" if is_dark else "rgba(238,242,247,0.70)"};
+                --bg-overlay: {"rgba(36, 48, 73, 0.65)" if is_dark else "rgba(220,230,242,0.75)"};
+
+                /* ── Glass layer ── */
+                --glass-bg:   {"rgba(255,255,255,0.04)" if is_dark else "rgba(255,255,255,0.72)"};
+                --glass-border: {"rgba(255,255,255,0.09)" if is_dark else "rgba(15,23,42,0.09)"};
+                --glass-blur: 14px;
+                --glass-shadow: {"0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06)" if is_dark else "0 8px 32px rgba(15,23,42,0.10), inset 0 1px 0 rgba(255,255,255,0.80)"};
+
+                /* ── Brand & accents ── */
                 --brand-primary: #3B82F6;
-                --brand-hover: #2563EB;
-                --brand-soft: rgba(59,130,246,0.12);
-                --green: #22C55E;
-                --green-soft: rgba(34,197,94,0.12);
-                --yellow: #FACC15;
-                --yellow-soft: rgba(250,204,21,0.12);
-                --orange: #FB923C;
-                --orange-soft: rgba(251,146,60,0.12);
-                --red: #EF4444;
-                --red-soft: rgba(239,68,68,0.12);
-                --teal: #14B8A6;
-                --teal-soft: rgba(20,184,166,0.12);
-                --text-primary: {"#F1F5F9" if not st.session_state.get("light_mode", False) else "#0F172A"};
-                --text-secondary: {"#94A3B8" if not st.session_state.get("light_mode", False) else "#475569"};
-                --text-muted: {"#475569" if not st.session_state.get("light_mode", False) else "#64748B"};
-                --text-inverse: #0A0F1E;
-                --border: {"rgba(148,163,184,0.10)" if not st.session_state.get("light_mode", False) else "rgba(15,23,42,0.10)"};
-                --border-hover: {"rgba(148,163,184,0.22)" if not st.session_state.get("light_mode", False) else "rgba(15,23,42,0.20)"};
-                --border-focus: rgba(59,130,246,0.50);
-                --score-green: #22C55E;
-                --score-blue: #3B82F6;
+                --brand-hover:   #2563EB;
+                --brand-soft:    rgba(59,130,246,0.14);
+                --green:         #22C55E;
+                --green-soft:    rgba(34,197,94,0.13);
+                --yellow:        #FACC15;
+                --yellow-soft:   rgba(250,204,21,0.13);
+                --orange:        #FB923C;
+                --orange-soft:   rgba(251,146,60,0.13);
+                --red:           #EF4444;
+                --red-soft:      rgba(239,68,68,0.13);
+                --teal:          #14B8A6;
+                --teal-soft:     rgba(20,184,166,0.13);
+
+                /* ── Score tokens ── */
+                --score-green:  #22C55E;
+                --score-blue:   #3B82F6;
                 --score-yellow: #FACC15;
-                --score-red: #EF4444;
-                --radius-sm: 6px;
-                --radius-md: 10px;
-                --radius-lg: 16px;
-                --radius-xl: 22px;
+                --score-red:    #EF4444;
+
+                /* ── Typography ── */
+                --text-primary:   {"#F1F5F9" if is_dark else "#0F172A"};
+                --text-secondary: {"#94A3B8" if is_dark else "#475569"};
+                --text-muted:     {"#4E6080" if is_dark else "#64748B"};
+                --text-inverse:   #0A0F1E;
+
+                /* ── Borders ── */
+                --border:       {"rgba(148,163,184,0.09)" if is_dark else "rgba(15,23,42,0.09)"};
+                --border-hover: {"rgba(148,163,184,0.20)" if is_dark else "rgba(15,23,42,0.18)"};
+                --border-focus: rgba(59,130,246,0.50);
+
+                /* ── Radii ── */
+                --radius-sm:   6px;
+                --radius-md:   10px;
+                --radius-lg:   16px;
+                --radius-xl:   22px;
                 --radius-full: 999px;
-                --shadow-card: 0 4px 24px rgba(0,0,0,0.30);
-                --shadow-modal: 0 12px 48px rgba(0,0,0,0.50);
+
+                /* ── Shadows ── */
+                --shadow-card:  0 4px 24px rgba(0,0,0,0.28);
+                --shadow-modal: 0 12px 48px rgba(0,0,0,0.48);
+                --glow-blue:    0 0 24px rgba(59,130,246,0.22);
+                --glow-green:   0 0 24px rgba(34,197,94,0.22);
+
                 --grid: {theme["grid"]};
+            }}
+
+            /* ── Page canvas ── */
+            html, body, .stApp {{
+                font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
             }}
             .stApp {{
                 background:
-                    radial-gradient(circle at top left, rgba(59,130,246,0.12), transparent 30%),
-                    radial-gradient(circle at top right, rgba(20,184,166,0.10), transparent 26%),
-                    linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg-page) 18%, var(--bg-page) 100%);
+                    radial-gradient(ellipse 70% 55% at 10% -5%, rgba(59,130,246,0.18) 0%, transparent 55%),
+                    radial-gradient(ellipse 55% 40% at 90% 5%,  rgba(20,184,166,0.14) 0%, transparent 45%),
+                    radial-gradient(ellipse 80% 50% at 50% 100%, rgba(99,102,241,0.08) 0%, transparent 60%),
+                    linear-gradient(170deg, {"#0C1428 0%, #060D1F 40%, #020817 100%" if is_dark else "#E8EDF8 0%, #EFF3FA 40%, #F5F7FB 100%"});
                 color: var(--text-primary);
             }}
             .block-container {{
@@ -558,40 +632,52 @@ def _inject_base_styles(theme: dict) -> None:
             div[data-testid="stToolbar"] {{
                 background: transparent;
             }}
+
+            /* ── Sidebar glass ── */
             [data-testid="stSidebar"] {{
-                background: var(--bg-surface);
-                border-right: 1px solid var(--border);
+                background: {"rgba(10,17,35,0.72)" if is_dark else "rgba(240,244,252,0.78)"};
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border-right: 1px solid var(--glass-border);
+                box-shadow: {"4px 0 24px rgba(0,0,0,0.30)" if is_dark else "4px 0 24px rgba(15,23,42,0.06)"};
             }}
             [data-testid="stSidebar"] * {{
                 color: var(--text-primary);
             }}
+
+            /* ── Buttons ── */
             div[data-testid="stButton"] > button,
             div[data-testid="stDownloadButton"] > button {{
                 min-height: 44px;
                 border-radius: var(--radius-md);
-                border: 1px solid var(--border-hover);
-                background: transparent;
+                border: 1px solid var(--glass-border);
+                background: var(--glass-bg);
+                backdrop-filter: blur(10px);
+                -webkit-backdrop-filter: blur(10px);
                 color: var(--text-primary);
                 font-weight: 600;
                 font-size: 14px;
-                box-shadow: none;
-                transition: all 160ms ease;
+                box-shadow: var(--glass-shadow);
+                transition: all 180ms cubic-bezier(0.16,1,0.3,1);
             }}
             div[data-testid="stButton"] > button:hover,
             div[data-testid="stDownloadButton"] > button:hover {{
-                border-color: var(--brand-primary);
-                background: var(--bg-elevated);
+                border-color: rgba(59,130,246,0.40);
+                background: rgba(59,130,246,0.10);
                 color: var(--text-primary);
                 transform: translateY(-2px);
+                box-shadow: var(--glow-blue), var(--glass-shadow);
             }}
             div[data-testid="stButton"] > button[kind="primary"] {{
-                background: var(--brand-primary);
+                background: linear-gradient(135deg, #3B82F6, #2563EB);
                 color: white;
-                border-color: var(--brand-primary);
+                border-color: rgba(59,130,246,0.50);
+                box-shadow: 0 4px 20px rgba(59,130,246,0.35);
             }}
             div[data-testid="stButton"] > button[kind="primary"]:hover {{
-                background: var(--brand-hover);
-                color: white;
+                background: linear-gradient(135deg, #4F94F8, #3B82F6);
+                box-shadow: 0 6px 28px rgba(59,130,246,0.50);
+                transform: translateY(-2px);
             }}
             div[data-testid="stButton"] > button:focus,
             div[data-testid="stDownloadButton"] > button:focus,
@@ -599,25 +685,38 @@ def _inject_base_styles(theme: dict) -> None:
             textarea:focus,
             select:focus {{
                 outline: none !important;
-                box-shadow: 0 0 0 3px rgba(59,130,246,0.40) !important;
+                box-shadow: 0 0 0 3px rgba(59,130,246,0.35) !important;
             }}
+
+            /* ── Inputs ── */
             div[data-baseweb="input"] > div,
             div[data-baseweb="select"] > div,
             div[data-baseweb="textarea"] > div {{
-                background: var(--bg-elevated) !important;
-                border: 1px solid var(--border) !important;
+                background: var(--glass-bg) !important;
+                backdrop-filter: blur(8px) !important;
+                -webkit-backdrop-filter: blur(8px) !important;
+                border: 1px solid var(--glass-border) !important;
                 border-radius: var(--radius-md) !important;
                 color: var(--text-primary) !important;
             }}
             label, .stMarkdown, p, span {{
                 color: inherit;
             }}
+
+            /* ── Streamlit metric widget ── */
             [data-testid="stMetric"] {{
-                background: var(--bg-surface);
-                border: 1px solid var(--border);
+                background: var(--glass-bg);
+                backdrop-filter: blur(var(--glass-blur));
+                -webkit-backdrop-filter: blur(var(--glass-blur));
+                border: 1px solid var(--glass-border);
                 border-radius: var(--radius-lg);
                 padding: 16px 18px;
-                box-shadow: var(--shadow-card);
+                box-shadow: var(--glass-shadow);
+                transition: transform 160ms ease, box-shadow 160ms ease;
+            }}
+            [data-testid="stMetric"]:hover {{
+                transform: translateY(-2px);
+                box-shadow: var(--glow-blue), var(--glass-shadow);
             }}
             [data-testid="stMetricLabel"] {{
                 color: var(--text-muted) !important;
@@ -625,20 +724,20 @@ def _inject_base_styles(theme: dict) -> None:
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
             }}
-            [data-testid="stMetricValue"] {{
-                color: var(--text-primary) !important;
-            }}
-            [data-testid="stMetricDelta"] {{
-                color: var(--text-secondary) !important;
-            }}
+            [data-testid="stMetricValue"] {{ color: var(--text-primary) !important; }}
+            [data-testid="stMetricDelta"] {{ color: var(--text-secondary) !important; }}
+
             div[data-testid="stToggle"] label,
             div[data-testid="stToggle"] p {{
                 color: var(--text-primary) !important;
                 font-weight: 500;
             }}
+
+            /* ── Tabs ── */
             div[data-baseweb="tab-list"] {{
                 gap: 16px;
                 border-bottom: 1px solid var(--border);
+                background: transparent;
             }}
             button[data-baseweb="tab"] {{
                 color: var(--text-muted) !important;
@@ -646,25 +745,44 @@ def _inject_base_styles(theme: dict) -> None:
                 font-weight: 500 !important;
                 padding: 12px 20px 14px !important;
                 border-bottom: 2px solid transparent !important;
+                transition: color 140ms ease, border-color 140ms ease;
             }}
             button[data-baseweb="tab"][aria-selected="true"] {{
                 color: var(--text-primary) !important;
                 border-bottom-color: var(--brand-primary) !important;
             }}
+
+            /* ── Forms ── */
             [data-testid="stForm"] {{
-                background: var(--bg-surface);
-                border: 1px solid var(--border);
+                background: var(--glass-bg);
+                backdrop-filter: blur(var(--glass-blur));
+                -webkit-backdrop-filter: blur(var(--glass-blur));
+                border: 1px solid var(--glass-border);
                 border-radius: var(--radius-xl);
                 padding: 40px;
-                box-shadow: var(--shadow-card);
+                box-shadow: var(--glass-shadow);
             }}
+
+            /* ── Hero card ── */
             .hero-card {{
-                background: var(--bg-surface);
-                border: 1px solid var(--border);
+                background: var(--glass-bg);
+                backdrop-filter: blur(var(--glass-blur));
+                -webkit-backdrop-filter: blur(var(--glass-blur));
+                border: 1px solid var(--glass-border);
                 border-radius: var(--radius-xl);
                 padding: 28px 30px 22px;
-                box-shadow: var(--shadow-card);
+                box-shadow: var(--glass-shadow);
                 margin-top: 8px;
+                position: relative;
+                overflow: hidden;
+            }}
+            .hero-card::before {{
+                content: "";
+                position: absolute;
+                inset: 0;
+                border-radius: var(--radius-xl);
+                background: linear-gradient(135deg, rgba(255,255,255,0.07) 0%, transparent 60%);
+                pointer-events: none;
             }}
             .hero-overline {{
                 font-size: 11px;
@@ -702,6 +820,8 @@ def _inject_base_styles(theme: dict) -> None:
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.06em;
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
             }}
             .hero-progress {{
                 width: 100%;
@@ -715,7 +835,10 @@ def _inject_base_styles(theme: dict) -> None:
                 height: 100%;
                 border-radius: var(--radius-full);
                 transition: width 800ms cubic-bezier(0.16,1,0.3,1);
+                box-shadow: 0 0 8px currentColor;
             }}
+
+            /* ── Section headings ── */
             .section-heading {{
                 margin: 40px 0 14px 0;
             }}
@@ -736,18 +859,43 @@ def _inject_base_styles(theme: dict) -> None:
             }}
             .section-divider {{
                 height: 1px;
-                background: var(--border);
+                background: linear-gradient(90deg, var(--glass-border), transparent);
                 margin: 0 0 16px 0;
             }}
+
+            /* ── Glass metric / content cards ── */
+            .glass-card,
             .metric-card,
             .content-card {{
                 height: 100%;
                 min-height: 100%;
                 padding: 20px 24px;
                 border-radius: var(--radius-lg);
-                border: 1px solid var(--border);
-                background: var(--bg-surface);
-                box-shadow: var(--shadow-card);
+                border: 1px solid var(--glass-border);
+                background: var(--glass-bg);
+                backdrop-filter: blur(var(--glass-blur));
+                -webkit-backdrop-filter: blur(var(--glass-blur));
+                box-shadow: var(--glass-shadow);
+                position: relative;
+                overflow: hidden;
+                transition: transform 160ms ease, box-shadow 160ms ease;
+            }}
+            .glass-card::before,
+            .metric-card::before,
+            .content-card::before {{
+                content: "";
+                position: absolute;
+                top: 0; left: 0; right: 0;
+                height: 1px;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+                pointer-events: none;
+            }}
+            .metric-card:hover,
+            .content-card:hover,
+            .glass-card:hover {{
+                transform: translateY(-2px);
+                box-shadow: var(--glow-blue), var(--glass-shadow);
+                border-color: rgba(59,130,246,0.22);
             }}
             .metric-label {{
                 margin-bottom: 10px;
@@ -773,6 +921,8 @@ def _inject_base_styles(theme: dict) -> None:
             .metric-support {{
                 margin-top: 10px;
             }}
+
+            /* ── Delta badges ── */
             .delta-badge {{
                 display: inline-flex;
                 align-items: center;
@@ -782,15 +932,21 @@ def _inject_base_styles(theme: dict) -> None:
                 font-size: 11px;
                 font-weight: 700;
                 letter-spacing: 0.04em;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
             }}
             .delta-positive {{
                 background: var(--green-soft);
                 color: var(--green);
+                border: 1px solid rgba(34,197,94,0.20);
             }}
             .delta-negative {{
                 background: var(--red-soft);
                 color: var(--red);
+                border: 1px solid rgba(239,68,68,0.20);
             }}
+
+            /* ── Data tables ── */
             .table-title {{
                 margin-bottom: 14px;
                 font-size: 15px;
@@ -810,31 +966,28 @@ def _inject_base_styles(theme: dict) -> None:
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
                 color: var(--text-muted);
-                border-bottom: 1px solid var(--border);
+                border-bottom: 1px solid var(--glass-border);
             }}
             .saas-table td {{
                 padding: 14px 0;
                 font-size: 14px;
                 color: var(--text-secondary);
-                border-bottom: 1px solid rgba(148, 163, 184, 0.10);
+                border-bottom: 1px solid rgba(148,163,184,0.08);
                 vertical-align: top;
             }}
             .saas-table tbody tr:nth-child(even) td {{
-                background: rgba(26,34,53,0.35);
+                background: {"rgba(255,255,255,0.02)" if is_dark else "rgba(15,23,42,0.02)"};
             }}
-            .saas-table tr:last-child td {{
-                border-bottom: none;
-            }}
-            .saas-table td:first-child {{
-                font-weight: 500;
-                color: var(--text-primary);
-            }}
+            .saas-table tr:last-child td {{ border-bottom: none; }}
+            .saas-table td:first-child {{ font-weight: 500; color: var(--text-primary); }}
             .empty-state {{
                 padding-top: 4px;
                 font-size: 14px;
                 line-height: 1.6;
                 color: var(--text-muted);
             }}
+
+            /* ── Insight lists ── */
             .insight-list,
             .activity-insight-list {{
                 margin: 0;
@@ -847,8 +1000,11 @@ def _inject_base_styles(theme: dict) -> None:
                 gap: 10px;
                 margin-bottom: 8px;
                 padding: 10px 14px;
+                border-radius: var(--radius-md);
                 border-left: 2px solid var(--yellow);
-                background: rgba(250,204,21,0.06);
+                background: rgba(250,204,21,0.05);
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
                 color: var(--text-secondary);
                 font-size: 13px;
                 line-height: 1.55;
@@ -869,44 +1025,63 @@ def _inject_base_styles(theme: dict) -> None:
                 border-radius: 50%;
                 background: var(--brand-primary);
                 flex: 0 0 8px;
+                box-shadow: 0 0 6px rgba(59,130,246,0.50);
             }}
             .insight-icon {{
-                color: var(--yellow);
-                font-size: 16px;
-                line-height: 1;
-                margin-top: 1px;
+                display: inline-block;
+                width: 6px;
+                height: 6px;
+                border-radius: 50%;
+                background: var(--yellow);
+                box-shadow: 0 0 6px rgba(250,204,21,0.50);
+                flex-shrink: 0;
+                margin-top: 6px;
             }}
+
+            /* ── Context chip ── */
             .context-chip {{
                 display: inline-flex;
                 align-items: center;
-                padding: 6px 10px;
+                padding: 6px 12px;
                 border-radius: var(--radius-full);
-                border: 1px solid var(--border);
-                background: var(--bg-elevated);
+                border: 1px solid var(--glass-border);
+                background: var(--glass-bg);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
                 color: var(--text-muted);
                 font-size: 12px;
                 font-weight: 500;
             }}
+
+            /* ── Summary banner ── */
             .summary-banner {{
                 border-left: 3px solid var(--brand-primary);
-                background: rgba(59,130,246,0.06);
+                background: rgba(59,130,246,0.05);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
+                border-radius: 0 var(--radius-md) var(--radius-md) 0;
                 color: var(--text-secondary);
                 padding: 14px 18px;
                 font-size: 14px;
                 line-height: 1.6;
             }}
+
+            /* ── Breakdown bars ── */
             .breakdown-bar {{
                 width: 100%;
-                height: 8px;
+                height: 6px;
                 margin-top: 14px;
-                background: var(--bg-elevated);
+                background: rgba(255,255,255,0.06);
                 border-radius: var(--radius-full);
                 overflow: hidden;
             }}
             .breakdown-bar-fill {{
                 height: 100%;
                 border-radius: var(--radius-full);
+                box-shadow: 0 0 8px currentColor;
             }}
+
+            /* ── Role / status pills ── */
             .role-pill,
             .status-pill {{
                 display: inline-flex;
@@ -918,41 +1093,43 @@ def _inject_base_styles(theme: dict) -> None:
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.05em;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
             }}
-            .role-super_admin {{
-                background: #312E81;
-                color: #A5B4FC;
-            }}
-            .role-admin {{
-                background: #1E3A5F;
-                color: #93C5FD;
-            }}
-            .role-editor {{
-                background: #064E3B;
-                color: #6EE7B7;
-            }}
-            .role-user {{
-                background: #1F2937;
-                color: #9CA3AF;
-            }}
-            .role-viewer {{
-                background: #1F2937;
-                color: #6B7280;
-            }}
-            .status-active {{
-                background: var(--green-soft);
-                color: var(--green);
-            }}
-            .status-locked {{
-                background: var(--red-soft);
-                color: var(--red);
-            }}
+            .role-super_admin {{ background: rgba(49,46,129,0.70); color: #A5B4FC; border: 1px solid rgba(165,180,252,0.20); }}
+            .role-admin        {{ background: rgba(30,58,95,0.70);  color: #93C5FD; border: 1px solid rgba(147,197,253,0.20); }}
+            .role-editor       {{ background: rgba(6,78,59,0.70);   color: #6EE7B7; border: 1px solid rgba(110,231,183,0.20); }}
+            .role-user         {{ background: rgba(31,41,55,0.70);  color: #9CA3AF; border: 1px solid rgba(156,163,175,0.15); }}
+            .role-viewer       {{ background: rgba(31,41,55,0.55);  color: #6B7280; border: 1px solid rgba(107,114,128,0.15); }}
+            .status-active     {{ background: var(--green-soft);    color: var(--green);  border: 1px solid rgba(34,197,94,0.22); }}
+            .status-locked     {{ background: var(--red-soft);      color: var(--red);    border: 1px solid rgba(239,68,68,0.22); }}
+
+            /* ── User cards ── */
             .user-card {{
-                background: var(--bg-surface);
-                border: 1px solid var(--border);
+                background: var(--glass-bg);
+                backdrop-filter: blur(var(--glass-blur));
+                -webkit-backdrop-filter: blur(var(--glass-blur));
+                border: 1px solid var(--glass-border);
                 border-radius: var(--radius-xl);
                 padding: 20px 24px;
                 margin-bottom: 12px;
+                box-shadow: var(--glass-shadow);
+                transition: transform 160ms ease, box-shadow 160ms ease;
+                position: relative;
+                overflow: hidden;
+            }}
+            .user-card::before {{
+                content: "";
+                position: absolute;
+                top: 0; left: 0; right: 0;
+                height: 1px;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+                pointer-events: none;
+            }}
+            .user-card:hover {{
+                transform: translateY(-2px);
+                border-color: rgba(59,130,246,0.22);
+                box-shadow: var(--glow-blue), var(--glass-shadow);
             }}
             .user-summary {{
                 display: flex;
@@ -963,15 +1140,18 @@ def _inject_base_styles(theme: dict) -> None:
                 width: 36px;
                 height: 36px;
                 border-radius: 50%;
-                background: var(--bg-elevated);
-                border: 1px solid var(--border-hover);
+                background: var(--brand-soft);
+                border: 1px solid rgba(59,130,246,0.30);
                 color: var(--brand-primary);
                 display: inline-flex;
                 align-items: center;
                 justify-content: center;
                 font-size: 13px;
-                font-weight: 600;
+                font-weight: 700;
+                box-shadow: 0 0 12px rgba(59,130,246,0.18);
             }}
+
+            /* ── Login screen ── */
             .login-shell {{
                 min-height: 100vh;
                 display: grid;
@@ -990,15 +1170,25 @@ def _inject_base_styles(theme: dict) -> None:
                 height: 100%;
                 min-height: 560px;
                 background:
-                    radial-gradient(circle at 30% 20%, rgba(59,130,246,0.20), transparent 35%),
-                    radial-gradient(circle at 70% 70%, rgba(20,184,166,0.16), transparent 30%),
-                    var(--bg-surface);
-                border: 1px solid var(--border);
+                    radial-gradient(circle at 30% 20%, rgba(59,130,246,0.22), transparent 40%),
+                    radial-gradient(circle at 70% 75%, rgba(20,184,166,0.18), transparent 35%),
+                    var(--glass-bg);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border: 1px solid var(--glass-border);
                 border-radius: 28px;
-                box-shadow: var(--shadow-card);
+                box-shadow: var(--glass-shadow), var(--glow-blue);
                 padding: 48px;
                 position: relative;
                 overflow: hidden;
+            }}
+            .login-visual-card::before {{
+                content: "";
+                position: absolute;
+                top: 0; left: 0; right: 0;
+                height: 1px;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.18), transparent);
+                pointer-events: none;
             }}
             .login-arc {{
                 width: 260px;
@@ -1008,14 +1198,15 @@ def _inject_base_styles(theme: dict) -> None:
                 border-top-color: var(--brand-primary);
                 border-right-color: var(--teal);
                 position: relative;
-                box-shadow: inset 0 0 0 1px var(--border);
+                box-shadow: 0 0 32px rgba(59,130,246,0.24), inset 0 0 0 1px var(--border);
+                animation: spinArc 8s linear infinite;
             }}
             .login-arc::after {{
                 content: "";
                 position: absolute;
                 inset: 30px;
                 border-radius: 50%;
-                border: 1px dashed rgba(148,163,184,0.24);
+                border: 1px dashed rgba(148,163,184,0.22);
                 animation: pulseRing 3s ease-in-out infinite;
             }}
             .login-panel {{
@@ -1026,8 +1217,11 @@ def _inject_base_styles(theme: dict) -> None:
             }}
             .login-error-banner {{
                 margin: 0 0 16px 0;
-                background: var(--red-soft);
+                background: rgba(239,68,68,0.08);
+                backdrop-filter: blur(8px);
+                -webkit-backdrop-filter: blur(8px);
                 border-left: 3px solid var(--red);
+                border-radius: 0 var(--radius-md) var(--radius-md) 0;
                 color: #FCA5A5;
                 padding: 12px 16px;
                 font-size: 13px;
@@ -1036,29 +1230,30 @@ def _inject_base_styles(theme: dict) -> None:
                 font-size: 12px;
                 color: var(--text-muted);
             }}
+
+            /* ── Animations ── */
             @keyframes pulseRing {{
-                0%, 100% {{ transform: scale(1); opacity: 0.9; }}
-                50% {{ transform: scale(1.05); opacity: 0.55; }}
+                0%, 100% {{ transform: scale(1);    opacity: 0.9; }}
+                50%       {{ transform: scale(1.05); opacity: 0.50; }}
             }}
+            @keyframes spinArc {{
+                from {{ transform: rotate(0deg); }}
+                to   {{ transform: rotate(360deg); }}
+            }}
+            @keyframes glassShimmer {{
+                0%   {{ background-position: -200% center; }}
+                100% {{ background-position:  200% center; }}
+            }}
+
+            /* ── Responsive ── */
             @media (max-width: 960px) {{
-                .login-shell {{
-                    grid-template-columns: 1fr;
-                }}
-                .login-visual {{
-                    display: none;
-                }}
-                .block-container {{
-                    padding-left: 18px;
-                    padding-right: 18px;
-                }}
+                .login-shell {{ grid-template-columns: 1fr; }}
+                .login-visual {{ display: none; }}
+                .block-container {{ padding-left: 18px; padding-right: 18px; }}
             }}
             @media (max-width: 768px) {{
-                .hero-title {{
-                    font-size: 20px;
-                }}
-                .hero-score {{
-                    font-size: 56px;
-                }}
+                .hero-title {{ font-size: 20px; }}
+                .hero-score {{ font-size: 56px; }}
             }}
         </style>
         """,
@@ -1140,7 +1335,7 @@ def _insights_card_html(insights: list[str]) -> str:
         </div>
         """
 
-    items = "".join(f'<li><span class="insight-icon" title="Insight">▲</span><span>{html.escape(item)}</span></li>' for item in insights)
+    items = "".join(f'<li><span class="insight-icon" aria-hidden="true"></span><span>{html.escape(item)}</span></li>' for item in insights)
     return f"""
     <div class="content-card">
         <div class="table-title">Activity insights</div>
@@ -1334,8 +1529,18 @@ def _render_admin_dashboard(user: dict):
         st.error("Access denied")
         st.stop()
     
-    st.markdown("<h2 style='color: var(--text-primary);'>Admin Control Panel</h2>", unsafe_allow_html=True)
-    st.caption("Review accounts, roles, login health, and access permissions.")
+    theme = _get_theme()
+    _inject_base_styles(theme)
+    st.markdown(
+        """
+        <div class="glass-card" style="margin-bottom:24px; padding:22px 28px;">
+            <div class="hero-overline">Administration</div>
+            <div class="hero-title" style="font-size:22px; margin-bottom:4px;">Admin Control Panel</div>
+            <div class="metric-subtext">Review accounts, roles, login health, and access permissions.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     _show_admin_feedback()
 
     try:
@@ -1346,7 +1551,7 @@ def _render_admin_dashboard(user: dict):
 
     st.markdown(
         """
-        <div class="content-card" style="margin-bottom:20px;">
+        <div class="glass-card" style="margin-bottom:20px;">
             <div class="table-title">Users Summary</div>
             <div class="metric-subtext">Access levels, account health, and recent login activity.</div>
         </div>
@@ -1392,7 +1597,7 @@ def _render_admin_dashboard(user: dict):
         return
 
     with st.form("create_user_form", clear_on_submit=True):
-        st.markdown('<div class="content-card" style="margin-bottom:16px;"><div class="table-title">Create Account</div><div class="metric-subtext">Provision a new workspace user with the correct role and access level.</div></div>', unsafe_allow_html=True)
+        st.markdown('<div class="glass-card" style="margin-bottom:16px;"><div class="table-title">Create Account</div><div class="metric-subtext">Provision a new workspace user with the correct role and access level.</div></div>', unsafe_allow_html=True)
         create_cols = st.columns(3)
         with create_cols[0]:
             email = st.text_input("Email", placeholder="user@example.com")
@@ -1513,8 +1718,18 @@ def _render_admin_metrics_dashboard(user: dict) -> None:
         st.error("Access denied")
         st.stop()
 
-    st.markdown("<h2 style='color: var(--text-primary);'>Metrics Override Center</h2>", unsafe_allow_html=True)
-    st.caption("Edit live metric overrides on top of the existing calculations in app/metrics.py.")
+    theme = _get_theme()
+    _inject_base_styles(theme)
+    st.markdown(
+        """
+        <div class="glass-card" style="margin-bottom:24px; padding:22px 28px;">
+            <div class="hero-overline">Admin</div>
+            <div class="hero-title" style="font-size:22px; margin-bottom:4px;">Metrics Override Center</div>
+            <div class="metric-subtext">Edit live metric overrides on top of the existing calculations in app/metrics.py.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     _show_admin_feedback()
 
     try:
@@ -1529,7 +1744,7 @@ def _render_admin_metrics_dashboard(user: dict) -> None:
 
     metric_df = pd.DataFrame(metrics)
     editable_df = metric_df[["metric_name", "value", "base_value", "override_value", "updated_at"]].copy()
-    st.markdown('<div class="content-card" style="margin-bottom:16px;"><div class="table-title">Editable Metrics</div><div class="metric-subtext">Adjust presentation-layer override values while keeping the underlying calculations intact.</div></div>', unsafe_allow_html=True)
+    st.markdown('<div class="glass-card" style="margin-bottom:16px;"><div class="table-title">Editable Metrics</div><div class="metric-subtext">Adjust presentation-layer override values while keeping the underlying calculations intact.</div></div>', unsafe_allow_html=True)
     st.dataframe(metric_df, use_container_width=True, hide_index=True)
     edited_df = st.data_editor(
         editable_df,
@@ -1585,12 +1800,28 @@ def main() -> None:
         return
 
     st.session_state.setdefault("current_view", "main")
-    st.sidebar.title("Navigation")
-    st.sidebar.caption(f"Signed in as {user.get('email', 'unknown')} ({_role_label(str(user.get('role', 'user')))})")
-    
+
+    # Sidebar — glass identity + navigation
+    st.sidebar.markdown(
+        f"""
+        <div style="
+            background: rgba(59,130,246,0.08);
+            border: 1px solid rgba(59,130,246,0.20);
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        ">
+            <div style="font-size:10px; text-transform:uppercase; letter-spacing:0.08em; color:#4E6080; margin-bottom:6px;">Signed in as</div>
+            <div style="font-size:13px; font-weight:600; color:#F1F5F9; word-break:break-all;">{html.escape(str(user.get('email', 'unknown')))}</div>
+            <div style="margin-top:4px;">{_role_badge_html(str(user.get('role', 'user')))}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.sidebar.markdown("**Navigation**")
     if st.sidebar.button("Sprint Metrics", use_container_width=True):
         st.session_state["current_view"] = "main"
-        
+
     if user and user.get("role") in ["admin", "super_admin"]:
         if st.sidebar.button("User Management", use_container_width=True):
             st.session_state["current_view"] = "admin"
@@ -1615,13 +1846,14 @@ def main() -> None:
     _inject_base_styles(theme)
     if st.session_state.get("auto_refresh_dashboard"):
         _enable_auto_refresh(30)
+    _inject_websocket_listener(_resolve_api_base_url())
 
     top_left, top_middle, top_right = st.columns([5, 1.4, 1], gap="large")
     with top_left:
         st.markdown('<div class="context-chip">Sprint analytics workspace</div>', unsafe_allow_html=True)
     with top_middle:
         if st.button(
-            "Run now",
+            "⚡ Run now",
             type="primary",
             use_container_width=True,
             disabled=bool(st.session_state.get("run_now_loading")),
@@ -1629,7 +1861,7 @@ def main() -> None:
             _run_now_and_refresh()
     with top_right:
         st.toggle("Light mode", key="light_mode")
-        if st.button("Logout"):
+        if st.button("Sign out"):
             base = _resolve_api_base_url()
             user_state = st.session_state.get("user") or {}
             token = user_state.get("token") or st.session_state.get("access_token")
@@ -1696,26 +1928,26 @@ def main() -> None:
     else:
         status_text = "At risk"
 
+    _STATUS_RGB = {"Green": "34,197,94", "Yellow": "250,204,21", "Orange": "251,146,60", "Red": "239,68,68"}
+    badge_rgb = _STATUS_RGB.get(health_status, "59,130,246")
     st.markdown(
         f"""
-        <div class="hero-card">
+        <div class="hero-card" style="box-shadow: var(--glass-shadow), 0 0 40px {status_color}22;">
             <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
                 <div>
-                    <div class="hero-overline">Sprint Health Platform</div>
+                    <div class="hero-overline">🚀 Sprint Health Platform</div>
                     <div class="hero-title">A focused view of delivery quality, execution pace, and team activity.</div>
-                    <div class="hero-subtitle" style="margin-top:6px;">
-                        Current sprint view
-                    </div>
-                    <div class="hero-score" style="color:{status_var};">{score}<span style="font-size:22px;color:var(--text-muted); font-weight:500;">/100</span></div>
+                    <div class="hero-subtitle" style="margin-top:6px;">Current sprint view</div>
+                    <div class="hero-score" style="color:{status_var}; text-shadow: 0 0 40px {status_color}55;">{score}<span style="font-size:22px;color:var(--text-muted); font-weight:500;">/100</span></div>
                     <div class="hero-subtitle">
                         Track how the sprint is progressing across commitment, carryover, bugs, and execution trends with a clean operational dashboard.
                     </div>
                 </div>
-                <div class="hero-badge" style="background:{theme["primary_soft"]};color:{status_var};border:1px solid var(--border);">
+                <div class="hero-badge" style="background:rgba({badge_rgb},0.12); color:{status_var}; border:1px solid {status_color}44; box-shadow: 0 0 16px {status_color}22;">
                     {score} · {_health_label(score)}
                 </div>
             </div>
-            <div class="hero-progress"><div class="hero-progress-fill" style="width:{max(0, min(100, score))}%; background:linear-gradient(90deg, {status_var}, {status_var});"></div></div>
+            <div class="hero-progress"><div class="hero-progress-fill" style="width:{max(0, min(100, score))}%; background:linear-gradient(90deg, {status_var} 0%, {status_var}aa 100%);"></div></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1738,7 +1970,7 @@ def main() -> None:
         help="Switch the dashboard lens without changing the underlying data.",
     )
 
-    overview_tab, trends_tab, operations_tab = st.tabs(["Overview", "Trends", "Operations"])
+    overview_tab, trends_tab, operations_tab = st.tabs(["📈 Overview", "📉 Trends", "⚙️ Operations"])
 
     with overview_tab:
         metric_cols = st.columns(4, gap="large")
@@ -1792,7 +2024,7 @@ def main() -> None:
         if insights:
             _render_section_header("Insights", "Deterministic root-cause analysis for the current sprint outcome.")
             insight_html = "".join(
-                f'<li><span class="insight-icon" aria-label="warning" title="warning">▲</span><span>{html.escape(insight)}</span></li>'
+                f'<li><span class="insight-icon" aria-hidden="true"></span><span>{html.escape(insight)}</span></li>'
                 for insight in insights
             )
             st.markdown(f'<ul class="insight-list">{insight_html}</ul>', unsafe_allow_html=True)
@@ -1816,7 +2048,7 @@ def main() -> None:
                         delta=delta_text,
                     )
 
-        _render_section_header("Score Breakdown", "Power BI-style score cards and the weighted health distribution.")
+        _render_section_header("Score Breakdown", "Score cards and the weighted health distribution.")
         first_breakdown_row = st.columns(2, gap="large")
         second_breakdown_row = st.columns(2, gap="large")
         with first_breakdown_row[0]:

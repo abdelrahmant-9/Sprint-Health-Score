@@ -5,7 +5,7 @@ import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request, status, Response
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request, status, Response, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -56,6 +56,37 @@ from app.notifications import send_slack_message
 
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# WebSocket connection manager
+# ---------------------------------------------------------------------------
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        import json
+        dead: list[WebSocket] = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(json.dumps(message))
+            except Exception:
+                dead.append(connection)
+        for connection in dead:
+            self.disconnect(connection)
+
+
+manager = ConnectionManager()
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +219,17 @@ def health_check() -> dict:
     return {"status": "ok"}
 
 
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    """Real-time update channel; broadcasts metric and health change events."""
+    await manager.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)
+
+
 def _require_metrics_reader(user: dict | None) -> dict:
     """Validate access to the editable metrics JSON endpoint."""
     if not user:
@@ -226,7 +268,7 @@ def get_prometheus_metrics() -> Response:
 
 
 @app.put("/metrics/{metric_name}", response_model=MetricResponse)
-def put_metric_override(
+async def put_metric_override(
     metric_name: str,
     body: MetricOverrideRequest,
     request: Request,
@@ -249,6 +291,7 @@ def put_metric_override(
         ip_address=_client_ip(request),
         details=f"{metric_name} set to {body.value}",
     )
+    await manager.broadcast({"type": "metric_updated", "payload": {"metric": metric_name}})
     return metric_row
 
 
