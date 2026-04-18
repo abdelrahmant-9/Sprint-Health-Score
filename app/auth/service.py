@@ -15,13 +15,14 @@ from pathlib import Path
 
 from app.auth.jwt_handler import create_access_token, create_refresh_token, decode_token
 from app.auth.password import hash_password, verify_password
-from app.config import load_settings
 from app.notifications import send_slack_message
 
 logger = logging.getLogger(__name__)
 
 MAX_FAILED_ATTEMPTS = 5
 LOCKOUT_MINUTES = 15
+MANUAL_LOCK_UNTIL = datetime(9999, 12, 31, 23, 59, 59, tzinfo=timezone.utc).isoformat()
+SUPPORTED_ROLES = {"super_admin", "admin", "editor", "user", "viewer"}
 
 _lock = threading.Lock()
 
@@ -42,6 +43,33 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+def _normalize_role(role: str) -> str:
+    normalized = role.strip().lower()
+    if normalized not in SUPPORTED_ROLES:
+        raise ValueError(f"Unsupported role: {role}")
+    return normalized
+
+
+def _public_user_dict(row: sqlite3.Row | dict | None) -> dict | None:
+    """Return a safe user payload without sensitive fields."""
+    if not row:
+        return None
+    user = dict(row)
+    return {
+        "id": int(user["id"]),
+        "email": str(user["email"]),
+        "role": str(user["role"]),
+        "created_at": str(user["created_at"]),
+        "last_login_at": user.get("last_login_at"),
+        "failed_attempts": int(user.get("failed_attempts", 0) or 0),
+        "locked_until": user.get("locked_until"),
+    }
+
+
 # ---------------------------------------------------------------------------
 # User CRUD
 # ---------------------------------------------------------------------------
@@ -54,9 +82,10 @@ def create_user(
     role: str = "user",
 ) -> dict | None:
     """Create a new user and return the user dict, or ``None`` if the email exists."""
-    email = email.strip().lower()
+    email = _normalize_email(email)
     if not email or not password:
         return None
+    role = _normalize_role(role)
     hashed = hash_password(password)
     conn = _connect(db_path)
     try:
@@ -72,7 +101,7 @@ def create_user(
             except sqlite3.IntegrityError:
                 return None
             row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-            return dict(row) if row else None
+            return _public_user_dict(row)
     finally:
         conn.close()
 
@@ -82,7 +111,7 @@ def get_user_by_email(db_path: Path, email: str) -> dict | None:
     conn = _connect(db_path)
     try:
         row = conn.execute(
-            "SELECT * FROM users WHERE email = ?", (email.strip().lower(),)
+            "SELECT * FROM users WHERE email = ?", (_normalize_email(email),)
         ).fetchone()
         return dict(row) if row else None
     finally:
@@ -99,43 +128,115 @@ def get_user_by_id(db_path: Path, user_id: int) -> dict | None:
         conn.close()
 
 
-def list_users(db_path: Path) -> list[dict]:
+def get_user_summary(db_path: Path, user_id: int) -> dict | None:
+    """Return a safe user payload or ``None``."""
+    conn = _connect(db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT id, email, role, created_at, last_login_at, failed_attempts, locked_until
+            FROM users
+            WHERE id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+        return _public_user_dict(row)
+    finally:
+        conn.close()
+
+
+def get_users(db_path: Path) -> list[dict]:
     """Return all users (without password hashes)."""
     conn = _connect(db_path)
     try:
         rows = conn.execute(
             "SELECT id, email, role, created_at, last_login_at, failed_attempts, locked_until FROM users ORDER BY id"
         ).fetchall()
-        return [dict(r) for r in rows]
+        return [_public_user_dict(r) for r in rows if r is not None]
     finally:
         conn.close()
 
 
-def delete_user(db_path: Path, email: str) -> bool:
-    """Delete a user by email.  Returns ``True`` if a row was removed."""
+def list_users(db_path: Path) -> list[dict]:
+    """Backward-compatible alias for public user listing."""
+    return get_users(db_path)
+
+
+def delete_user(db_path: Path, user_identifier: int | str) -> bool:
+    """Delete a user by id or email. Returns ``True`` if a row was removed."""
     conn = _connect(db_path)
     try:
         with conn:
-            cursor = conn.execute(
-                "DELETE FROM users WHERE email = ?", (email.strip().lower(),)
-            )
+            if isinstance(user_identifier, int):
+                cursor = conn.execute("DELETE FROM users WHERE id = ?", (user_identifier,))
+            else:
+                cursor = conn.execute("DELETE FROM users WHERE email = ?", (_normalize_email(user_identifier),))
             return cursor.rowcount > 0
     finally:
         conn.close()
 
 
-def update_user_role(db_path: Path, email: str, role: str) -> bool:
-    """Change a user's role."""
+def update_user_role(db_path: Path, user_identifier: int | str, role: str) -> dict | None:
+    """Change a user's role and return the updated public user payload."""
+    role = _normalize_role(role)
+    conn = _connect(db_path)
+    try:
+        with conn:
+            if isinstance(user_identifier, int):
+                cursor = conn.execute("UPDATE users SET role = ? WHERE id = ?", (role, user_identifier))
+                lookup_value = user_identifier
+            else:
+                normalized_email = _normalize_email(user_identifier)
+                cursor = conn.execute("UPDATE users SET role = ? WHERE email = ?", (role, normalized_email))
+                lookup_value = normalized_email
+            if cursor.rowcount <= 0:
+                return None
+    finally:
+        conn.close()
+    if isinstance(lookup_value, int):
+        return get_user_summary(db_path, lookup_value)
+    user = get_user_by_email(db_path, lookup_value)
+    return _public_user_dict(user)
+
+
+def lock_user(db_path: Path, user_id: int) -> dict | None:
+    """Lock a user account until it is manually unlocked."""
     conn = _connect(db_path)
     try:
         with conn:
             cursor = conn.execute(
-                "UPDATE users SET role = ? WHERE email = ?",
-                (role, email.strip().lower()),
+                """
+                UPDATE users
+                SET failed_attempts = CASE
+                    WHEN failed_attempts < ? THEN ?
+                    ELSE failed_attempts
+                END,
+                    locked_until = ?
+                WHERE id = ?
+                """,
+                (MAX_FAILED_ATTEMPTS, MAX_FAILED_ATTEMPTS, MANUAL_LOCK_UNTIL, user_id),
             )
-            return cursor.rowcount > 0
+            if cursor.rowcount <= 0:
+                return None
     finally:
         conn.close()
+    return get_user_summary(db_path, user_id)
+
+
+def unlock_user(db_path: Path, user_id: int) -> dict | None:
+    """Unlock a user account and clear failed login attempts."""
+    conn = _connect(db_path)
+    try:
+        with conn:
+            cursor = conn.execute(
+                "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?",
+                (user_id,),
+            )
+            if cursor.rowcount <= 0:
+                return None
+    finally:
+        conn.close()
+    return get_user_summary(db_path, user_id)
 
 
 # ---------------------------------------------------------------------------

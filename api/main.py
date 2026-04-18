@@ -13,31 +13,43 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-from app.auth.dependencies import get_current_user, require_role
+from app.auth.dependencies import get_current_user, get_optional_current_user, require_role
 from app.auth.schemas import (
     CreateUserRequest,
     LoginRequest,
     MessageResponse,
+    MetricOverrideRequest,
+    MetricResponse,
     RefreshRequest,
     TokenResponse,
+    UpdateUserRoleRequest,
+    UserMutationResponse,
+    UserResponse,
 )
 from app.auth.service import (
     authenticate,
     blacklist_token,
     create_user,
     delete_user,
+    get_user_by_email,
+    get_user_by_id,
+    get_users,
     issue_tokens,
-    list_users,
+    lock_user,
     log_audit_event,
     refresh_access_token,
+    unlock_user,
+    update_user_role,
 )
 from app.config import load_settings
 from app.logging_config import setup_logging
 from app.service import (
     calculate_health_snapshot,
     get_daily_activity,
+    get_metrics_catalog,
     get_weekly_activity,
     render_health_report_html,
+    update_metric_override,
 )
 from app.storage import close_all_connections, init_schema, list_recent_results, save_sprint_result
 from app.notifications import send_slack_message
@@ -176,10 +188,68 @@ def health_check() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/metrics")
-def get_metrics() -> Response:
-    """Provide application metrics to Prometheus."""
+def _require_metrics_reader(user: dict | None) -> dict:
+    """Validate access to the editable metrics JSON endpoint."""
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authorization header",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
+@app.get("/metrics", response_model=list[MetricResponse] | None)
+def get_metrics(
+    request: Request,
+    format: str = Query(default="prometheus", pattern=r"^(prometheus|json)$"),
+    user: dict | None = Depends(get_optional_current_user),
+):
+    """Provide Prometheus metrics by default and editable sprint metrics as JSON when requested."""
+    wants_json = format == "json" or "application/json" in request.headers.get("accept", "").lower()
+    if not wants_json:
+        return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+    _require_metrics_reader(user)
+    settings = load_settings()
+    try:
+        return get_metrics_catalog(settings)
+    except Exception as exc:
+        logger.exception("Failed to list editable metrics")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(exc, settings.debug)) from exc
+
+
+@app.get("/metrics/prometheus", include_in_schema=False)
+def get_prometheus_metrics() -> Response:
+    """Backward-compatible Prometheus metrics endpoint."""
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
+@app.put("/metrics/{metric_name}", response_model=MetricResponse)
+def put_metric_override(
+    metric_name: str,
+    body: MetricOverrideRequest,
+    request: Request,
+    user: dict = Depends(require_role("admin", "super_admin")),
+) -> dict:
+    """Persist a metric override for admin or super-admin users."""
+    settings = load_settings()
+    try:
+        metric_row = update_metric_override(settings, metric_name, body.value)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Failed to update metric override")
+        raise HTTPException(status_code=500, detail=_safe_error_detail(exc, settings.debug)) from exc
+
+    log_audit_event(
+        settings.sqlite_path,
+        event_type="METRIC_OVERRIDE_UPDATED",
+        user_email=user.get("email", ""),
+        ip_address=_client_ip(request),
+        details=f"{metric_name} set to {body.value}",
+    )
+    return metric_row
 
 
 # ---------------------------------------------------------------------------
@@ -263,28 +333,27 @@ def logout(
 
 
 # ---------------------------------------------------------------------------
-# User management endpoints (admin only)
+# User management endpoints
 # ---------------------------------------------------------------------------
 
-@app.get("/auth/users")
-def get_users(user: dict = Depends(require_role("admin"))) -> dict:
-    """List all users (admin only)."""
+@app.get("/auth/users", response_model=list[UserResponse])
+def list_user_accounts(user: dict = Depends(require_role("admin"))) -> list[dict]:
+    """List all users for admin and super-admin users."""
     settings = load_settings()
-    users = list_users(settings.sqlite_path)
-    return {"users": users}
+    return get_users(settings.sqlite_path)
 
 
-@app.post("/auth/users", status_code=status.HTTP_201_CREATED)
+@app.post("/auth/users", response_model=UserMutationResponse, status_code=status.HTTP_201_CREATED)
 def add_user(
     body: CreateUserRequest,
     request: Request,
-    user: dict = Depends(require_role("admin")),
+    user: dict = Depends(require_role("super_admin")),
 ) -> dict:
-    """Create a new user account (admin only)."""
+    """Create a new user account (super-admin only)."""
     settings = load_settings()
     result = create_user(
         settings.sqlite_path,
-        email=body.email,
+        email=str(body.email),
         password=body.password,
         role=body.role,
     )
@@ -297,17 +366,124 @@ def add_user(
         ip_address=_client_ip(request),
         details=f"Created user {body.email} with role {body.role}",
     )
-    return {"message": f"User {body.email} created", "user_id": result["id"]}
+    return {"message": f"User {body.email} created", "user": result}
 
 
-@app.delete("/auth/users/{email}")
+@app.put("/auth/users/{user_id}/role", response_model=UserMutationResponse)
+def change_user_role(
+    user_id: int,
+    body: UpdateUserRoleRequest,
+    request: Request,
+    user: dict = Depends(require_role("super_admin")),
+) -> dict:
+    """Change a user's role (super-admin only)."""
+    settings = load_settings()
+    target_user = get_user_by_id(settings.sqlite_path, user_id)
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if target_user["id"] == user.get("id"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot change your own role")
+    updated_user = update_user_role(settings.sqlite_path, user_id, body.role)
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    log_audit_event(
+        settings.sqlite_path,
+        event_type="USER_ROLE_CHANGED",
+        user_email=user.get("email", ""),
+        ip_address=_client_ip(request),
+        details=f"Changed role for user {target_user['email']} to {body.role}",
+    )
+    return {"message": f"Updated role for {target_user['email']}", "user": updated_user}
+
+
+@app.put("/auth/users/{user_id}/lock", response_model=UserMutationResponse)
+def lock_user_account(
+    user_id: int,
+    request: Request,
+    user: dict = Depends(require_role("super_admin")),
+) -> dict:
+    """Lock a user account until manually unlocked (super-admin only)."""
+    settings = load_settings()
+    target_user = get_user_by_id(settings.sqlite_path, user_id)
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if target_user["id"] == user.get("id"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot lock your own account")
+    updated_user = lock_user(settings.sqlite_path, user_id)
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    log_audit_event(
+        settings.sqlite_path,
+        event_type="USER_LOCKED",
+        user_email=user.get("email", ""),
+        ip_address=_client_ip(request),
+        details=f"Locked user {target_user['email']}",
+    )
+    return {"message": f"Locked {target_user['email']}", "user": updated_user}
+
+
+@app.put("/auth/users/{user_id}/unlock", response_model=UserMutationResponse)
+def unlock_user_account(
+    user_id: int,
+    request: Request,
+    user: dict = Depends(require_role("super_admin")),
+) -> dict:
+    """Unlock a user account (super-admin only)."""
+    settings = load_settings()
+    target_user = get_user_by_id(settings.sqlite_path, user_id)
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    updated_user = unlock_user(settings.sqlite_path, user_id)
+    if not updated_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    log_audit_event(
+        settings.sqlite_path,
+        event_type="USER_UNLOCKED",
+        user_email=user.get("email", ""),
+        ip_address=_client_ip(request),
+        details=f"Unlocked user {target_user['email']}",
+    )
+    return {"message": f"Unlocked {target_user['email']}", "user": updated_user}
+
+
+@app.delete("/auth/users/{user_id}", response_model=MessageResponse)
 def remove_user(
+    user_id: int,
+    request: Request,
+    user: dict = Depends(require_role("super_admin")),
+) -> dict:
+    """Delete a user account by id (super-admin only)."""
+    settings = load_settings()
+    target_user = get_user_by_id(settings.sqlite_path, user_id)
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if target_user["id"] == user.get("id"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
+    if not delete_user(settings.sqlite_path, user_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    log_audit_event(
+        settings.sqlite_path,
+        event_type="USER_DELETED",
+        user_email=user.get("email", ""),
+        ip_address=_client_ip(request),
+        details=f"Deleted user {target_user['email']}",
+    )
+    return {"message": f"User {target_user['email']} deleted"}
+
+
+@app.delete("/auth/users/by-email/{email}", response_model=MessageResponse, deprecated=True)
+def remove_user_by_email(
     email: str,
     request: Request,
-    user: dict = Depends(require_role("admin")),
+    user: dict = Depends(require_role("super_admin")),
 ) -> dict:
-    """Delete a user account (admin only)."""
+    """Backward-compatible delete by email endpoint (super-admin only)."""
     settings = load_settings()
+    target_user = get_user_by_email(settings.sqlite_path, email)
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if target_user["id"] == user.get("id"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="You cannot delete your own account")
     if not delete_user(settings.sqlite_path, email):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     log_audit_event(
@@ -315,9 +491,9 @@ def remove_user(
         event_type="USER_DELETED",
         user_email=user.get("email", ""),
         ip_address=_client_ip(request),
-        details=f"Deleted user {email}",
+        details=f"Deleted user {target_user['email']} via email endpoint",
     )
-    return {"message": f"User {email} deleted"}
+    return {"message": f"User {target_user['email']} deleted"}
 
 
 # ---------------------------------------------------------------------------
@@ -330,11 +506,7 @@ def get_health_score(user: dict = Depends(get_current_user)) -> dict:
     settings = load_settings()
     try:
         snapshot = calculate_health_snapshot(settings)
-        return {
-            "score": snapshot["score"],
-            "completion_rate": snapshot["completion_rate"],
-            "breakdown": snapshot["breakdown"],
-        }
+        return {key: value for key, value in snapshot.items() if key != "report"}
     except Exception as exc:
         logger.exception("Failed to compute health score")
         raise HTTPException(status_code=500, detail=_safe_error_detail(exc, settings.debug)) from exc

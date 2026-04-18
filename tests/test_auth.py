@@ -2,13 +2,28 @@
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 
 import pytest
 
+os.environ["DEBUG"] = "false"
+os.environ["JIRA_EMAIL"] = "user@example.com"
+os.environ["JIRA_API_TOKEN"] = "token"
+os.environ["API_KEY"] = "test-api-key"
+os.environ["SECRET_KEY"] = "test-secret-key-at-least-16-chars"
+
 from app.auth.password import hash_password, verify_password
 from app.auth.jwt_handler import create_access_token, create_refresh_token, decode_token
+from app.metrics import (
+    SprintMetrics,
+    apply_metric_overrides,
+    get_metric,
+    get_override_from_db,
+    list_metric_rows,
+    set_override_in_db,
+)
 from app.auth.service import (
     authenticate,
     blacklist_token,
@@ -18,10 +33,13 @@ from app.auth.service import (
     get_user_by_email,
     is_token_blacklisted,
     issue_tokens,
+    lock_user,
     list_users,
     log_audit_event,
     list_audit_events,
     refresh_access_token,
+    unlock_user,
+    update_user_role,
 )
 from app.storage import init_schema
 
@@ -148,6 +166,71 @@ class TestUserCRUD:
     def test_delete_nonexistent_returns_false(self, tmp_path):
         db = self._db(tmp_path)
         assert not delete_user(db, "nobody@test.com")
+
+    def test_update_user_role_by_id(self, tmp_path):
+        db = self._db(tmp_path)
+        user = create_user(db, email="role@test.com", password="pass123", role="user")
+        updated = update_user_role(db, user["id"], "admin")
+        assert updated is not None
+        assert updated["role"] == "admin"
+        fetched = get_user_by_email(db, "role@test.com")
+        assert fetched is not None
+        assert fetched["role"] == "admin"
+
+    def test_lock_and_unlock_user_by_id(self, tmp_path):
+        db = self._db(tmp_path)
+        user = create_user(db, email="lockable@test.com", password="correct", role="user")
+        locked = lock_user(db, user["id"])
+        assert locked is not None
+        assert locked["locked_until"] is not None
+        assert authenticate(db, "lockable@test.com", "correct") is None
+
+        unlocked = unlock_user(db, user["id"])
+        assert unlocked is not None
+        assert unlocked["locked_until"] is None
+        assert unlocked["failed_attempts"] == 0
+        assert authenticate(db, "lockable@test.com", "correct") is not None
+
+    def test_delete_user_by_id(self, tmp_path):
+        db = self._db(tmp_path)
+        user = create_user(db, email="remove-by-id@test.com", password="pass1")
+        assert delete_user(db, user["id"])
+        assert get_user_by_email(db, "remove-by-id@test.com") is None
+
+
+class TestMetricOverrides:
+    def test_metric_override_persists_and_applies(self, tmp_path):
+        db = tmp_path / "metrics.db"
+        init_schema(db)
+        base_metrics = SprintMetrics(
+            total_items=10,
+            completed_items=8,
+            carried_over_items=2,
+            committed_scope=20.0,
+            completed_scope=16.0,
+            carryover_scope=4.0,
+            bug_count=3,
+            new_bug_count=1,
+            bug_ratio_pct=5.0,
+            avg_cycle_time_days=2.5,
+        )
+
+        set_override_in_db(db, "completed_scope", 18.5)
+        set_override_in_db(db, "total_items", 12)
+
+        assert get_override_from_db(db, "completed_scope") == 18.5
+        assert get_metric("completed_scope", base_metrics, db) == 18.5
+        assert get_metric("total_items", base_metrics, db) == 12
+
+        effective_metrics = apply_metric_overrides(base_metrics, db)
+        assert effective_metrics.completed_scope == 18.5
+        assert effective_metrics.total_items == 12
+
+        rows = list_metric_rows(base_metrics, db)
+        rows_by_name = {row["metric_name"]: row for row in rows}
+        assert rows_by_name["completed_scope"]["value"] == 18.5
+        assert rows_by_name["completed_scope"]["base_value"] == 16.0
+        assert rows_by_name["completed_scope"]["override_value"] == 18.5
 
 
 # ---------------------------------------------------------------------------

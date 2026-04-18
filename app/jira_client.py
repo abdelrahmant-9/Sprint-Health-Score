@@ -131,7 +131,7 @@ class JiraClient:
 
         fields = (
             "summary,status,issuetype,created,resolutiondate,customfield_10016,"
-            "assignee,labels,updated,customfield_10021"
+            "assignee,labels,updated,customfield_10021,parent,issuelinks,creator"
         )
         if include_activity_fields:
             fields = f"{fields},reporter"

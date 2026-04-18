@@ -29,6 +29,7 @@ def build_report_payload(
     sprint: dict,
     metrics: SprintMetrics,
     scores: ScoreBreakdown,
+    analytics: dict | None = None,
 ) -> dict:
     """Build report payload that can be logged, sent, or rendered."""
     payload = {
@@ -44,6 +45,8 @@ def build_report_payload(
         "scores": asdict(scores),
         "health_label": health_label(scores.final_score),
     }
+    if analytics:
+        payload["analytics"] = analytics
     logger.info(
         "Generated report for sprint=%s score=%s total_issues=%s",
         sprint.get("name"),

@@ -98,6 +98,16 @@ def init_schema(db_path: Path) -> None:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS metrics_override (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    metric_name TEXT NOT NULL UNIQUE,
+                    value REAL,
+                    updated_at TEXT NOT NULL
+                )
+                """
+            )
     finally:
         _discard_connection(conn)
         conn.close()
@@ -173,3 +183,39 @@ def list_recent_results(db_path: Path, limit: int = 50) -> list[dict[str, Any]]:
             }
         )
     return out
+
+
+def list_recent_reports(db_path: Path, limit: int = 50) -> list[dict[str, Any]]:
+    """Return recent stored sprint results including parsed report payloads."""
+    init_schema(db_path)
+    limit = max(1, min(500, limit))
+    conn = _connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, created_at, sprint_id, sprint_name, score, completion_rate, breakdown_json, report_json
+            FROM sprint_results
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    finally:
+        _discard_connection(conn)
+        conn.close()
+
+    payloads: list[dict[str, Any]] = []
+    for row in rows:
+        payloads.append(
+            {
+                "id": row["id"],
+                "created_at": row["created_at"],
+                "sprint_id": row["sprint_id"],
+                "sprint_name": row["sprint_name"],
+                "score": row["score"],
+                "completion_rate": row["completion_rate"],
+                "breakdown": json.loads(row["breakdown_json"]),
+                "report": json.loads(row["report_json"]),
+            }
+        )
+    return payloads

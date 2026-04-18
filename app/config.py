@@ -12,13 +12,13 @@ DEFAULT_METRICS_CONFIG = {
     "weights": {"commitment": 0.35, "carryover": 0.25, "cycle_time": 0.20, "bug_ratio": 0.20},
     "points": {"excellent": 100, "good": 70, "warning": 40, "poor": 0, "neutral": 70},
     "commitment": {
-        "ideal_min_pct": 60,
-        "ideal_max_pct": 85,
-        "good_min_pct": 45,
-        "warning_min_pct": 30,
+        "ideal_min_pct": 85,
+        "ideal_max_pct": 95,
+        "good_min_pct": 70,
+        "warning_min_pct": 50,
         "extended_cap_score": 70,
     },
-    "carryover": {"excellent_lt_pct": 15, "good_lte_pct": 30, "warning_lte_pct": 45, "extended_penalty": 10},
+    "carryover": {"excellent_lt_pct": 10, "good_lte_pct": 20, "warning_lte_pct": 30, "extended_penalty": 10},
     "cycle_time": {"stable_abs_pct": 10, "good_increase_pct": 20, "warning_increase_pct": 30},
     "bug_ratio": {"excellent_lt_pct": 15, "good_lte_pct": 25, "warning_lte_pct": 35},
     "final_score": {

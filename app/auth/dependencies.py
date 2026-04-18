@@ -80,6 +80,14 @@ def get_current_user(token: str = Depends(_extract_bearer_token)) -> dict:
     }
 
 
+def get_optional_current_user(authorization: str | None = Header(default=None)) -> dict | None:
+    """Return the current user when a bearer token is provided, otherwise ``None``."""
+    if not authorization:
+        return None
+    token = _extract_bearer_token(authorization)
+    return get_current_user(token)
+
+
 def require_role(*allowed_roles: str):
     """Return a FastAPI dependency that enforces role membership.
 
