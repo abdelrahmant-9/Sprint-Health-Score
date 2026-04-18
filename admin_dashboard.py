@@ -358,66 +358,336 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
   <title>{escape(title)}</title>
   <style>
     :root {{
-      --bg: #06090f; --sidebar: #0b1220; --card-bg: rgba(20, 30, 50, 0.7);
-      --input-bg: rgba(0, 0, 0, 0.25); --glass-border: rgba(255, 255, 255, 0.08);
-      --ant-primary-500: #1677ff; --text-main: #f0f5ff; --text-soft: #8c98ae;
-      --success-main: #52c41a; --error-main: #ff4d4f; --warning-main: #faad14;
-      --shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-    }}
-    body[data-theme="light"] {{
-      --bg: #f4f7fa; --sidebar: #ffffff; --card-bg: #ffffff;
-      --input-bg: #f9fbfd; --glass-border: rgba(0, 0, 0, 0.06);
-      --text-main: #19314f; --text-soft: #637d92;
-      --shadow: 0 10px 30px rgba(90, 121, 163, 0.08);
+      --bg-page: #0A0F1E;
+      --bg-surface: #111827;
+      --bg-elevated: #1A2235;
+      --bg-overlay: #243049;
+      --brand-primary: #3B82F6;
+      --brand-hover: #2563EB;
+      --brand-soft: rgba(59,130,246,0.12);
+      --green: #22C55E;
+      --green-soft: rgba(34,197,94,0.12);
+      --yellow: #FACC15;
+      --yellow-soft: rgba(250,204,21,0.12);
+      --orange: #FB923C;
+      --orange-soft: rgba(251,146,60,0.12);
+      --red: #EF4444;
+      --red-soft: rgba(239,68,68,0.12);
+      --text-primary: #F1F5F9;
+      --text-secondary: #94A3B8;
+      --text-muted: #475569;
+      --border: rgba(148,163,184,0.10);
+      --border-hover: rgba(148,163,184,0.22);
+      --border-focus: rgba(59,130,246,0.50);
+      --radius-md: 10px;
+      --radius-lg: 16px;
+      --radius-xl: 22px;
+      --radius-full: 999px;
+      --shadow-card: 0 4px 24px rgba(0,0,0,0.30);
     }}
     * {{ box-sizing: border-box; margin: 0; padding: 0; }}
     body {{
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg); color: var(--text-main); min-height: 100vh;
-      display: flex; overflow-x: hidden; transition: background 0.3s ease;
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 30%),
+        linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg-page) 20%, var(--bg-page) 100%);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      overflow-x: hidden;
     }}
-    #admin-particles {{ position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.6; }}
-    .app-container {{ display: flex; width: 100%; z-index: 2; }}
+    #admin-particles {{ position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.45; }}
+    .app-container {{ display: flex; width: 100%; z-index: 2; position: relative; }}
     .sidebar {{
-      width: 260px; background: var(--sidebar); border-right: 1px solid var(--glass-border);
-      height: 100vh; position: sticky; top: 0; padding: 40px 24px; display: flex; flex-direction: column; gap: 32px;
+      width: 240px;
+      background: var(--bg-surface);
+      border-right: 1px solid var(--border);
+      height: 100vh;
+      position: sticky;
+      top: 0;
+      padding: 32px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
     }}
-    .main-content {{ flex: 1; padding: 20px 40px; max-width: 1200px; margin: 0 auto; }}
+    .brand {{
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }}
+    .brand-mark {{
+      width: 36px;
+      height: 36px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--brand-primary), #14B8A6);
+      box-shadow: var(--shadow-card);
+    }}
+    .brand-name {{
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }}
+    .main-content {{
+      flex: 1;
+      padding: 32px 40px;
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+    }}
     .nav-list {{ list-style: none; display: flex; flex-direction: column; gap: 8px; }}
     .nav-item a {{
-      display: block; padding: 12px 16px; border-radius: 12px; color: var(--text-soft);
-      text-decoration: none; font-size: 14px; font-weight: 600; transition: all 0.2s;
+      display: block;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      border-left: 2px solid transparent;
+      transition: all 160ms ease;
     }}
-    .nav-item a:hover, .nav-item.active a {{ background: rgba(22, 119, 255, 0.1); color: var(--ant-primary-500); }}
-    .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }}
-    .header h1 {{ font-size: 24px; font-weight: 900; }}
-    section {{ background: var(--card-bg); border: 1px solid var(--glass-border); border-radius: 20px; padding: 24px; box-shadow: var(--shadow); margin-bottom: 24px; }}
+    .nav-item a:hover {{
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+    }}
+    .nav-item.active a {{
+      background: var(--brand-soft);
+      color: var(--brand-primary);
+      border-left-color: var(--brand-primary);
+    }}
+    .logout-link a {{ color: var(--red) !important; }}
+    .logout-link a:hover {{ background: var(--red-soft); }}
+    .header {{
+      margin-bottom: 32px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }}
+    .header h1 {{
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }}
+    .header p {{
+      margin-top: 4px;
+      font-size: 14px;
+      color: var(--text-muted);
+    }}
+    section {{
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 24px 28px;
+      box-shadow: var(--shadow-card);
+      margin-bottom: 20px;
+    }}
     .section-head {{ margin-bottom: 20px; }}
-    .section-head h3 {{ font-size: 16px; font-weight: 800; border-left: 3px solid var(--ant-primary-500); padding-left: 10px; margin-bottom: 4px; }}
-    .section-head p {{ font-size: 11px; color: var(--text-soft); padding-left: 14px; }}
-    .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }}
-    .field {{ display: flex; flex-direction: column; gap: 4px; padding: 12px; background: var(--input-bg); border-radius: 12px; border: 1px solid var(--glass-border); }}
-    .field span {{ font-size: 10px; font-weight: 800; color: var(--text-soft); text-transform: uppercase; letter-spacing: 0.5px; }}
-    input, select, textarea {{ background: transparent; border: none; color: var(--text-main); font-size: 14px; font-weight: 600; width: 100%; outline: none; }}
-    button, .btn {{ padding: 12px 24px; border-radius: 12px; font-weight: 700; cursor: pointer; border: none; transition: 0.2s; text-decoration: none; display: inline-block; }}
-    .save {{ background: var(--ant-primary-500); color: #fff; }}
-    .reset {{ background: rgba(0,0,0,0.05); color: var(--text-main); border: 1px solid var(--glass-border); }}
-    .banner {{ padding: 14px 20px; border-radius: 14px; margin-bottom: 24px; border: 1px solid transparent; }}
-    .banner.ok {{ background: rgba(82, 196, 26, 0.1); color: var(--success-main); }}
-    .banner.error {{ background: rgba(255, 77, 79, 0.1); color: var(--error-main); }}
-    @media (max-width: 800px) {{ .sidebar {{ display: none; }} .main-content {{ padding: 20px; }} }}
+    .section-head h3 {{
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      border-left: 3px solid var(--brand-primary);
+      padding-left: 12px;
+      margin-bottom: 4px;
+    }}
+    .section-head p {{
+      font-size: 12px;
+      color: var(--text-muted);
+      padding-left: 15px;
+    }}
+    .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }}
+    .field {{
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 12px 14px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+      transition: border-color 160ms ease, box-shadow 160ms ease;
+    }}
+    .field:focus-within {{
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }}
+    .field span {{
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }}
+    .field small {{
+      color: var(--text-muted);
+      font-size: 11px;
+    }}
+    input, select, textarea {{
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 500;
+      width: 100%;
+      outline: none;
+    }}
+    button, .btn {{
+      padding: 11px 24px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 160ms ease;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 14px;
+    }}
+    button:focus, .btn:focus, input:focus, select:focus, textarea:focus {{
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.40);
+    }}
+    .save {{ background: var(--brand-primary); color: #fff; }}
+    .save:hover {{ background: var(--brand-hover); }}
+    .reset {{
+      background: transparent;
+      color: var(--text-secondary);
+      border: 1px solid var(--border-hover);
+    }}
+    .reset:hover {{ background: var(--bg-elevated); }}
+    .banner {{
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      border-left: 3px solid transparent;
+      font-size: 13px;
+    }}
+    .banner.ok {{ background: var(--green-soft); border-left-color: var(--green); color: #4ADE80; }}
+    .banner.error {{ background: var(--red-soft); border-left-color: var(--red); color: #F87171; }}
+    .table-wrap {{
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      overflow: hidden;
+    }}
+    table {{
+      width: 100%;
+      border-collapse: collapse;
+    }}
+    th {{
+      background: var(--bg-elevated);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 12px 20px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }}
+    td {{
+      padding: 14px 20px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid rgba(148,163,184,0.05);
+    }}
+    tbody tr:hover td {{ background: var(--bg-elevated); }}
+    tbody tr:last-child td {{ border-bottom: none; }}
+    .email-cell {{ font-weight: 500; color: var(--text-primary); }}
+    .pill {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: fit-content;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }}
+    .status-active {{ background: var(--green-soft); color: var(--green); }}
+    .status-locked {{ background: var(--red-soft); color: var(--red); }}
+    .role-super_admin {{ background: #312E81; color: #A5B4FC; }}
+    .role-admin {{ background: #1E3A5F; color: #93C5FD; }}
+    .role-editor {{ background: #064E3B; color: #6EE7B7; }}
+    .role-user {{ background: #1F2937; color: #9CA3AF; }}
+    .role-viewer {{ background: #1F2937; color: #6B7280; }}
+    .action-card {{
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-xl);
+      padding: 20px 24px;
+      margin-bottom: 12px;
+    }}
+    .action-summary {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }}
+    .avatar {{
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-hover);
+      color: var(--brand-primary);
+      font-size: 13px;
+      font-weight: 600;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }}
+    .action-row {{
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr 1fr;
+      gap: 12px;
+      align-items: end;
+    }}
+    .ghost-btn {{
+      background: transparent;
+      border: 1px solid var(--border-hover);
+      color: var(--text-primary);
+    }}
+    .ghost-btn:hover {{ background: var(--bg-elevated); }}
+    .ghost-green:hover {{ color: var(--green); }}
+    .ghost-yellow:hover {{ color: var(--yellow); }}
+    .ghost-red:hover {{ color: var(--red); background: var(--red-soft); }}
+    .ghost-blue:hover {{ color: var(--brand-primary); }}
+    @media (max-width: 1279px) {{
+      .sidebar {{
+        width: 76px;
+        padding: 28px 14px;
+      }}
+      .brand-name, .sidebar .nav-item a {{
+        font-size: 0;
+      }}
+      .sidebar .nav-item a::before {{
+        font-size: 14px;
+        content: attr(data-label);
+        color: inherit;
+      }}
+    }}
+    @media (max-width: 768px) {{
+      .sidebar {{ display: none; }}
+      .main-content {{ padding: 20px; }}
+      .action-row {{ grid-template-columns: 1fr; }}
+    }}
   </style>
 </head>
 <body>
   <div class="app-container">
     <aside class="sidebar">
-      <h2 style="font-size:18px; margin-bottom:20px;">Lumofy Platform</h2>
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div class="brand-name">Lumofy</div>
+      </div>
       <nav>
         <ul class="nav-list">
-          <li class="nav-item {'active' if active_path == '/' else ''}"><a href="/">Main Dashboard</a></li>
-          <li class="nav-item {'active' if active_path == '/admin' else ''}" {admin_only}><a href="/admin">Settings</a></li>
-          <li class="nav-item {'active' if active_path == '/users' else ''}" {user_mgmt_only}><a href="/users">User Management</a></li>
-          <li class="nav-item"><a href="/logout" style="color:var(--error-main)">Logout</a></li>
+          <li class="nav-item {'active' if active_path == '/' else ''}"><a href="/" data-label="Main Dashboard">Main Dashboard</a></li>
+          <li class="nav-item {'active' if active_path == '/admin' else ''}" {admin_only}><a href="/admin" data-label="Settings">Settings</a></li>
+          <li class="nav-item {'active' if active_path == '/users' else ''}" {user_mgmt_only}><a href="/users" data-label="User Management">User Management</a></li>
+          <li class="nav-item logout-link"><a href="/logout" data-label="Logout">Logout</a></li>
         </ul>
       </nav>
     </aside>
@@ -431,7 +701,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       const storageKey = 'sprint-health-theme';
       const body = document.body;
       const applyTheme = (t) => {{ body.dataset.theme = t; localStorage.setItem(storageKey, t); }};
-      applyTheme(localStorage.getItem(storageKey) || 'light');
+      applyTheme(localStorage.getItem(storageKey) || 'dark');
       window.addEventListener('storage', (e) => {{ if (e.key === storageKey) body.dataset.theme = e.newValue; }});
       
       const canvas = document.getElementById('admin-particles');
@@ -448,8 +718,7 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
           ctx.fill();
         }}
       }}
-      const theme = body.dataset.theme;
-      ctx.fillStyle = theme === 'light' ? 'rgba(22,119,255,0.2)' : 'rgba(255,255,255,0.2)';
+      ctx.fillStyle = 'rgba(59,130,246,0.18)';
       for(let i=0; i<{config.get('ui',{}).get('particle_density',600)}; i++) particles.push(new P());
       const animate = () => {{ ctx.clearRect(0,0,w,h); particles.forEach(p => p.draw()); requestAnimationFrame(animate); }};
       animate();
@@ -467,12 +736,12 @@ def _dashboard_html(user, message: str = "", error: str = "") -> str:
 
     content = f"""
       <header class="header">
-        <div><h1>Control Center</h1><p>Edit platform logic and visual settings.</p></div>
+        <div><h1>Admin Control Panel</h1><p>Edit thresholds, scoring settings, and presentation controls without leaving the workspace.</p></div>
       </header>
       {saved_banner}{error_banner}
       <form method="post" action="/save">
         {''.join(sections)}
-        <div style="display:flex; gap:16px; margin-top:20px">
+        <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
           <button class="save" type="submit">Save Changes</button>
           <button class="reset" type="submit" formaction="/reset">Reset Defaults</button>
         </div>
@@ -487,21 +756,65 @@ def _users_html(user, message: str = "", error: str = "") -> str:
     err_banner = f"<div class='banner error'>{escape(error)}</div>" if error else ""
 
     rows = ""
+    action_cards = ""
     for u_row in users_data:
-        rows += f"""<div class="field" style="flex-direction:row; justify-content:space-between; align-items:center;">
-          <div><strong>{escape(u_row['email'])}</strong><br><small>{escape(u_row['role'].capitalize())}</small></div>
-          <form method="post" action="/users/delete" style="margin:0">
-            <input type="hidden" name="username" value="{escape(u_row['email'])}">
-            <button type="submit" style="background:var(--error-main); padding:6px 12px; font-size:11px; color:#fff">Delete</button>
-          </form>
-        </div>"""
+        role = str(u_row.get("role", "viewer"))
+        attempts = int(u_row.get("failed_attempts", 0) or 0)
+        locked = bool(u_row.get("locked_until"))
+        attempts_color = "var(--text-muted)" if attempts == 0 else ("var(--yellow)" if attempts < 3 else "var(--red)")
+        initials = "".join(part[:1].upper() for part in u_row["email"].split("@")[0].replace(".", " ").split()[:2]) or "U"
+        rows += f"""
+          <tr>
+            <td class="email-cell">{escape(u_row['email'])}</td>
+            <td><span class="pill role-{escape(role)}">{escape(role.replace('_', ' '))}</span></td>
+            <td>{escape(str(u_row.get('last_login_at') or 'Never'))}</td>
+            <td style="color:{attempts_color};">{attempts}</td>
+            <td><span class="pill {'status-locked' if locked else 'status-active'}">{'Locked' if locked else 'Active'}</span></td>
+          </tr>
+        """
+        action_cards += f"""
+          <section class="action-card">
+            <div class="action-summary">
+              <div style="display:flex; align-items:center; gap:12px;">
+                <span class="avatar">{escape(initials[:2])}</span>
+                <div>
+                  <div style="font-size:14px; font-weight:600; color:var(--text-primary);">{escape(u_row['email'])}</div>
+                  <div style="font-size:13px; color:var(--text-muted);">Access profile</div>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <span class="pill role-{escape(role)}">{escape(role.replace('_', ' '))}</span>
+                <span class="pill {'status-locked' if locked else 'status-active'}">{'Locked' if locked else 'Active'}</span>
+              </div>
+            </div>
+            <div class="action-row">
+              <label class="field">
+                <span>Account</span>
+                <input type="text" value="{escape(u_row['email'])}" disabled>
+              </label>
+              <label class="field">
+                <span>Role</span>
+                <input type="text" value="{escape(role.replace('_', ' ').title())}" disabled>
+              </label>
+              <label class="field">
+                <span>Status</span>
+                <input type="text" value="{'Locked' if locked else 'Active'}" disabled>
+              </label>
+              <form method="post" action="/users/delete" style="margin:0;">
+                <input type="hidden" name="username" value="{escape(u_row['email'])}">
+                <button type="submit" class="ghost-btn ghost-red" style="width:100%;">Delete</button>
+              </form>
+            </div>
+          </section>
+        """
 
     content = f"""
-      <h1>User Management</h1>
-      <p style="color:var(--text-soft); margin-bottom:30px;">Manage access levels.</p>
+      <header class="header">
+        <div><h1>User Management</h1><p>Manage access levels, account states, and provision new users.</p></div>
+      </header>
       {banner}{err_banner}
       <section>
-        <div class="section-head"><h3>Add Account</h3></div>
+        <div class="section-head"><h3>Create Account</h3><p>Add a new user to the workspace with the correct permissions.</p></div>
         <form method="post" action="/users/add" class="grid" style="grid-template-columns:1fr 1fr 1fr">
           <div class="field"><span>Email</span><input type="text" name="new_username" required></div>
           <div class="field"><span>Password</span><input type="password" name="new_password" required></div>
@@ -510,8 +823,19 @@ def _users_html(user, message: str = "", error: str = "") -> str:
         </form>
       </section>
       <section>
-        <div class="section-head"><h3>Existing Accounts</h3></div>
-        <div style="display:flex; flex-direction:column; gap:8px;">{rows}</div>
+        <div class="section-head"><h3>Users Table</h3><p>Account summary with role, status, and failed attempt visibility.</p></div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Email</th><th>Role</th><th>Last Login</th><th>Failed Attempts</th><th>Status</th></tr>
+            </thead>
+            <tbody>{rows}</tbody>
+          </table>
+        </div>
+      </section>
+      <section>
+        <div class="section-head"><h3>User Action Cards</h3><p>One-card view for account actions and quick review.</p></div>
+        {action_cards}
       </section>
     """
     return _layout_html(content, user_role=user["role"], active_path="/users")
@@ -523,27 +847,95 @@ def _login_html(error: str = "") -> str:
 <html>
 <head>
   <style>
-    body {{ font-family: sans-serif; background: #06090f; color: #fff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }}
-    .box {{ background: #0b1220; padding: 40px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.08); width: 340px; }}
-    input {{ width: 100%; padding: 12px; margin-bottom: 12px; border-radius: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #fff; box-sizing: border-box; }}
-    button {{ width: 100%; padding: 12px; border-radius: 10px; background: #1677ff; color: #fff; border: none; cursor: pointer; font-weight: 700; }}
-    .error {{ background: rgba(255,77,79,0.1); color: #ff7875; padding: 10px; border-radius: 8px; margin-bottom: 20px; font-size: 13px; }}
+    :root {{
+      --bg-page:#0A0F1E; --bg-surface:#111827; --bg-elevated:#1A2235; --bg-overlay:#243049;
+      --brand-primary:#3B82F6; --brand-hover:#2563EB; --brand-soft:rgba(59,130,246,0.12);
+      --text-primary:#F1F5F9; --text-secondary:#94A3B8; --text-muted:#475569;
+      --border:rgba(148,163,184,0.10); --red:#EF4444; --red-soft:rgba(239,68,68,0.12);
+    }}
+    * {{ box-sizing:border-box; }}
+    body {{
+      font-family:'Segoe UI', Tahoma, sans-serif;
+      margin:0;
+      min-height:100vh;
+      display:grid;
+      grid-template-columns:1.3fr 0.9fr;
+      background:
+        radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 30%),
+        linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg-page) 20%, var(--bg-page) 100%);
+      color:var(--text-primary);
+    }}
+    .visual {{
+      display:flex; align-items:center; justify-content:center; padding:48px;
+    }}
+    .visual-card {{
+      width:100%; min-height:560px; border-radius:22px; background:var(--bg-surface); border:1px solid var(--border);
+      padding:48px; position:relative; overflow:hidden;
+    }}
+    .arc {{
+      width:260px; height:260px; border-radius:50%; border:18px solid rgba(59,130,246,0.10);
+      border-top-color:var(--brand-primary); border-right-color:#14B8A6; margin-top:44px;
+    }}
+    .panel {{
+      display:flex; align-items:center; justify-content:center; padding:40px 16px;
+    }}
+    .box {{
+      background:var(--bg-surface); padding:40px; border-radius:22px; border:1px solid var(--border); width:400px;
+    }}
+    .eyebrow {{ font-size:14px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; font-weight:700; }}
+    h2 {{ margin:10px 0 8px; font-size:22px; font-weight:700; }}
+    .sub {{ color:var(--text-secondary); font-size:14px; line-height:1.6; margin-bottom:24px; }}
+    .divider {{ height:1px; background:var(--border); margin:24px 0; }}
+    label {{ display:block; font-size:12px; color:var(--text-secondary); margin-bottom:8px; }}
+    input {{
+      width:100%; padding:10px 14px; margin-bottom:14px; border-radius:10px; background:var(--bg-elevated);
+      border:1px solid var(--border); color:var(--text-primary); box-sizing:border-box;
+    }}
+    input:focus {{ outline:none; box-shadow:0 0 0 3px rgba(59,130,246,0.40); border-color:rgba(59,130,246,0.50); }}
+    button {{
+      width:100%; padding:12px; border-radius:10px; background:var(--brand-primary); color:#fff; border:none; cursor:pointer; font-weight:600; font-size:14px;
+    }}
+    button:hover {{ background:var(--brand-hover); }}
+    .error {{ background:var(--red-soft); border-left:3px solid var(--red); color:#FCA5A5; padding:12px 16px; margin-bottom:20px; font-size:13px; }}
+    .foot {{ margin-top:14px; text-align:center; color:var(--text-muted); font-size:12px; }}
+    @media (max-width: 900px) {{
+      body {{ grid-template-columns:1fr; }}
+      .visual {{ display:none; }}
+      .panel {{ padding:24px; }}
+      .box {{ width:min(100%, 400px); }}
+    }}
   </style>
 </head>
 <body>
-  <div class="box">
-    <h2 style="margin:0 0 20px">Platform Login</h2>
-    {error_banner}
-    <form method="post" action="/login">
-      <input type="hidden" id="nextField" name="next">
-      <input type="text" name="username" placeholder="Email" required autofocus>
-      <input type="password" name="password" placeholder="Password" required>
-      <button type="submit">Sign In</button>
-    </form>
-    <script>
-      const urlParams = new URLSearchParams(window.location.search);
-      if(urlParams.has('next')) document.getElementById('nextField').value = urlParams.get('next');
-    </script>
+  <div class="visual">
+    <div class="visual-card">
+      <div class="eyebrow">Sprint Health</div>
+      <h1 style="margin:12px 0 10px; font-size:28px; max-width:520px;">A calmer control room for sprint delivery, quality, and team flow.</h1>
+      <p class="sub" style="max-width:420px;">Track delivery health, bug pressure, and workspace activity with one cohesive operational surface.</p>
+      <div class="arc" aria-label="Sprint score illustration" title="Sprint score illustration"></div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="box">
+      <div class="eyebrow">Sprint Health</div>
+      <h2>Sign in to your workspace</h2>
+      <p class="sub">Track delivery health, bugs, and team activity.</p>
+      <div class="divider"></div>
+      {error_banner}
+      <form method="post" action="/login">
+        <input type="hidden" id="nextField" name="next">
+        <label for="username">Email address</label>
+        <input id="username" type="text" name="username" placeholder="Email" required autofocus>
+        <label for="password">Password</label>
+        <input id="password" type="password" name="password" placeholder="Password" required>
+        <button type="submit">Sign In</button>
+      </form>
+      <div class="foot">Secured with JWT authentication</div>
+      <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        if(urlParams.has('next')) document.getElementById('nextField').value = urlParams.get('next');
+      </script>
+    </div>
   </div>
 </body>
 </html>"""

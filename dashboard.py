@@ -93,6 +93,64 @@ def _health_tier_color(score: int, theme: dict) -> str:
     return theme["danger"]
 
 
+def _health_label(score: int) -> str:
+    """Return the dashboard label for a score band."""
+    if score >= 85:
+        return "Healthy"
+    if score >= 70:
+        return "Stable"
+    if score >= 50:
+        return "Watch"
+    return "At Risk"
+
+
+def _health_css_var(score: int) -> str:
+    """Return the design-token CSS variable name for a score band."""
+    if score >= 85:
+        return "var(--score-green)"
+    if score >= 70:
+        return "var(--score-blue)"
+    if score >= 50:
+        return "var(--score-yellow)"
+    return "var(--score-red)"
+
+
+def _delta_badge_html(delta_text: str, positive: bool | None = None) -> str:
+    """Render a compact delta badge."""
+    if not delta_text:
+        return ""
+    if positive is None:
+        positive = not delta_text.strip().startswith("-")
+    css_class = "delta-positive" if positive else "delta-negative"
+    arrow = "▲" if positive else "▼"
+    return f'<span class="delta-badge {css_class}">{arrow} {html.escape(delta_text)}</span>'
+
+
+def _role_badge_html(role: str) -> str:
+    """Render the user role badge."""
+    role_key = str(role or "viewer").strip().lower()
+    label = _role_label(role_key)
+    return f'<span class="role-pill role-{html.escape(role_key)}">{html.escape(label)}</span>'
+
+
+def _status_badge_html(locked: bool) -> str:
+    """Render account status badge."""
+    css_class = "status-locked" if locked else "status-active"
+    label = "Locked" if locked else "Active"
+    return f'<span class="status-pill {css_class}">{label}</span>'
+
+
+def _sanitize_metric_value(value: object, decimals: int = 1) -> str:
+    """Format metric values without noisy precision."""
+    if value is None:
+        return "N/A"
+    if isinstance(value, (int, float)):
+        if float(value).is_integer():
+            return str(int(value))
+        return f"{float(value):.{decimals}f}"
+    return str(value)
+
+
 def _default_weekly_payload() -> dict:
     """Fallback weekly payload when the weekly endpoint is unavailable."""
     return {
@@ -445,138 +503,236 @@ def _inject_base_styles(theme: dict) -> None:
         f"""
         <style>
             :root {{
-                --primary: {theme["primary"]};
-                --primary-soft: {theme["primary_soft"]};
-                --success: {theme["success"]};
-                --warning: {theme["warning"]};
-                --danger: {theme["danger"]};
-                --info: {theme["info"]};
-                --bg: {theme["bg"]};
-                --bg-alt: {theme["bg_alt"]};
-                --surface: {theme["surface"]};
-                --surface-alt: {theme["surface_alt"]};
-                --border: {theme["border"]};
-                --text: {theme["text"]};
-                --muted: {theme["muted"]};
-                --shadow: {theme["shadow"]};
+                --bg-page: {"#0A0F1E" if not st.session_state.get("light_mode", False) else "#F5F7FB"};
+                --bg-surface: {"#111827" if not st.session_state.get("light_mode", False) else "#FFFFFF"};
+                --bg-elevated: {"#1A2235" if not st.session_state.get("light_mode", False) else "#EEF2F7"};
+                --bg-overlay: {"#243049" if not st.session_state.get("light_mode", False) else "#DCE6F2"};
+                --brand-primary: #3B82F6;
+                --brand-hover: #2563EB;
+                --brand-soft: rgba(59,130,246,0.12);
+                --green: #22C55E;
+                --green-soft: rgba(34,197,94,0.12);
+                --yellow: #FACC15;
+                --yellow-soft: rgba(250,204,21,0.12);
+                --orange: #FB923C;
+                --orange-soft: rgba(251,146,60,0.12);
+                --red: #EF4444;
+                --red-soft: rgba(239,68,68,0.12);
+                --teal: #14B8A6;
+                --teal-soft: rgba(20,184,166,0.12);
+                --text-primary: {"#F1F5F9" if not st.session_state.get("light_mode", False) else "#0F172A"};
+                --text-secondary: {"#94A3B8" if not st.session_state.get("light_mode", False) else "#475569"};
+                --text-muted: {"#475569" if not st.session_state.get("light_mode", False) else "#64748B"};
+                --text-inverse: #0A0F1E;
+                --border: {"rgba(148,163,184,0.10)" if not st.session_state.get("light_mode", False) else "rgba(15,23,42,0.10)"};
+                --border-hover: {"rgba(148,163,184,0.22)" if not st.session_state.get("light_mode", False) else "rgba(15,23,42,0.20)"};
+                --border-focus: rgba(59,130,246,0.50);
+                --score-green: #22C55E;
+                --score-blue: #3B82F6;
+                --score-yellow: #FACC15;
+                --score-red: #EF4444;
+                --radius-sm: 6px;
+                --radius-md: 10px;
+                --radius-lg: 16px;
+                --radius-xl: 22px;
+                --radius-full: 999px;
+                --shadow-card: 0 4px 24px rgba(0,0,0,0.30);
+                --shadow-modal: 0 12px 48px rgba(0,0,0,0.50);
+                --grid: {theme["grid"]};
             }}
             .stApp {{
-                background: linear-gradient(180deg, var(--bg-alt) 0%, var(--bg) 100%);
-                color: var(--text);
+                background:
+                    radial-gradient(circle at top left, rgba(59,130,246,0.12), transparent 30%),
+                    radial-gradient(circle at top right, rgba(20,184,166,0.10), transparent 26%),
+                    linear-gradient(180deg, var(--bg-overlay) 0%, var(--bg-page) 18%, var(--bg-page) 100%);
+                color: var(--text-primary);
             }}
             .block-container {{
-                max-width: 1320px;
+                max-width: 1300px;
                 padding-top: 24px;
-                padding-bottom: 56px;
-                padding-left: 24px;
-                padding-right: 24px;
+                padding-bottom: 64px;
+                padding-left: 32px;
+                padding-right: 32px;
             }}
             header[data-testid="stHeader"],
             div[data-testid="stToolbar"] {{
                 background: transparent;
             }}
+            [data-testid="stSidebar"] {{
+                background: var(--bg-surface);
+                border-right: 1px solid var(--border);
+            }}
+            [data-testid="stSidebar"] * {{
+                color: var(--text-primary);
+            }}
             div[data-testid="stButton"] > button,
             div[data-testid="stDownloadButton"] > button {{
                 min-height: 44px;
-                border-radius: 14px;
-                border: 1px solid var(--border);
-                background: var(--surface);
-                color: var(--text);
+                border-radius: var(--radius-md);
+                border: 1px solid var(--border-hover);
+                background: transparent;
+                color: var(--text-primary);
                 font-weight: 600;
+                font-size: 14px;
                 box-shadow: none;
-                transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+                transition: all 160ms ease;
             }}
             div[data-testid="stButton"] > button:hover,
             div[data-testid="stDownloadButton"] > button:hover {{
-                border-color: var(--primary);
-                color: var(--primary);
+                border-color: var(--brand-primary);
+                background: var(--bg-elevated);
+                color: var(--text-primary);
+                transform: translateY(-2px);
             }}
             div[data-testid="stButton"] > button[kind="primary"] {{
-                background: var(--primary);
+                background: var(--brand-primary);
                 color: white;
-                border-color: var(--primary);
+                border-color: var(--brand-primary);
             }}
             div[data-testid="stButton"] > button[kind="primary"]:hover {{
-                background: var(--info);
+                background: var(--brand-hover);
                 color: white;
             }}
-            [data-testid="stMetric"] {{
-                background: var(--surface);
-                border: 1px solid var(--border);
-                border-radius: 18px;
-                padding: 16px;
-                box-shadow: var(--shadow);
+            div[data-testid="stButton"] > button:focus,
+            div[data-testid="stDownloadButton"] > button:focus,
+            input:focus,
+            textarea:focus,
+            select:focus {{
+                outline: none !important;
+                box-shadow: 0 0 0 3px rgba(59,130,246,0.40) !important;
             }}
-            [data-testid="stMetricLabel"],
-            [data-testid="stMetricValue"],
+            div[data-baseweb="input"] > div,
+            div[data-baseweb="select"] > div,
+            div[data-baseweb="textarea"] > div {{
+                background: var(--bg-elevated) !important;
+                border: 1px solid var(--border) !important;
+                border-radius: var(--radius-md) !important;
+                color: var(--text-primary) !important;
+            }}
+            label, .stMarkdown, p, span {{
+                color: inherit;
+            }}
+            [data-testid="stMetric"] {{
+                background: var(--bg-surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-lg);
+                padding: 16px 18px;
+                box-shadow: var(--shadow-card);
+            }}
+            [data-testid="stMetricLabel"] {{
+                color: var(--text-muted) !important;
+                font-size: 11px !important;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+            }}
+            [data-testid="stMetricValue"] {{
+                color: var(--text-primary) !important;
+            }}
             [data-testid="stMetricDelta"] {{
-                color: var(--text) !important;
+                color: var(--text-secondary) !important;
             }}
             div[data-testid="stToggle"] label,
             div[data-testid="stToggle"] p {{
-                color: var(--text) !important;
+                color: var(--text-primary) !important;
                 font-weight: 500;
             }}
-            .hero-card {{
-                background: var(--surface);
+            div[data-baseweb="tab-list"] {{
+                gap: 16px;
+                border-bottom: 1px solid var(--border);
+            }}
+            button[data-baseweb="tab"] {{
+                color: var(--text-muted) !important;
+                font-size: 14px !important;
+                font-weight: 500 !important;
+                padding: 12px 20px 14px !important;
+                border-bottom: 2px solid transparent !important;
+            }}
+            button[data-baseweb="tab"][aria-selected="true"] {{
+                color: var(--text-primary) !important;
+                border-bottom-color: var(--brand-primary) !important;
+            }}
+            [data-testid="stForm"] {{
+                background: var(--bg-surface);
                 border: 1px solid var(--border);
-                border-radius: 18px;
-                padding: 24px;
-                box-shadow: var(--shadow);
+                border-radius: var(--radius-xl);
+                padding: 40px;
+                box-shadow: var(--shadow-card);
+            }}
+            .hero-card {{
+                background: var(--bg-surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-xl);
+                padding: 28px 30px 22px;
+                box-shadow: var(--shadow-card);
                 margin-top: 8px;
             }}
             .hero-overline {{
-                font-size: 12px;
+                font-size: 11px;
                 text-transform: uppercase;
-                letter-spacing: 0.12em;
+                letter-spacing: 0.08em;
                 font-weight: 700;
-                color: var(--muted);
+                color: var(--text-muted);
                 margin-bottom: 8px;
             }}
             .hero-title {{
-                font-size: 20px;
+                font-size: 24px;
                 font-weight: 700;
-                color: var(--text);
-                margin-bottom: 8px;
+                color: var(--text-primary);
+                margin-bottom: 6px;
             }}
             .hero-subtitle {{
                 max-width: 700px;
                 font-size: 14px;
                 line-height: 1.55;
-                color: var(--muted);
+                color: var(--text-secondary);
             }}
             .hero-score {{
-                margin: 20px 0 10px 0;
-                font-size: clamp(56px, 8vw, 92px);
+                margin: 20px 0 6px 0;
+                font-size: clamp(56px, 8vw, 88px);
                 line-height: 0.92;
-                letter-spacing: -0.05em;
+                letter-spacing: -0.04em;
                 font-weight: 800;
-                color: var(--text);
             }}
             .hero-badge {{
                 display: inline-flex;
                 align-items: center;
-                padding: 7px 12px;
-                border-radius: 999px;
-                font-size: 12px;
+                padding: 4px 10px;
+                border-radius: var(--radius-full);
+                font-size: 11px;
                 font-weight: 700;
-                margin-top: 12px;
+                text-transform: uppercase;
+                letter-spacing: 0.06em;
+            }}
+            .hero-progress {{
+                width: 100%;
+                height: 4px;
+                margin-top: 18px;
+                background: var(--bg-elevated);
+                border-radius: var(--radius-full);
+                overflow: hidden;
+            }}
+            .hero-progress-fill {{
+                height: 100%;
+                border-radius: var(--radius-full);
+                transition: width 800ms cubic-bezier(0.16,1,0.3,1);
             }}
             .section-heading {{
                 margin: 40px 0 14px 0;
             }}
             .section-heading h2 {{
                 margin: 0 0 6px 0;
-                font-size: 18px;
+                font-size: 14px;
                 font-weight: 700;
-                color: var(--text);
+                color: var(--text-muted);
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
             }}
             .section-heading p {{
                 margin: 0;
                 max-width: 720px;
-                font-size: 13px;
+                font-size: 12px;
                 line-height: 1.5;
-                color: var(--muted);
+                color: var(--text-muted);
             }}
             .section-divider {{
                 height: 1px;
@@ -587,88 +743,322 @@ def _inject_base_styles(theme: dict) -> None:
             .content-card {{
                 height: 100%;
                 min-height: 100%;
-                padding: 18px;
-                border-radius: 18px;
+                padding: 20px 24px;
+                border-radius: var(--radius-lg);
                 border: 1px solid var(--border);
-                background: var(--surface);
-                box-shadow: var(--shadow);
+                background: var(--bg-surface);
+                box-shadow: var(--shadow-card);
             }}
             .metric-label {{
                 margin-bottom: 10px;
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
-                color: var(--muted);
+                color: var(--text-muted);
             }}
             .metric-value {{
                 margin-bottom: 8px;
-                font-size: 32px;
+                font-size: 28px;
                 line-height: 1.05;
                 letter-spacing: -0.03em;
-                font-weight: 800;
-                color: var(--text);
+                font-weight: 700;
+                color: var(--text-primary);
             }}
             .metric-subtext {{
-                font-size: 13px;
+                font-size: 14px;
                 line-height: 1.55;
-                color: var(--muted);
+                color: var(--text-secondary);
+            }}
+            .metric-support {{
+                margin-top: 10px;
+            }}
+            .delta-badge {{
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                border-radius: var(--radius-full);
+                padding: 4px 10px;
+                font-size: 11px;
+                font-weight: 700;
+                letter-spacing: 0.04em;
+            }}
+            .delta-positive {{
+                background: var(--green-soft);
+                color: var(--green);
+            }}
+            .delta-negative {{
+                background: var(--red-soft);
+                color: var(--red);
             }}
             .table-title {{
                 margin-bottom: 14px;
                 font-size: 15px;
                 font-weight: 700;
-                color: var(--text);
+                color: var(--text-primary);
             }}
             .saas-table {{
                 width: 100%;
                 border-collapse: collapse;
+                overflow: hidden;
             }}
             .saas-table th {{
-                padding-bottom: 12px;
+                padding: 12px 0;
                 text-align: left;
                 font-size: 12px;
                 font-weight: 700;
                 text-transform: uppercase;
                 letter-spacing: 0.08em;
-                color: var(--muted);
+                color: var(--text-muted);
                 border-bottom: 1px solid var(--border);
             }}
             .saas-table td {{
                 padding: 14px 0;
                 font-size: 14px;
-                color: var(--text);
+                color: var(--text-secondary);
                 border-bottom: 1px solid rgba(148, 163, 184, 0.10);
                 vertical-align: top;
             }}
+            .saas-table tbody tr:nth-child(even) td {{
+                background: rgba(26,34,53,0.35);
+            }}
             .saas-table tr:last-child td {{
                 border-bottom: none;
+            }}
+            .saas-table td:first-child {{
+                font-weight: 500;
+                color: var(--text-primary);
             }}
             .empty-state {{
                 padding-top: 4px;
                 font-size: 14px;
                 line-height: 1.6;
-                color: var(--muted);
+                color: var(--text-muted);
             }}
-            .insight-list {{
+            .insight-list,
+            .activity-insight-list {{
                 margin: 0;
-                padding-left: 18px;
+                padding: 0;
+                list-style: none;
             }}
             .insight-list li {{
-                margin-bottom: 10px;
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                margin-bottom: 8px;
+                padding: 10px 14px;
+                border-left: 2px solid var(--yellow);
+                background: rgba(250,204,21,0.06);
+                color: var(--text-secondary);
+                font-size: 13px;
                 line-height: 1.55;
-                color: var(--muted);
+            }}
+            .activity-insight-list li {{
+                display: flex;
+                align-items: flex-start;
+                gap: 10px;
+                margin-bottom: 10px;
+                color: var(--text-secondary);
+                line-height: 1.6;
+            }}
+            .activity-insight-list li::before {{
+                content: "";
+                width: 8px;
+                height: 8px;
+                margin-top: 7px;
+                border-radius: 50%;
+                background: var(--brand-primary);
+                flex: 0 0 8px;
+            }}
+            .insight-icon {{
+                color: var(--yellow);
+                font-size: 16px;
+                line-height: 1;
+                margin-top: 1px;
             }}
             .context-chip {{
                 display: inline-flex;
                 align-items: center;
                 padding: 6px 10px;
-                border-radius: 999px;
+                border-radius: var(--radius-full);
                 border: 1px solid var(--border);
-                background: transparent;
-                color: var(--muted);
+                background: var(--bg-elevated);
+                color: var(--text-muted);
                 font-size: 12px;
+                font-weight: 500;
+            }}
+            .summary-banner {{
+                border-left: 3px solid var(--brand-primary);
+                background: rgba(59,130,246,0.06);
+                color: var(--text-secondary);
+                padding: 14px 18px;
+                font-size: 14px;
+                line-height: 1.6;
+            }}
+            .breakdown-bar {{
+                width: 100%;
+                height: 8px;
+                margin-top: 14px;
+                background: var(--bg-elevated);
+                border-radius: var(--radius-full);
+                overflow: hidden;
+            }}
+            .breakdown-bar-fill {{
+                height: 100%;
+                border-radius: var(--radius-full);
+            }}
+            .role-pill,
+            .status-pill {{
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 3px 8px;
+                border-radius: var(--radius-full);
+                font-size: 11px;
                 font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+            }}
+            .role-super_admin {{
+                background: #312E81;
+                color: #A5B4FC;
+            }}
+            .role-admin {{
+                background: #1E3A5F;
+                color: #93C5FD;
+            }}
+            .role-editor {{
+                background: #064E3B;
+                color: #6EE7B7;
+            }}
+            .role-user {{
+                background: #1F2937;
+                color: #9CA3AF;
+            }}
+            .role-viewer {{
+                background: #1F2937;
+                color: #6B7280;
+            }}
+            .status-active {{
+                background: var(--green-soft);
+                color: var(--green);
+            }}
+            .status-locked {{
+                background: var(--red-soft);
+                color: var(--red);
+            }}
+            .user-card {{
+                background: var(--bg-surface);
+                border: 1px solid var(--border);
+                border-radius: var(--radius-xl);
+                padding: 20px 24px;
+                margin-bottom: 12px;
+            }}
+            .user-summary {{
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }}
+            .user-avatar {{
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                background: var(--bg-elevated);
+                border: 1px solid var(--border-hover);
+                color: var(--brand-primary);
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            .login-shell {{
+                min-height: 100vh;
+                display: grid;
+                grid-template-columns: 1.3fr 0.9fr;
+                gap: 32px;
+                align-items: stretch;
+            }}
+            .login-visual {{
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 48px;
+            }}
+            .login-visual-card {{
+                width: 100%;
+                height: 100%;
+                min-height: 560px;
+                background:
+                    radial-gradient(circle at 30% 20%, rgba(59,130,246,0.20), transparent 35%),
+                    radial-gradient(circle at 70% 70%, rgba(20,184,166,0.16), transparent 30%),
+                    var(--bg-surface);
+                border: 1px solid var(--border);
+                border-radius: 28px;
+                box-shadow: var(--shadow-card);
+                padding: 48px;
+                position: relative;
+                overflow: hidden;
+            }}
+            .login-arc {{
+                width: 260px;
+                height: 260px;
+                border-radius: 50%;
+                border: 18px solid rgba(59,130,246,0.10);
+                border-top-color: var(--brand-primary);
+                border-right-color: var(--teal);
+                position: relative;
+                box-shadow: inset 0 0 0 1px var(--border);
+            }}
+            .login-arc::after {{
+                content: "";
+                position: absolute;
+                inset: 30px;
+                border-radius: 50%;
+                border: 1px dashed rgba(148,163,184,0.24);
+                animation: pulseRing 3s ease-in-out infinite;
+            }}
+            .login-panel {{
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 40px 16px;
+            }}
+            .login-error-banner {{
+                margin: 0 0 16px 0;
+                background: var(--red-soft);
+                border-left: 3px solid var(--red);
+                color: #FCA5A5;
+                padding: 12px 16px;
+                font-size: 13px;
+            }}
+            .metric-grid-note {{
+                font-size: 12px;
+                color: var(--text-muted);
+            }}
+            @keyframes pulseRing {{
+                0%, 100% {{ transform: scale(1); opacity: 0.9; }}
+                50% {{ transform: scale(1.05); opacity: 0.55; }}
+            }}
+            @media (max-width: 960px) {{
+                .login-shell {{
+                    grid-template-columns: 1fr;
+                }}
+                .login-visual {{
+                    display: none;
+                }}
+                .block-container {{
+                    padding-left: 18px;
+                    padding-right: 18px;
+                }}
+            }}
+            @media (max-width: 768px) {{
+                .hero-title {{
+                    font-size: 20px;
+                }}
+                .hero-score {{
+                    font-size: 56px;
+                }}
             }}
         </style>
         """,
@@ -703,7 +1093,15 @@ def _metric_card_html(label: str, value: str, subtext: str, accent: str) -> str:
 
 def _breakdown_card_html(title: str, value: int, theme: dict) -> str:
     """Render one breakdown score card."""
-    return _metric_card_html(title, str(value), "Signal health score", _health_tier_color(value, theme))
+    fill = _health_css_var(value)
+    return f"""
+    <div class="metric-card">
+        <div class="metric-label">{html.escape(title)}</div>
+        <div class="metric-value" style="color:{fill};">{int(value)}</div>
+        <div class="metric-subtext">Signal health score</div>
+        <div class="breakdown-bar"><div class="breakdown-bar-fill" style="width:{max(0, min(100, int(value)))}%; background:{fill};"></div></div>
+    </div>
+    """
 
 
 def _table_card_html(title: str, rows: list[dict], columns: list[tuple[str, str]]) -> str:
@@ -742,21 +1140,22 @@ def _insights_card_html(insights: list[str]) -> str:
         </div>
         """
 
-    items = "".join(f"<li>{html.escape(item)}</li>" for item in insights)
+    items = "".join(f'<li><span class="insight-icon" title="Insight">▲</span><span>{html.escape(item)}</span></li>' for item in insights)
     return f"""
     <div class="content-card">
         <div class="table-title">Activity insights</div>
-        <ul class="insight-list">{items}</ul>
+        <ul class="activity-insight-list">{items}</ul>
     </div>
     """
 
 
-def _summary_card_html(title: str, value: str, subtext: str) -> str:
+def _summary_card_html(title: str, value: str, subtext: str, delta_html: str = "", accent: str | None = None) -> str:
     """Render a compact summary card."""
     return f"""
     <div class="content-card">
-        <div class="table-title">{html.escape(title)}</div>
-        <div class="metric-value" style="font-size:28px;">{value}</div>
+        <div class="metric-label">{html.escape(title)}</div>
+        <div class="metric-value" style="font-size:28px; color:{accent or 'var(--text-primary)'};">{value}</div>
+        <div class="metric-support">{delta_html}</div>
         <div class="metric-subtext">{html.escape(subtext)}</div>
     </div>
     """
@@ -855,40 +1254,79 @@ def _build_weekly_plotly(weekly: dict, theme: dict) -> go.Figure | None:
 def _render_login_screen():
     theme = _get_theme()
     _inject_base_styles(theme)
-    st.markdown("<h2 style='text-align: center; margin-top: 5rem; color: var(--text);'>Sprint Health Login</h2>", unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1, 1])
-    with col2:
-        with st.form("login_form"):
-            email = st.text_input("Email", placeholder="admin@lumofy.com")
-            password = st.text_input("Password", type="password")
-            submitted = st.form_submit_button("Login", type="primary", use_container_width=True)
-            if submitted:
-                if not email or not password:
-                    st.error("Please enter email and password.")
-                    return
-                base = _resolve_api_base_url()
-                try:
-                    resp = requests.post(f"{base}/auth/login", json={"email": email, "password": password}, timeout=5)
-                    if resp.status_code == 200:
-                        token = resp.json()["access_token"]
-                        payload = _decode_jwt(token)
-                        try:
-                            user_id = int(payload.get("sub"))
-                        except (TypeError, ValueError):
-                            user_id = None
-                        st.session_state["user"] = {
-                            "id": user_id,
-                            "email": payload.get("email"),
-                            "role": payload.get("role"),
-                            "token": token
-                        }
-                        st.session_state.pop("access_token", None)
-                        st.rerun()
-                    else:
-                        st.error("Invalid credentials or account locked.")
-                except requests.RequestException:
-                    st.error("Cannot reach authentication service.")
+    error_message = st.session_state.pop("login_error", "")
+    st.markdown(
+        """
+        <div class="login-shell">
+            <div class="login-visual">
+                <div class="login-visual-card">
+                    <div class="hero-overline">Sprint Health</div>
+                    <div class="hero-title" style="max-width:520px;">A sharper way to watch delivery health, bugs, and execution flow.</div>
+                    <p class="hero-subtitle" style="margin-top:10px; max-width:460px;">
+                        Bring sprint quality, throughput, and team activity into one operational workspace with a clean score-first view.
+                    </p>
+                    <div style="margin-top:48px; display:flex; align-items:center; gap:32px; flex-wrap:wrap;">
+                        <div class="login-arc" aria-label="Sprint health illustration" title="Sprint health illustration"></div>
+                        <div>
+                            <div class="metric-label">Workspace</div>
+                            <div class="metric-value" style="color:var(--score-blue); font-size:40px;">Sprint Health</div>
+                            <div class="metric-subtext">Delivery quality, blocked time, bugs, and weekly momentum in one place.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="login-panel">
+                <div style="width:min(100%, 400px);">
+        """,
+        unsafe_allow_html=True,
+    )
+    with st.form("login_form"):
+        st.markdown('<div class="hero-overline">Sprint Health</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero-title" style="font-size:22px;">Sign in to your workspace</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hero-subtitle" style="margin:8px 0 24px 0;">Track delivery health, bugs, and team activity.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="section-divider" style="margin-bottom:24px;"></div>', unsafe_allow_html=True)
+        if error_message:
+            st.markdown(f'<div class="login-error-banner">{html.escape(error_message)}</div>', unsafe_allow_html=True)
+        email = st.text_input("Email address", placeholder="admin@lumofy.com")
+        password = st.text_input("Password", type="password", placeholder="Enter your password")
+        submitted = st.form_submit_button("Sign in", type="primary", use_container_width=True)
+        if submitted:
+            if not email or not password:
+                st.session_state["login_error"] = "Please enter email and password."
+                st.rerun()
+            base = _resolve_api_base_url()
+            try:
+                resp = requests.post(f"{base}/auth/login", json={"email": email, "password": password}, timeout=5)
+                if resp.status_code == 200:
+                    token = resp.json()["access_token"]
+                    payload = _decode_jwt(token)
+                    try:
+                        user_id = int(payload.get("sub"))
+                    except (TypeError, ValueError):
+                        user_id = None
+                    st.session_state["user"] = {
+                        "id": user_id,
+                        "email": payload.get("email"),
+                        "role": payload.get("role"),
+                        "token": token
+                    }
+                    st.session_state.pop("access_token", None)
+                    st.session_state.pop("login_error", None)
+                    st.rerun()
+                st.session_state["login_error"] = "Invalid credentials or account locked."
+                st.rerun()
+            except requests.RequestException:
+                st.session_state["login_error"] = "Cannot reach authentication service."
+                st.rerun()
+    st.markdown(
+        """
+                <p class="metric-grid-note" style="text-align:center; margin-top:14px;">Secured with JWT authentication</p>
+                </div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_admin_dashboard(user: dict):
@@ -896,7 +1334,7 @@ def _render_admin_dashboard(user: dict):
         st.error("Access denied")
         st.stop()
     
-    st.markdown("<h2 style='color: var(--text);'>Admin Control Panel</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: var(--text-primary);'>Admin Control Panel</h2>", unsafe_allow_html=True)
     st.caption("Review accounts, roles, login health, and access permissions.")
     _show_admin_feedback()
 
@@ -906,29 +1344,55 @@ def _render_admin_dashboard(user: dict):
         st.error(f"Cannot fetch users: {exc}")
         return
 
-    display_rows = []
+    st.markdown(
+        """
+        <div class="content-card" style="margin-bottom:20px;">
+            <div class="table-title">Users Summary</div>
+            <div class="metric-subtext">Access levels, account health, and recent login activity.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    table_rows = []
     for user_row in users:
         locked = _is_locked_account(user_row)
-        display_rows.append(
-            {
-                "Email": user_row.get("email", ""),
-                "Role": _role_label(str(user_row.get("role", ""))),
-                "Last Login": _format_timestamp(user_row.get("last_login_at")),
-                "Failed Attempts": int(user_row.get("failed_attempts", 0) or 0),
-                "Locked": "Yes" if locked else "No",
-                "Locked Until": _format_timestamp(user_row.get("locked_until")) if locked else "Active",
-            }
+        attempts = int(user_row.get("failed_attempts", 0) or 0)
+        attempt_color = "var(--text-muted)" if attempts == 0 else ("var(--yellow)" if attempts < 3 else "var(--red)")
+        table_rows.append(
+            "<tr>"
+            f"<td>{html.escape(str(user_row.get('email', '')))}</td>"
+            f"<td>{_role_badge_html(str(user_row.get('role', 'viewer')))}</td>"
+            f"<td>{html.escape(_format_timestamp(user_row.get('last_login_at')))}</td>"
+            f"<td style='text-align:right; color:{attempt_color};'>{attempts}</td>"
+            f"<td>{_status_badge_html(locked)}</td>"
+            "</tr>"
         )
-
-    st.subheader("Users Table")
-    st.dataframe(display_rows, use_container_width=True, hide_index=True)
+    st.markdown(
+        f"""
+        <div class="content-card">
+            <table class="saas-table">
+                <thead>
+                    <tr>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Last Login</th>
+                        <th style="text-align:right;">Failed Attempts</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>{''.join(table_rows)}</tbody>
+            </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     if user.get("role") != "super_admin":
         st.info("Admins can view users only. Only super_admin can create, delete, change roles, or lock accounts.")
         return
 
     with st.form("create_user_form", clear_on_submit=True):
-        st.subheader("Create User")
+        st.markdown('<div class="content-card" style="margin-bottom:16px;"><div class="table-title">Create Account</div><div class="metric-subtext">Provision a new workspace user with the correct role and access level.</div></div>', unsafe_allow_html=True)
         create_cols = st.columns(3)
         with create_cols[0]:
             email = st.text_input("Email", placeholder="user@example.com")
@@ -960,7 +1424,23 @@ def _render_admin_dashboard(user: dict):
         is_current_user = current_user_id == account_id
         default_role_index = role_options.index(account_role) if account_role in role_options else 0
 
-        with st.container(border=True):
+        initials = "".join(part[:1].upper() for part in account_email.split("@")[0].replace(".", " ").split()[:2]) or "U"
+        st.markdown(
+            f"""
+            <div class="user-card">
+                <div class="user-summary">
+                    <span class="user-avatar">{html.escape(initials[:2])}</span>
+                    <div>
+                        <div style="font-size:14px; font-weight:600; color:var(--text-primary);">{html.escape(account_email)}</div>
+                        <div style="font-size:12px; color:var(--text-muted);">{html.escape(_format_timestamp(user_row.get("last_login_at")))}</div>
+                    </div>
+                    <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">{_role_badge_html(account_role)}{_status_badge_html(account_locked)}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        with st.container():
             summary_cols = st.columns([2.2, 1.2, 1.4, 1.1, 1.1])
             with summary_cols[0]:
                 st.markdown(f"**{account_email}**")
@@ -1033,7 +1513,7 @@ def _render_admin_metrics_dashboard(user: dict) -> None:
         st.error("Access denied")
         st.stop()
 
-    st.markdown("<h2 style='color: var(--text);'>Metrics Override Center</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: var(--text-primary);'>Metrics Override Center</h2>", unsafe_allow_html=True)
     st.caption("Edit live metric overrides on top of the existing calculations in app/metrics.py.")
     _show_admin_feedback()
 
@@ -1049,6 +1529,7 @@ def _render_admin_metrics_dashboard(user: dict) -> None:
 
     metric_df = pd.DataFrame(metrics)
     editable_df = metric_df[["metric_name", "value", "base_value", "override_value", "updated_at"]].copy()
+    st.markdown('<div class="content-card" style="margin-bottom:16px;"><div class="table-title">Editable Metrics</div><div class="metric-subtext">Adjust presentation-layer override values while keeping the underlying calculations intact.</div></div>', unsafe_allow_html=True)
     st.dataframe(metric_df, use_container_width=True, hide_index=True)
     edited_df = st.data_editor(
         editable_df,
@@ -1205,6 +1686,7 @@ def main() -> None:
     api_base_url = _resolve_api_base_url()
 
     status_color = _health_tier_color(score, theme)
+    status_var = _health_css_var(score)
     if health_status == "Green":
         status_text = "Healthy sprint"
     elif health_status == "Yellow":
@@ -1217,24 +1699,32 @@ def main() -> None:
     st.markdown(
         f"""
         <div class="hero-card">
-            <div class="hero-overline">Sprint Health Platform</div>
-            <div class="hero-title">A focused view of delivery quality, execution pace, and team activity.</div>
-            <div class="hero-score" style="color:{status_color};">{score}<span style="font-size:34px;color:{theme["muted"]};">/100</span></div>
-            <div class="hero-subtitle">
-                Track how the sprint is progressing across commitment, carryover, bugs, and execution trends with a clean operational dashboard.
+            <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
+                <div>
+                    <div class="hero-overline">Sprint Health Platform</div>
+                    <div class="hero-title">A focused view of delivery quality, execution pace, and team activity.</div>
+                    <div class="hero-subtitle" style="margin-top:6px;">
+                        Current sprint view
+                    </div>
+                    <div class="hero-score" style="color:{status_var};">{score}<span style="font-size:22px;color:var(--text-muted); font-weight:500;">/100</span></div>
+                    <div class="hero-subtitle">
+                        Track how the sprint is progressing across commitment, carryover, bugs, and execution trends with a clean operational dashboard.
+                    </div>
+                </div>
+                <div class="hero-badge" style="background:{theme["primary_soft"]};color:{status_var};border:1px solid var(--border);">
+                    {score} · {_health_label(score)}
+                </div>
             </div>
-            <div class="hero-badge" style="background:{theme["primary_soft"]};color:{status_color};border:1px solid {theme["border"]};">
-                {health_status or status_text}
-            </div>
+            <div class="hero-progress"><div class="hero-progress-fill" style="width:{max(0, min(100, score))}%; background:linear-gradient(90deg, {status_var}, {status_var});"></div></div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     st.caption(f"API source: {api_base_url}")
     if not activity.get("developers") and not activity.get("testers") and int(activity.get("bugs_today", 0) or 0) == 0:
-        st.info("Activity API returned no current daily activity data.")
+        st.info("No team activity has been recorded for today yet.")
     if not weekly.get("daily_breakdown"):
-        st.info("Weekly activity API returned no current weekly data.")
+        st.info("No weekly activity data found for the current period.")
     weekly_bugs = int(weekly.get("bugs_this_week", 0) or 0)
     weekly_developers = weekly.get("developers") or []
     weekly_testers = weekly.get("testers") or []
@@ -1253,21 +1743,59 @@ def main() -> None:
     with overview_tab:
         metric_cols = st.columns(4, gap="large")
         with metric_cols[0]:
-            st.metric("Sprint Score", f"{score}/100", delta=health_status or status_text)
+            st.markdown(
+                _summary_card_html(
+                    "Sprint Score",
+                    f"{score}/100",
+                    status_text,
+                    delta_html=_delta_badge_html(_health_label(score), positive=score >= 70),
+                    accent=status_var,
+                ),
+                unsafe_allow_html=True,
+            )
         with metric_cols[1]:
-            st.metric("Next Sprint", int(prediction.get("next_sprint_health", score) or score), delta=str(prediction.get("trend") or "stable"))
+            next_health = int(prediction.get("next_sprint_health", score) or score)
+            st.markdown(
+                _summary_card_html(
+                    "Next Sprint",
+                    str(next_health),
+                    f"Confidence: {prediction.get('confidence', 'low')}",
+                    delta_html=_delta_badge_html(str(prediction.get("trend") or "stable"), positive=str(prediction.get("trend") or "").lower() != "declining"),
+                ),
+                unsafe_allow_html=True,
+            )
         with metric_cols[2]:
-            st.metric("Blocked Ratio", f"{blocked_ratio:.1f}%")
+            st.markdown(
+                _summary_card_html(
+                    "Blocked %",
+                    f"{blocked_ratio:.1f}%",
+                    "Time spent in blocked status",
+                    delta_html=_delta_badge_html("High" if blocked_ratio > 20 else "Normal", positive=blocked_ratio <= 20),
+                    accent="var(--score-red)" if blocked_ratio > 20 else "var(--text-primary)",
+                ),
+                unsafe_allow_html=True,
+            )
         with metric_cols[3]:
-            st.metric("Completion Rate", f"{completion_rate:.1f}%")
+            st.markdown(
+                _summary_card_html(
+                    "Completion %",
+                    f"{completion_rate:.1f}%",
+                    "Delivered versus committed scope",
+                    delta_html=_delta_badge_html("On target" if completion_rate >= 70 else "Below target", positive=completion_rate >= 70),
+                ),
+                unsafe_allow_html=True,
+            )
 
         if summary:
-            st.info(summary)
+            st.markdown(f'<div class="summary-banner">{html.escape(summary)}</div>', unsafe_allow_html=True)
 
         if insights:
-            _render_section_header("AI Insights", "Deterministic root-cause analysis for the current sprint outcome.")
-            for insight in insights:
-                st.warning(insight)
+            _render_section_header("Insights", "Deterministic root-cause analysis for the current sprint outcome.")
+            insight_html = "".join(
+                f'<li><span class="insight-icon" aria-label="warning" title="warning">▲</span><span>{html.escape(insight)}</span></li>'
+                for insight in insights
+            )
+            st.markdown(f'<ul class="insight-list">{insight_html}</ul>', unsafe_allow_html=True)
 
         if metrics_catalog:
             _render_section_header("Editable Metric Layer", "Current effective metric values after applying database overrides.")
@@ -1304,13 +1832,13 @@ def main() -> None:
         _render_section_header("Engineering Signals", "Advanced metrics behind the sprint health score.")
         signal_cols = st.columns(4, gap="large")
         with signal_cols[0]:
-            st.metric("Story Cycle", cycle_time_metrics.get("story") if cycle_time_metrics.get("story") is not None else "N/A")
+            st.markdown(_summary_card_html("Story Cycle", _sanitize_metric_value(cycle_time_metrics.get("story"), 1), "Median days per story"), unsafe_allow_html=True)
         with signal_cols[1]:
-            st.metric("Bug Cycle", cycle_time_metrics.get("bug") if cycle_time_metrics.get("bug") is not None else "N/A")
+            st.markdown(_summary_card_html("Bug Cycle", _sanitize_metric_value(cycle_time_metrics.get("bug"), 1), "Median days per bug"), unsafe_allow_html=True)
         with signal_cols[2]:
-            st.metric("Task Cycle", cycle_time_metrics.get("task") if cycle_time_metrics.get("task") is not None else "N/A")
+            st.markdown(_summary_card_html("Task Cycle", _sanitize_metric_value(cycle_time_metrics.get("task"), 1), "Median days per task"), unsafe_allow_html=True)
         with signal_cols[3]:
-            st.metric("Avg Bugs / Story", bug_metrics.get("avg_per_story", 0.0))
+            st.markdown(_summary_card_html("Avg Bugs/Story", _sanitize_metric_value(bug_metrics.get("avg_per_story", 0.0), 1), "Average story-related bug load"), unsafe_allow_html=True)
 
     with trends_tab:
         _render_section_header("Trend Analysis", "Weekly movement of bugs, delivery throughput, and sprint health.")
@@ -1323,7 +1851,30 @@ def main() -> None:
         history_df = _build_health_history_dataframe(history)
         if not history_df.empty:
             st.subheader("Sprint Health Trend")
-            st.line_chart(history_df.set_index("sprint")[["health_score"]])
+            trend_chart = px.area(
+                history_df,
+                x="sprint",
+                y="health_score",
+                markers=True,
+            )
+            marker_colors = [_health_tier_color(int(value), theme) for value in history_df["health_score"].tolist()]
+            trend_chart.update_traces(
+                line=dict(color="#3B82F6", width=3),
+                fillcolor="rgba(59,130,246,0.08)",
+                marker=dict(size=8, color=marker_colors, line=dict(color="#ffffff", width=1)),
+            )
+            trend_chart.add_hline(y=70, line_dash="dash", line_color="#FACC15", annotation_text="Target")
+            trend_chart.add_hline(y=85, line_dash="dash", line_color="#22C55E", annotation_text="Excellent")
+            trend_chart.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                height=340,
+                margin=dict(l=20, r=20, t=20, b=20),
+                font=dict(color=theme["muted"]),
+                xaxis=dict(tickangle=30, showgrid=False),
+                yaxis=dict(gridcolor=theme["grid"], zeroline=False),
+            )
+            st.plotly_chart(trend_chart, use_container_width=True, config={"displayModeBar": False})
             st.dataframe(
                 history_df.rename(
                     columns={
