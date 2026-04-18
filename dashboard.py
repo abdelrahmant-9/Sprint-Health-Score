@@ -89,7 +89,11 @@ def _resolve_api_base_url() -> str:
 def _api_headers() -> dict[str, str]:
     """Build headers for backend API requests."""
     settings = load_settings()
-    return {"X-API-KEY": settings.api_key}
+    token = st.session_state.get("access_token")
+    headers = {"X-API-KEY": settings.api_key}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
 
 
 def _load_snapshot() -> dict:
@@ -101,7 +105,7 @@ def _load_snapshot() -> dict:
     weekly_url = f"{base}/activity/weekly"
     logger.info("Fetching dashboard data from backend API")
 
-    score_response = requests.get(score_url, timeout=10)
+    score_response = requests.get(score_url, headers=headers, timeout=10)
     score_response.raise_for_status()
     logger.info("Health score API returned status=%s", score_response.status_code)
     activity_response = requests.get(activity_url, headers=headers, timeout=10)
@@ -564,9 +568,40 @@ def _build_weekly_plotly(weekly: dict, theme: dict) -> go.Figure | None:
     return fig
 
 
+def _render_login_screen():
+    theme = _get_theme()
+    _inject_base_styles(theme)
+    st.markdown("<h2 style='text-align: center; margin-top: 5rem; color: var(--text);'>Sprint Health Login</h2>", unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        with st.form("login_form"):
+            email = st.text_input("Email", placeholder="admin@lumofy.com")
+            password = st.text_input("Password", type="password")
+            submitted = st.form_submit_button("Login", type="primary", use_container_width=True)
+            if submitted:
+                if not email or not password:
+                    st.error("Please enter email and password.")
+                    return
+                base = _resolve_api_base_url()
+                try:
+                    resp = requests.post(f"{base}/auth/login", json={"email": email, "password": password}, timeout=5)
+                    if resp.status_code == 200:
+                        st.session_state["access_token"] = resp.json()["access_token"]
+                        st.rerun()
+                    else:
+                        st.error("Invalid credentials or account locked.")
+                except requests.RequestException:
+                    st.error("Cannot reach authentication service.")
+
+
 def main() -> None:
     """Render sprint health dashboard UI."""
     st.set_page_config(page_title="Sprint Health Dashboard", layout="wide")
+    
+    if "access_token" not in st.session_state:
+        _render_login_screen()
+        return
     if not st.session_state.get("dashboard_initialized"):
         logger.info("Dashboard session initialized")
         st.session_state["dashboard_initialized"] = True
@@ -589,6 +624,16 @@ def main() -> None:
             _run_now_and_refresh()
     with top_right:
         st.toggle("Light mode", key="light_mode")
+        if st.button("Logout"):
+            base = _resolve_api_base_url()
+            token = st.session_state.get("access_token")
+            if token:
+                try:
+                    requests.post(f"{base}/auth/logout", headers={"Authorization": f"Bearer {token}"}, timeout=5)
+                except Exception:
+                    pass
+            st.session_state.pop("access_token", None)
+            st.rerun()
 
     theme = _get_theme()
     _inject_base_styles(theme)

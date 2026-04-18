@@ -16,6 +16,7 @@ def _settings(**overrides) -> Settings:
         "jira_api_token": "token",
         "jira_project_key": "PM",
         "api_key": "test-api-key",
+        "secret_key": "test-secret-key-16-chars",
     }
     base.update(overrides)
     return Settings(**base)

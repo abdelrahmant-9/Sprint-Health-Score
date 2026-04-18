@@ -15,7 +15,6 @@ RUN pip install --no-cache-dir --upgrade pip && \
 COPY app ./app
 COPY dashboard.py .
 COPY admin_dashboard.py .
-COPY auth_users.json .
 COPY health_metrics_config.json .
 
 RUN addgroup --system appgroup && \

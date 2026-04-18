@@ -58,6 +58,16 @@ class Settings(BaseSettings):
     request_timeout_seconds: int = Field(default=10, ge=5)
     report_timezone: str = Field(default="Africa/Cairo")
     api_key: str = Field(min_length=1)
+    secret_key: str = Field(
+        min_length=16,
+        description="Secret key for signing JWT tokens.  Must be at least 16 characters.",
+    )
+    access_token_expire_minutes: int = Field(default=15, ge=1)
+    refresh_token_expire_days: int = Field(default=7, ge=1)
+    cors_allowed_origins: str = Field(
+        default="",
+        description="Comma-separated list of allowed CORS origins (empty = same-origin only).",
+    )
     metrics_config_path: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[1] / "health_metrics_config.json")
     issue_cache_path: Path = Field(default_factory=lambda: Path(__file__).resolve().parents[1] / "issue_history_cache.json")
     log_level: str = Field(default="INFO")

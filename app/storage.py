@@ -44,7 +44,7 @@ def close_all_connections() -> None:
 
 
 def init_schema(db_path: Path) -> None:
-    """Create sprint_results table if it does not exist."""
+    """Create all application tables if they do not exist."""
     conn = _connect(db_path)
     try:
         with conn:
@@ -59,6 +59,42 @@ def init_schema(db_path: Path) -> None:
                     completion_rate REAL NOT NULL,
                     breakdown_json TEXT NOT NULL,
                     report_json TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    role TEXT NOT NULL DEFAULT 'user',
+                    created_at TEXT NOT NULL,
+                    last_login_at TEXT,
+                    failed_attempts INTEGER NOT NULL DEFAULT 0,
+                    locked_until TEXT
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS audit_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    event_type TEXT NOT NULL,
+                    user_email TEXT NOT NULL DEFAULT '',
+                    ip_address TEXT NOT NULL DEFAULT '',
+                    user_agent TEXT NOT NULL DEFAULT '',
+                    details TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS token_blacklist (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    token TEXT NOT NULL UNIQUE,
+                    blacklisted_at TEXT NOT NULL
                 )
                 """
             )

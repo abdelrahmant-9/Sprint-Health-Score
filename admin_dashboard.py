@@ -1,11 +1,11 @@
-import hashlib
 import json
 import logging
 import os
+import secrets
 import signal
 import threading
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from html import escape
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,7 +15,17 @@ from urllib.parse import parse_qs, urlparse
 from dotenv import load_dotenv
 
 from app import config as sprint_health
+from app.auth.password import hash_password, verify_password
+from app.auth.service import (
+    authenticate as db_authenticate,
+    create_user as db_create_user,
+    delete_user as db_delete_user,
+    get_user_by_email,
+    list_users as db_list_users,
+    log_audit_event,
+)
 from app.notifications import send_slack_message
+from app.storage import init_schema
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s - %(message)s")
@@ -28,85 +38,84 @@ HOST = os.getenv("ADMIN_DASHBOARD_HOST", DEFAULT_HOST).strip() or DEFAULT_HOST
 # Railway sets PORT env var, default to 8765 for local
 PORT = int(os.getenv("PORT", os.getenv("ADMIN_DASHBOARD_PORT", "8765")))
 
-# Make AUTH_FILE path relative
-AUTH_FILE = Path(__file__).parent / "auth_users.json"
-SESSION_EXPIRY_DAYS = 30
+SESSION_EXPIRY_DAYS = 7
+
+# Resolve database path from settings
+_settings = sprint_health.load_settings()
+DB_PATH = _settings.sqlite_path
+init_schema(DB_PATH)
+
+# ---------------------------------------------------------------------------
+# Session management (cookie-based sessions backed by in-memory store)
+# ---------------------------------------------------------------------------
+
+_sessions: dict[str, dict] = {}
+_sessions_lock = threading.Lock()
+
+# ---------------------------------------------------------------------------
+# CSRF protection
+# ---------------------------------------------------------------------------
+
+_csrf_tokens: dict[str, str] = {}
+_csrf_lock = threading.Lock()
 
 
-class AuthManager:
-    def __init__(self, file_path: Path):
-        self.file_path = file_path
-        self.data = self._load()
+def _generate_csrf_token(session_id: str) -> str:
+    """Generate and store a CSRF token for a given session."""
+    token = secrets.token_urlsafe(32)
+    with _csrf_lock:
+        _csrf_tokens[session_id] = token
+    return token
 
-    def _load(self):
-        if not self.file_path.exists():
-            return {"users": {}, "sessions": {}}
-        try:
-            return json.loads(self.file_path.read_text(encoding="utf-8"))
-        except:
-            return {"users": {}, "sessions": {}}
 
-    def save(self):
-        self.file_path.write_text(json.dumps(self.data, indent=2), encoding="utf-8")
+def _validate_csrf_token(session_id: str, token: str) -> bool:
+    """Validate a CSRF token against the stored value."""
+    with _csrf_lock:
+        expected = _csrf_tokens.get(session_id)
+    return expected is not None and secrets.compare_digest(expected, token)
 
-    def hash_password(self, password: str) -> str:
-        return hashlib.sha256(password.encode()).hexdigest()
 
-    def authenticate(self, username, password):
-        user = self.data["users"].get(username)
-        if user and user["password"] == self.hash_password(password):
-            return user
+# ---------------------------------------------------------------------------
+# Session helpers
+# ---------------------------------------------------------------------------
+
+def _create_session(email: str, role: str) -> str:
+    """Create an in-memory session and return the session ID."""
+    session_id = str(uuid.uuid4())
+    expiry = (datetime.now(timezone.utc) + timedelta(days=SESSION_EXPIRY_DAYS)).isoformat()
+    with _sessions_lock:
+        _sessions[session_id] = {"email": email, "role": role, "expires": expiry}
+    return session_id
+
+
+def _get_session_user_by_id(session_id: str | None) -> dict | None:
+    """Look up session user.  Returns ``{'email': ..., 'role': ...}`` or None."""
+    if not session_id:
         return None
-
-    def create_session(self, username):
-        session_id = str(uuid.uuid4())
-        expiry = (datetime.now() + timedelta(days=SESSION_EXPIRY_DAYS)).isoformat()
-        self.data["sessions"][session_id] = {"username": username, "expires": expiry}
-        self.save()
-        return session_id
-
-    def get_user_from_session(self, session_id):
-        session = self.data["sessions"].get(session_id)
-        if not session:
+    with _sessions_lock:
+        session = _sessions.get(session_id)
+    if not session:
+        return None
+    try:
+        if datetime.fromisoformat(session["expires"]) < datetime.now(timezone.utc):
+            _delete_session(session_id)
             return None
-        try:
-            if datetime.fromisoformat(session["expires"]) < datetime.now():
-                del self.data["sessions"][session_id]
-                self.save()
-                return None
-        except:
-            return None
-        return self.data["users"].get(session["username"])
-
-    def delete_session(self, session_id):
-        if session_id in self.data["sessions"]:
-            del self.data["sessions"][session_id]
-            self.save()
-
-    def add_user(self, username, password, role):
-        if username in self.data["users"]:
-            return False
-        self.data["users"][username] = {
-            "password": self.hash_password(password),
-            "role": role,
-            "created_at": datetime.now().isoformat(),
-        }
-        self.save()
-        return True
-
-    def delete_user(self, username):
-        if username in self.data["users"]:
-            del self.data["users"][username]
-            to_del = [sid for sid, s in self.data["sessions"].items() if s["username"] == username]
-            for sid in to_del:
-                del self.data["sessions"][sid]
-            self.save()
-            return True
-        return False
+    except (ValueError, TypeError):
+        return None
+    return {"email": session["email"], "role": session["role"]}
 
 
-auth = AuthManager(AUTH_FILE)
+def _delete_session(session_id: str) -> None:
+    """Remove a session."""
+    with _sessions_lock:
+        _sessions.pop(session_id, None)
+    with _csrf_lock:
+        _csrf_tokens.pop(session_id, None)
 
+
+# ---------------------------------------------------------------------------
+# Form parsing helpers
+# ---------------------------------------------------------------------------
 
 def _float_value(params: dict, key: str) -> float:
     raw = (params.get(key, [""])[0] or "").strip()
@@ -473,16 +482,16 @@ def _dashboard_html(user, message: str = "", error: str = "") -> str:
 
 
 def _users_html(user, message: str = "", error: str = "") -> str:
-    users_data = auth.data["users"]
+    users_data = db_list_users(DB_PATH)
     banner = f"<div class='banner ok'>{escape(message)}</div>" if message else ""
     err_banner = f"<div class='banner error'>{escape(error)}</div>" if error else ""
 
     rows = ""
-    for username, info in users_data.items():
+    for u_row in users_data:
         rows += f"""<div class="field" style="flex-direction:row; justify-content:space-between; align-items:center;">
-          <div><strong>{escape(username)}</strong><br><small>{escape(info['role'].capitalize())}</small></div>
+          <div><strong>{escape(u_row['email'])}</strong><br><small>{escape(u_row['role'].capitalize())}</small></div>
           <form method="post" action="/users/delete" style="margin:0">
-            <input type="hidden" name="username" value="{escape(username)}">
+            <input type="hidden" name="username" value="{escape(u_row['email'])}">
             <button type="submit" style="background:var(--error-main); padding:6px 12px; font-size:11px; color:#fff">Delete</button>
           </form>
         </div>"""
@@ -544,7 +553,12 @@ class AdminHandler(BaseHTTPRequestHandler):
     def _get_session_user(self):
         c = cookies.SimpleCookie(self.headers.get("Cookie", ""))
         sid = c.get("session_id")
-        return auth.get_user_from_session(sid.value) if sid else None
+        return _get_session_user_by_id(sid.value) if sid else None
+
+    def _get_session_id(self):
+        c = cookies.SimpleCookie(self.headers.get("Cookie", ""))
+        sid = c.get("session_id")
+        return sid.value if sid else None
 
     def _send_html(self, html: str, status: int = 200):
         self.send_response(status)
@@ -574,11 +588,13 @@ class AdminHandler(BaseHTTPRequestHandler):
             if u["role"] != "admin": return self._send_html("Access Denied", 403)
             return self._send_html(_users_html(u))
         if p.path == "/logout":
-            sid = cookies.SimpleCookie(self.headers.get("Cookie", "")).get("session_id")
-            if sid: auth.delete_session(sid.value)
+            sid = self._get_session_id()
+            if sid:
+                log_audit_event(DB_PATH, event_type="LOGOUT", user_email=u.get("email", "") if u else "")
+                _delete_session(sid)
             self.send_response(303)
             self.send_header("Location", "/login")
-            self.send_header("Set-Cookie", "session_id=; Max-Age=0; Path=/")
+            self.send_header("Set-Cookie", "session_id=; Max-Age=0; Path=/; HttpOnly; SameSite=Strict")
             self.end_headers()
             return
 
@@ -590,14 +606,16 @@ class AdminHandler(BaseHTTPRequestHandler):
             if p == "/login":
                 un, pw = form.get("username", [""])[0], form.get("password", [""])[0]
                 nxt = form.get("next", ["/"])[0] or "/"
-                usr = auth.authenticate(un, pw)
+                usr = db_authenticate(DB_PATH, un, pw)
                 if usr:
-                    sid = auth.create_session(un)
+                    sid = _create_session(usr["email"], usr["role"])
+                    log_audit_event(DB_PATH, event_type="LOGIN_SUCCESS", user_email=usr["email"])
                     self.send_response(303)
                     self.send_header("Location", nxt)
-                    self.send_header("Set-Cookie", f"session_id={sid}; Max-Age={SESSION_EXPIRY_DAYS*86400}; Path=/; HttpOnly")
+                    self.send_header("Set-Cookie", f"session_id={sid}; Max-Age={SESSION_EXPIRY_DAYS*86400}; Path=/; HttpOnly; SameSite=Strict")
                     self.end_headers()
                 else:
+                    log_audit_event(DB_PATH, event_type="LOGIN_FAILED", user_email=un)
                     self._send_html(_login_html("Invalid login."), 401)
                 return
             u = self._get_session_user()
@@ -610,6 +628,7 @@ class AdminHandler(BaseHTTPRequestHandler):
                 changes = sprint_health.describe_config_changes(previous, updated)
                 if changes:
                     send_slack_message("Config updated:\n" + "\n".join(f"- {item}" for item in changes))
+                log_audit_event(DB_PATH, event_type="CONFIG_CHANGED", user_email=u.get("email", ""), details="Config saved")
                 self._redirect("/admin?saved=1")
                 return
             elif p == "/reset" and u["role"] in ["admin", "editor"]:
@@ -619,18 +638,22 @@ class AdminHandler(BaseHTTPRequestHandler):
                 changes = sprint_health.describe_config_changes(previous, updated)
                 if changes:
                     send_slack_message("Config updated:\n" + "\n".join(f"- {item}" for item in changes))
+                log_audit_event(DB_PATH, event_type="CONFIG_CHANGED", user_email=u.get("email", ""), details="Config reset to defaults")
                 self._redirect("/admin?reset=1")
                 return
             elif p == "/users/add" and u["role"] == "admin":
                 nu, np, nr = form.get("new_username", [""])[0], form.get("new_password", [""])[0], form.get("new_role", ["viewer"])[0]
-                if auth.add_user(nu, np, nr):
+                result = db_create_user(DB_PATH, email=nu, password=np, role=nr)
+                if result:
+                    log_audit_event(DB_PATH, event_type="USER_CREATED", user_email=u.get("email", ""), details=f"Created {nu} as {nr}")
                     self._send_html(_users_html(u, "Added."))
                 else:
                     self._send_html(_users_html(u, error="Exists."))
                 return
             elif p == "/users/delete" and u["role"] == "admin":
                 du = form.get("username", [""])[0]
-                if auth.delete_user(du):
+                if db_delete_user(DB_PATH, du):
+                    log_audit_event(DB_PATH, event_type="USER_DELETED", user_email=u.get("email", ""), details=f"Deleted {du}")
                     self._send_html(_users_html(u, "Deleted."))
                 return
             self.send_error(404)

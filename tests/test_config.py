@@ -27,6 +27,7 @@ def test_save_metrics_config_rejects_invalid_score_bounds(monkeypatch: pytest.Mo
     monkeypatch.setenv("JIRA_EMAIL", "user@example.com")
     monkeypatch.setenv("JIRA_API_TOKEN", "token")
     monkeypatch.setenv("API_KEY", "test-api-key")
+    monkeypatch.setenv("SECRET_KEY", "test-secret-key-16-chars")
     monkeypatch.setenv("METRICS_CONFIG_PATH", str(target_path))
 
     config = json.loads(json.dumps(DEFAULT_METRICS_CONFIG))
@@ -53,5 +54,6 @@ def test_settings_require_slack_credentials_when_enabled() -> None:
             jira_api_token="token",
             jira_project_key="PM",
             api_key="test-api-key",
+            secret_key="test-secret-key-16-chars",
             slack_enabled=True,
         )
