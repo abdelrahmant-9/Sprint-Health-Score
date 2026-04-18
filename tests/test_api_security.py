@@ -40,6 +40,30 @@ def test_health_endpoint_is_public(monkeypatch) -> None:
     assert response.json()["status"] == "ok"
 
 
+def test_openapi_schema_builds_successfully(monkeypatch) -> None:
+    _setup_env(monkeypatch)
+    schema = app.openapi()
+    assert "/auth/login" in schema["paths"]
+    login_request = schema["paths"]["/auth/login"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+    assert login_request["$ref"].endswith("/LoginRequest")
+
+
+def test_openapi_json_endpoint_is_available(monkeypatch) -> None:
+    _setup_env(monkeypatch)
+    with TestClient(app) as client:
+        response = client.get("/openapi.json")
+    assert response.status_code == 200
+    assert response.json()["paths"]["/auth/login"]["post"]["responses"]["200"]
+
+
+def test_docs_endpoint_is_available(monkeypatch) -> None:
+    _setup_env(monkeypatch)
+    with TestClient(app) as client:
+        response = client.get("/docs")
+    assert response.status_code == 200
+    assert "Swagger UI" in response.text
+
+
 def test_protected_endpoint_rejects_no_auth(monkeypatch) -> None:
     _setup_env(monkeypatch)
     with TestClient(app) as client:
@@ -82,6 +106,15 @@ def test_login_returns_tokens(monkeypatch, tmp_path) -> None:
     assert "access_token" in data
     assert "refresh_token" in data
     assert data["token_type"] == "bearer"
+
+
+def test_login_openapi_request_shape_is_still_json_body(monkeypatch) -> None:
+    _setup_env(monkeypatch)
+    schema = app.openapi()
+    request_body = schema["paths"]["/auth/login"]["post"]["requestBody"]["content"]["application/json"]["schema"]
+    login_schema = schema["components"]["schemas"][request_body["$ref"].rsplit("/", 1)[-1]]
+    assert set(login_schema["required"]) == {"email", "password"}
+    assert login_schema["properties"]["email"]["format"] == "email"
 
 
 def test_login_rejects_wrong_password(monkeypatch, tmp_path) -> None:

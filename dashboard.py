@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import base64
 import html
+import json
 import logging
 
 import plotly.graph_objects as go
@@ -13,6 +15,14 @@ from app.config import load_settings
 
 
 logger = logging.getLogger(__name__)
+
+def _decode_jwt(token: str) -> dict:
+    try:
+        b64 = token.split(".")[1]
+        b64 += "=" * ((4 - len(b64) % 4) % 4)
+        return json.loads(base64.urlsafe_b64decode(b64))
+    except Exception:
+        return {}
 
 THEMES = {
     "dark": {
@@ -89,7 +99,8 @@ def _resolve_api_base_url() -> str:
 def _api_headers() -> dict[str, str]:
     """Build headers for backend API requests."""
     settings = load_settings()
-    token = st.session_state.get("access_token")
+    user_state = st.session_state.get("user") or {}
+    token = user_state.get("token") or st.session_state.get("access_token")
     headers = {"X-API-KEY": settings.api_key}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -587,7 +598,14 @@ def _render_login_screen():
                 try:
                     resp = requests.post(f"{base}/auth/login", json={"email": email, "password": password}, timeout=5)
                     if resp.status_code == 200:
-                        st.session_state["access_token"] = resp.json()["access_token"]
+                        token = resp.json()["access_token"]
+                        payload = _decode_jwt(token)
+                        st.session_state["user"] = {
+                            "email": payload.get("email"),
+                            "role": payload.get("role"),
+                            "token": token
+                        }
+                        st.session_state.pop("access_token", None)
                         st.rerun()
                     else:
                         st.error("Invalid credentials or account locked.")
@@ -595,13 +613,49 @@ def _render_login_screen():
                     st.error("Cannot reach authentication service.")
 
 
+def _render_admin_dashboard(user: dict):
+    if user.get("role") not in ["admin", "super_admin"]:
+        st.error("Access denied")
+        st.stop()
+    
+    st.markdown("<h2 style='color: var(--text);'>Admin Control Panel</h2>", unsafe_allow_html=True)
+    st.caption("Manage users and access permissions.")
+    
+    base = _resolve_api_base_url()
+    headers = _api_headers()
+    
+    try:
+        r = requests.get(f"{base}/auth/users", headers=headers, timeout=5)
+        r.raise_for_status()
+        users = r.json().get("users", [])
+        st.dataframe(users, use_container_width=True)
+    except Exception as exc:
+        st.error(f"Cannot fetch users: {exc}")
+
 def main() -> None:
     """Render sprint health dashboard UI."""
     st.set_page_config(page_title="Sprint Health Dashboard", layout="wide")
     
-    if "access_token" not in st.session_state:
+    user = st.session_state.get("user")
+    
+    if not user and "access_token" not in st.session_state:
         _render_login_screen()
         return
+
+    st.session_state.setdefault("current_view", "main")
+    st.sidebar.title("Navigation")
+    
+    if st.sidebar.button("Sprint Metrics", use_container_width=True):
+        st.session_state["current_view"] = "main"
+        
+    if user and user.get("role") in ["admin", "super_admin"]:
+        if st.sidebar.button("Admin Dashboard", use_container_width=True):
+            st.session_state["current_view"] = "admin"
+            
+    if st.session_state["current_view"] == "admin":
+        _render_admin_dashboard(user)
+        return
+
     if not st.session_state.get("dashboard_initialized"):
         logger.info("Dashboard session initialized")
         st.session_state["dashboard_initialized"] = True
@@ -626,13 +680,16 @@ def main() -> None:
         st.toggle("Light mode", key="light_mode")
         if st.button("Logout"):
             base = _resolve_api_base_url()
-            token = st.session_state.get("access_token")
+            user_state = st.session_state.get("user") or {}
+            token = user_state.get("token") or st.session_state.get("access_token")
             if token:
                 try:
                     requests.post(f"{base}/auth/logout", headers={"Authorization": f"Bearer {token}"}, timeout=5)
                 except Exception:
                     pass
             st.session_state.pop("access_token", None)
+            st.session_state.pop("user", None)
+            st.session_state.pop("current_view", None)
             st.rerun()
 
     theme = _get_theme()

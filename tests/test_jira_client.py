@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 import requests
 
 from app.config import Settings
-from app.jira_client import JiraClient
+from app.jira_client import JiraClient, _GLOBAL_JIRA_CACHE
 
 
 def _settings() -> Settings:
@@ -22,6 +22,7 @@ def _settings() -> Settings:
 
 
 def test_fetch_sprint_issues_returns_deduplicated_issues() -> None:
+    _GLOBAL_JIRA_CACHE.clear()
     client = JiraClient(settings=_settings())
 
     active_sprint = {"values": [{"id": 999, "name": "Sprint A", "state": "active"}]}

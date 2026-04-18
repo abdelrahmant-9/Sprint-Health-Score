@@ -91,6 +91,8 @@ def require_role(*allowed_roles: str):
     """
 
     def _dependency(user: dict = Depends(get_current_user)) -> dict:
+        if user["role"] == "super_admin":
+            return user
         if user["role"] not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

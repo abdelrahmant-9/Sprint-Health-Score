@@ -7,15 +7,22 @@ import threading
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request, status, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from pydantic import BaseModel, Field
 
 from app.auth.dependencies import get_current_user, require_role
+from app.auth.schemas import (
+    CreateUserRequest,
+    LoginRequest,
+    MessageResponse,
+    RefreshRequest,
+    TokenResponse,
+)
 from app.auth.service import (
     authenticate,
     blacklist_token,
@@ -39,35 +46,6 @@ from app.notifications import send_slack_message
 
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Pydantic request/response models
-# ---------------------------------------------------------------------------
-
-class LoginRequest(BaseModel):
-    email: str = Field(min_length=1)
-    password: str = Field(min_length=1)
-
-
-class TokenResponse(BaseModel):
-    access_token: str
-    refresh_token: str
-    token_type: str = "bearer"
-
-
-class RefreshRequest(BaseModel):
-    refresh_token: str = Field(min_length=1)
-
-
-class CreateUserRequest(BaseModel):
-    email: str = Field(min_length=1)
-    password: str = Field(min_length=6)
-    role: str = Field(default="user", pattern=r"^(admin|editor|user|viewer)$")
-
-
-class MessageResponse(BaseModel):
-    message: str
 
 
 # ---------------------------------------------------------------------------
@@ -200,21 +178,33 @@ def health_check() -> dict:
     return {"status": "ok"}
 
 
+@app.get("/metrics")
+def get_metrics() -> Response:
+    """Provide application metrics to Prometheus."""
+    return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+
 # ---------------------------------------------------------------------------
 # Auth endpoints
 # ---------------------------------------------------------------------------
 
 @app.post("/auth/login", response_model=TokenResponse)
 @limiter.limit("5/minute")
-def login(body: LoginRequest, request: Request) -> dict:
+def login(request: Request, login_data: LoginRequest = Body(...)) -> dict:
     """Authenticate with email/password and receive JWT tokens."""
     settings = load_settings()
-    user = authenticate(settings.sqlite_path, body.email, body.password)
+    user = authenticate(
+        settings.sqlite_path, 
+        login_data.email, 
+        login_data.password,
+        ip_address=_client_ip(request),
+        user_agent=request.headers.get("user-agent", "")
+    )
     if not user:
         log_audit_event(
             settings.sqlite_path,
             event_type="LOGIN_FAILED",
-            user_email=body.email,
+            user_email=login_data.email,
             ip_address=_client_ip(request),
             user_agent=request.headers.get("user-agent", ""),
         )
@@ -229,7 +219,7 @@ def login(body: LoginRequest, request: Request) -> dict:
     log_audit_event(
         settings.sqlite_path,
         event_type="LOGIN_SUCCESS",
-        user_email=body.email,
+        user_email=login_data.email,
         ip_address=_client_ip(request),
         user_agent=request.headers.get("user-agent", ""),
     )

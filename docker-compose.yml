@@ -54,35 +54,7 @@ services:
           cpus: '1.0'
           memory: 1G
 
-  admin_dashboard:
-    build:
-      context: .
-      dockerfile: Dockerfile.dashboard
-    ports:
-      - "8502:8502"
-    env_file:
-      - .env
-    environment:
-      DEBUG: "false"
-      LOG_LEVEL: INFO
-      PORT: "8502"
-      ADMIN_DASHBOARD_PORT: "8502"
-      ADMIN_DASHBOARD_HOST: 0.0.0.0
-    command: python admin_dashboard.py
-    depends_on:
-      - api
-    stop_grace_period: 10s
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8502/login')\" || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
+
 
 volumes:
   sprint_data:

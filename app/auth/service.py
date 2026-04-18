@@ -15,6 +15,8 @@ from pathlib import Path
 
 from app.auth.jwt_handler import create_access_token, create_refresh_token, decode_token
 from app.auth.password import hash_password, verify_password
+from app.config import load_settings
+from app.notifications import send_slack_message
 
 logger = logging.getLogger(__name__)
 
@@ -151,10 +153,24 @@ def _is_locked(user: dict) -> bool:
         return False
 
 
-def _record_failed_attempt(db_path: Path, email: str) -> None:
-    """Increment failed attempts and lock if threshold exceeded."""
+def _record_failed_attempt(
+    db_path: Path, 
+    email: str, 
+    ip_address: str = "", 
+    user_agent: str = ""
+) -> None:
+    """Increment failed attempts and lock if threshold exceeded.
+    
+    Includes role-aware thresholds and real-time alerting for super-admins.
+    """
     conn = _connect(db_path)
     try:
+        user = get_user_by_email(db_path, email)
+        role = user.get("role", "user") if user else "user"
+        
+        # Dynamic threshold: Super-admin gets more grace but higher monitoring
+        threshold = 20 if role == "super_admin" else MAX_FAILED_ATTEMPTS
+        
         with conn:
             conn.execute(
                 "UPDATE users SET failed_attempts = failed_attempts + 1 WHERE email = ?",
@@ -163,7 +179,27 @@ def _record_failed_attempt(db_path: Path, email: str) -> None:
             row = conn.execute(
                 "SELECT failed_attempts FROM users WHERE email = ?", (email,)
             ).fetchone()
-            if row and int(row["failed_attempts"]) >= MAX_FAILED_ATTEMPTS:
+            
+            failed_count = int(row["failed_attempts"]) if row else 0
+            
+            if role == "super_admin":
+                logger.critical("SUPER_ADMIN failed login attempt: %s from IP=%s", email, ip_address)
+                send_slack_message(
+                    f"⚠️ *Security Alert*: Failed login attempt for Super-Admin `{email}`\n"
+                    f"Attempt: {failed_count}/{threshold}\n"
+                    f"IP: {ip_address or 'Unknown'}\n"
+                    f"UA: {user_agent or 'Unknown'}"
+                )
+                log_audit_event(
+                    db_path,
+                    event_type="SUPER_ADMIN_FAILED_LOGIN",
+                    user_email=email,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    details=f"Attempt {failed_count}/{threshold}"
+                )
+
+            if failed_count >= threshold:
                 lock_until = (
                     datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)
                 ).isoformat()
@@ -172,6 +208,8 @@ def _record_failed_attempt(db_path: Path, email: str) -> None:
                     (lock_until, email),
                 )
                 logger.warning("Account locked for %s until %s", email, lock_until)
+                if role == "super_admin":
+                    send_slack_message(f"🔒 *Critical Alert*: Super-Admin `{email}` has been LOCKED due to brute-force threshold.")
     finally:
         conn.close()
 
@@ -192,6 +230,8 @@ def authenticate(
     db_path: Path,
     email: str,
     password: str,
+    ip_address: str = "",
+    user_agent: str = "",
 ) -> dict | None:
     """Verify credentials.  Returns user dict on success, ``None`` on failure.
 
@@ -208,7 +248,7 @@ def authenticate(
         return None
 
     if not verify_password(password, user["password_hash"]):
-        _record_failed_attempt(db_path, email)
+        _record_failed_attempt(db_path, email, ip_address=ip_address, user_agent=user_agent)
         logger.info("Invalid password for email=%s", email)
         return None
 

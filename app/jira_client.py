@@ -9,11 +9,17 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
 import requests
+from cachetools import TTLCache
 
 from app.config import Settings
+from app.metrics_exporter import JIRA_REQUESTS, JIRA_CACHE
 
 
 logger = logging.getLogger(__name__)
+
+# Global TTL Cache to persist Jira payloads synchronously across endpoint calls
+# maxsize=100 requests. Objects live for exactly 1 hour (3600 seconds)
+_GLOBAL_JIRA_CACHE = TTLCache(maxsize=100, ttl=3600)
 
 
 @dataclass
@@ -22,7 +28,11 @@ class JiraClient:
 
     settings: Settings
     _board_id_cache: int | None = None
-    _cache: dict[str, dict] = field(default_factory=dict)
+
+    @property
+    def _cache(self) -> dict:
+        """Proxy internally to the global TTL cache."""
+        return _GLOBAL_JIRA_CACHE
 
     def _get(self, endpoint: str, path: str, params: dict | None = None) -> dict:
         """Perform a GET request with retry handling and explicit error propagation."""
@@ -47,12 +57,37 @@ class JiraClient:
                         timeout=self.settings.request_timeout_seconds,
                     )
                 response.raise_for_status()
+                JIRA_REQUESTS.labels(endpoint=endpoint, status=str(response.status_code)).inc()
                 return response.json()
-            except requests.RequestException as exc:
+            
+            except requests.HTTPError as exc:
                 last_error = exc
+                resp = getattr(exc, "response", None)
+                if resp is not None:
+                    JIRA_REQUESTS.labels(endpoint=endpoint, status=str(resp.status_code)).inc()
+                    if resp.status_code in (401, 403):
+                        logger.critical("Jira Authentication Failed (%d). Please verify your API token has not been revoked.", resp.status_code)
+                    elif resp.status_code == 429:
+                        retry_after = resp.headers.get("Retry-After")
+                        if retry_after and retry_after.isdigit():
+                            sleep_for = int(retry_after) + 1
+                            logger.warning("Jira Rate Limited (429). Retry-After=%s seconds.", sleep_for)
+                            time.sleep(sleep_for)
+                            continue
+                else:
+                    JIRA_REQUESTS.labels(endpoint=endpoint, status="http_error").inc()
+                
                 if attempt < self.settings.jira_request_retries:
                     sleep_for = self.settings.jira_retry_delay_seconds * attempt
-                    logger.warning("Jira request retry %s for %s after error: %s", attempt, path, exc)
+                    logger.warning("Jira request retry %s for %s after HTTP error: %s", attempt, path, exc)
+                    time.sleep(sleep_for)
+
+            except requests.RequestException as exc:
+                last_error = exc
+                JIRA_REQUESTS.labels(endpoint=endpoint, status="network_error").inc()
+                if attempt < self.settings.jira_request_retries:
+                    sleep_for = self.settings.jira_retry_delay_seconds * attempt
+                    logger.warning("Jira request retry %s for %s after network error: %s", attempt, path, exc)
                     time.sleep(sleep_for)
         raise RuntimeError(f"Jira request failed for {path}: {last_error}") from last_error
 
@@ -106,8 +141,10 @@ class JiraClient:
         )
         if cache_key in self._cache:
             logger.info("Using cached sprint issue payload for sprint %s", sprint_id)
+            JIRA_CACHE.labels(result="hit").inc()
             return self._cache[cache_key]["issues"], sprint
 
+        JIRA_CACHE.labels(result="miss").inc()
         issues: list[dict] = []
         seen = set()
         start_at = 0
@@ -142,8 +179,10 @@ class JiraClient:
         )
         if cache_key in self._cache:
             logger.info("Using cached updated issue payload since %s until %s", since_utc, until_utc or "open")
+            JIRA_CACHE.labels(result="hit").inc()
             return self._cache[cache_key]["issues"]
 
+        JIRA_CACHE.labels(result="miss").inc()
         jql_parts = [
             f'project = "{self.settings.jira_project_key}"',
             f'updated >= "{since_utc}"',
