@@ -85,12 +85,12 @@ def _get_theme() -> dict:
 def _health_tier_color(score: int, theme: dict) -> str:
     """Return the semantic color for a score band."""
     if score >= 85:
-        return theme["success"]
+        return "#22C55E"
     if score >= 70:
-        return theme["info"]
+        return "#FACC15"
     if score >= 50:
-        return theme["warning"]
-    return theme["danger"]
+        return "#FB923C"
+    return "#EF4444"
 
 
 def _health_label(score: int) -> str:
@@ -100,8 +100,8 @@ def _health_label(score: int) -> str:
     if score >= 70:
         return "Stable"
     if score >= 50:
-        return "Watch"
-    return "At Risk"
+        return "Needs attention"
+    return "At risk"
 
 
 def _health_css_var(score: int) -> str:
@@ -109,10 +109,101 @@ def _health_css_var(score: int) -> str:
     if score >= 85:
         return "var(--score-green)"
     if score >= 70:
-        return "var(--score-blue)"
-    if score >= 50:
         return "var(--score-yellow)"
+    if score >= 50:
+        return "var(--score-orange)"
     return "var(--score-red)"
+
+
+def _health_description(score: int) -> str:
+    """Return a short contextual description for the score band."""
+    if score >= 85:
+        return "Sprint is on track. Delivery quality and execution pace are strong."
+    if score >= 70:
+        return "Sprint is progressing steadily. Some areas need monitoring."
+    if score >= 50:
+        return "Sprint health is declining. Action may be needed on key metrics."
+    return "Sprint is at risk. Immediate attention required across multiple signals."
+
+
+def _classify_insight_severity(text: str) -> str:
+    """Classify an insight string into critical / warning / info."""
+    lowered = text.lower()
+    critical_kws = {"blocked", "critical", "failing", "failed", "spike", "risk", "significantly", "severe", "overdue", "stale"}
+    warning_kws = {"warning", "carryover", "low", "attention", "slow", "behind", "declining", "high", "below", "concern", "watch"}
+    if any(kw in lowered for kw in critical_kws):
+        return "critical"
+    if any(kw in lowered for kw in warning_kws):
+        return "warning"
+    return "info"
+
+
+def _insight_icon_svg(severity: str) -> str:
+    """Return a Jira-style SVG icon for the given severity level."""
+    if severity == "critical":
+        return (
+            '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="flex-shrink:0;margin-top:2px;">'
+            '<path d="M8 1.5L14.5 13.5H1.5L8 1.5Z" stroke="#EF4444" stroke-width="1.5" stroke-linejoin="round"/>'
+            '<line x1="8" y1="6" x2="8" y2="9.5" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/>'
+            '<circle cx="8" cy="11.5" r="0.75" fill="#EF4444"/>'
+            '</svg>'
+        )
+    if severity == "warning":
+        return (
+            '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="flex-shrink:0;margin-top:2px;">'
+            '<path d="M8 1.5L14.5 13.5H1.5L8 1.5Z" stroke="#FACC15" stroke-width="1.5" stroke-linejoin="round"/>'
+            '<line x1="8" y1="6" x2="8" y2="9.5" stroke="#FACC15" stroke-width="1.5" stroke-linecap="round"/>'
+            '<circle cx="8" cy="11.5" r="0.75" fill="#FACC15"/>'
+            '</svg>'
+        )
+    return (
+        '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" style="flex-shrink:0;margin-top:2px;">'
+        '<circle cx="8" cy="8" r="6.5" stroke="#3B82F6" stroke-width="1.5"/>'
+        '<line x1="8" y1="7" x2="8" y2="11" stroke="#3B82F6" stroke-width="1.5" stroke-linecap="round"/>'
+        '<circle cx="8" cy="5" r="0.75" fill="#3B82F6"/>'
+        '</svg>'
+    )
+
+
+def _insights_structured_html(insights: list[str], title: str = "Sprint Insights") -> str:
+    """Render insights as structured severity cards sorted by priority."""
+    if not insights:
+        return f"""
+        <div class="content-card">
+            <div class="table-title">{html.escape(title)}</div>
+            <div class="empty-state">No insights available for the current sprint.</div>
+        </div>
+        """
+
+    _SEV_ORDER = {"critical": 0, "warning": 1, "info": 2}
+    _SEV_LABEL = {"critical": "Critical", "warning": "Warning", "info": "Info"}
+    classified = [(text, _classify_insight_severity(text)) for text in insights]
+    classified.sort(key=lambda x: _SEV_ORDER[x[1]])
+
+    cards_html = ""
+    for text, severity in classified:
+        icon = _insight_icon_svg(severity)
+        label = _SEV_LABEL[severity]
+        words = text.split()
+        title_part = " ".join(words[:6]) + ("..." if len(words) > 6 else "")
+        body_part = text if len(words) <= 6 else text
+        cards_html += f"""
+        <div class="insight-card {severity}">
+            {icon}
+            <div>
+                <div class="insight-severity {severity}-label">{html.escape(label)}</div>
+                <div class="insight-title">{html.escape(title_part)}</div>
+                <div class="insight-body">{html.escape(body_part)}</div>
+            </div>
+        </div>
+        """
+
+    return f"""
+    <div class="content-card">
+        <div class="table-title">{html.escape(title)}</div>
+        {cards_html}
+    </div>
+    """
 
 
 def _delta_badge_html(delta_text: str, positive: bool | None = None) -> str:
@@ -578,8 +669,8 @@ def _inject_base_styles(theme: dict) -> None:
 
                 /* ── Score tokens ── */
                 --score-green:  #22C55E;
-                --score-blue:   #3B82F6;
                 --score-yellow: #FACC15;
+                --score-orange: #FB923C;
                 --score-red:    #EF4444;
 
                 /* ── Typography ── */
@@ -1245,11 +1336,149 @@ def _inject_base_styles(theme: dict) -> None:
                 100% {{ background-position:  200% center; }}
             }}
 
+            /* ── Hero ring ── */
+            .hero-ring-wrap {{
+                position: relative;
+                width: 200px;
+                height: 200px;
+                flex-shrink: 0;
+            }}
+            .hero-ring-center {{
+                position: absolute;
+                inset: 0;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 0;
+            }}
+            .hero-ring-number {{
+                font-size: 52px;
+                font-weight: 800;
+                letter-spacing: -0.04em;
+                line-height: 1;
+            }}
+            .hero-ring-max {{
+                font-size: 15px;
+                color: var(--text-muted);
+                font-weight: 500;
+                margin-top: 2px;
+            }}
+            .hero-meta {{
+                flex: 1;
+                min-width: 200px;
+            }}
+
+            /* ── Insight severity cards ── */
+            .insight-card {{
+                display: flex;
+                gap: 12px;
+                align-items: flex-start;
+                padding: 14px 16px;
+                border-radius: var(--radius-md);
+                border: 1px solid;
+                margin-bottom: 10px;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+            }}
+            .insight-card.critical {{
+                background: rgba(239,68,68,0.06);
+                border-color: rgba(239,68,68,0.22);
+            }}
+            .insight-card.warning {{
+                background: rgba(250,204,21,0.06);
+                border-color: rgba(250,204,21,0.22);
+            }}
+            .insight-card.info {{
+                background: rgba(59,130,246,0.06);
+                border-color: rgba(59,130,246,0.22);
+            }}
+            .insight-severity {{
+                font-size: 10px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+                margin-bottom: 3px;
+            }}
+            .critical-label {{ color: var(--red); }}
+            .warning-label  {{ color: var(--yellow); }}
+            .info-label     {{ color: var(--brand-primary); }}
+            .insight-title {{
+                font-size: 13px;
+                font-weight: 600;
+                color: var(--text-primary);
+                margin-bottom: 4px;
+            }}
+            .insight-body {{
+                font-size: 12px;
+                line-height: 1.55;
+                color: var(--text-secondary);
+            }}
+
+            /* ── Sidebar nav ── */
+            [data-testid="stSidebar"] div[data-testid="stButton"] > button {{
+                text-align: left !important;
+                justify-content: flex-start !important;
+                padding: 9px 14px !important;
+                border-radius: var(--radius-md) !important;
+                color: var(--text-muted) !important;
+                border-left: 2px solid transparent !important;
+                background: transparent !important;
+                border-top: none !important;
+                border-right: none !important;
+                border-bottom: none !important;
+                box-shadow: none !important;
+                font-size: 13px !important;
+                font-weight: 500 !important;
+                transition: all 140ms ease !important;
+                margin-bottom: 2px !important;
+            }}
+            [data-testid="stSidebar"] div[data-testid="stButton"] > button:hover {{
+                background: var(--glass-bg) !important;
+                color: var(--text-primary) !important;
+                border-left-color: rgba(148,163,184,0.20) !important;
+                transform: none !important;
+                box-shadow: none !important;
+            }}
+            .nav-icon-row {{
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                padding: 9px 14px;
+                border-radius: var(--radius-md);
+                color: var(--text-muted);
+                font-size: 13px;
+                font-weight: 500;
+                margin-bottom: -4px;
+                pointer-events: none;
+            }}
+            .nav-icon-row svg {{ flex-shrink: 0; }}
+
+            /* ── Status badge ── */
+            .status-badge {{
+                display: inline-flex;
+                align-items: center;
+                gap: 5px;
+                padding: 3px 10px;
+                border-radius: var(--radius-full);
+                font-size: 11px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.05em;
+                backdrop-filter: blur(6px);
+                -webkit-backdrop-filter: blur(6px);
+            }}
+            .badge-active   {{ background: var(--green-soft); color: var(--green); border: 1px solid rgba(34,197,94,0.22); }}
+            .badge-low      {{ background: var(--yellow-soft); color: var(--yellow); border: 1px solid rgba(250,204,21,0.22); }}
+            .badge-nodata   {{ background: rgba(78,96,128,0.18); color: var(--text-muted); border: 1px solid rgba(78,96,128,0.22); }}
+
             /* ── Responsive ── */
             @media (max-width: 960px) {{
                 .login-shell {{ grid-template-columns: 1fr; }}
                 .login-visual {{ display: none; }}
                 .block-container {{ padding-left: 18px; padding-right: 18px; }}
+                .hero-ring-wrap {{ width: 160px; height: 160px; }}
+                .hero-ring-number {{ font-size: 40px; }}
             }}
             @media (max-width: 768px) {{
                 .hero-title {{ font-size: 20px; }}
@@ -1357,7 +1586,7 @@ def _summary_card_html(title: str, value: str, subtext: str, delta_html: str = "
 
 
 def _build_breakdown_plotly(breakdown: dict, theme: dict) -> go.Figure:
-    """Create the themed breakdown chart."""
+    """Create the themed breakdown chart with gradient bars."""
     labels = ["Commitment", "Carryover", "Cycle time", "Bug ratio"]
     values = [int(breakdown["commitment"]), int(breakdown["carryover"]), int(breakdown["cycle_time"]), int(breakdown["bug_ratio"])]
     colors = [_health_tier_color(value, theme) for value in values]
@@ -1367,11 +1596,16 @@ def _build_breakdown_plotly(breakdown: dict, theme: dict) -> go.Figure:
             go.Bar(
                 x=labels,
                 y=values,
-                marker=dict(color=colors, line=dict(color=theme["border"], width=1)),
-                text=[str(value) for value in values],
+                marker=dict(
+                    color=colors,
+                    opacity=0.85,
+                    line=dict(color="rgba(0,0,0,0)", width=0),
+                    cornerradius=6,
+                ),
+                text=[str(v) for v in values],
                 textposition="outside",
-                textfont=dict(color=theme["text"], size=12),
-                hovertemplate="%{x}: %{y}<extra></extra>",
+                textfont=dict(color=theme["text"], size=13, family="Inter, Segoe UI, sans-serif"),
+                hovertemplate="<b>%{x}</b><br>Score: %{y}/100<extra></extra>",
             )
         ]
     )
@@ -1379,11 +1613,12 @@ def _build_breakdown_plotly(breakdown: dict, theme: dict) -> go.Figure:
         paper_bgcolor=theme["plot_bg"],
         plot_bgcolor=theme["plot_bg"],
         font=dict(color=theme["muted"], family="Inter, Segoe UI, sans-serif"),
-        margin=dict(l=20, r=20, t=24, b=24),
-        height=340,
+        margin=dict(l=20, r=20, t=32, b=24),
+        height=320,
         showlegend=False,
-        xaxis=dict(showgrid=False, tickfont=dict(color=theme["muted"])),
-        yaxis=dict(range=[0, 105], gridcolor=theme["grid"], zeroline=False, tickfont=dict(color=theme["muted"])),
+        xaxis=dict(showgrid=False, tickfont=dict(color=theme["muted"], size=13)),
+        yaxis=dict(range=[0, 115], gridcolor=theme["grid"], zeroline=False, tickfont=dict(color=theme["muted"]), gridwidth=0.5),
+        bargap=0.40,
     )
     return fig
 
@@ -1853,7 +2088,7 @@ def main() -> None:
         st.markdown('<div class="context-chip">Sprint analytics workspace</div>', unsafe_allow_html=True)
     with top_middle:
         if st.button(
-            "⚡ Run now",
+            "Run now",
             type="primary",
             use_container_width=True,
             disabled=bool(st.session_state.get("run_now_loading")),
@@ -1930,24 +2165,40 @@ def main() -> None:
 
     _STATUS_RGB = {"Green": "34,197,94", "Yellow": "250,204,21", "Orange": "251,146,60", "Red": "239,68,68"}
     badge_rgb = _STATUS_RGB.get(health_status, "59,130,246")
+    _ring_r = 80
+    _ring_circ = 2 * 3.14159 * _ring_r
+    _ring_offset = _ring_circ * (1 - max(0, min(100, score)) / 100)
     st.markdown(
         f"""
-        <div class="hero-card" style="box-shadow: var(--glass-shadow), 0 0 40px {status_color}22;">
-            <div style="display:flex; justify-content:space-between; gap:16px; align-items:flex-start; flex-wrap:wrap;">
-                <div>
-                    <div class="hero-overline">🚀 Sprint Health Platform</div>
-                    <div class="hero-title">A focused view of delivery quality, execution pace, and team activity.</div>
-                    <div class="hero-subtitle" style="margin-top:6px;">Current sprint view</div>
-                    <div class="hero-score" style="color:{status_var}; text-shadow: 0 0 40px {status_color}55;">{score}<span style="font-size:22px;color:var(--text-muted); font-weight:500;">/100</span></div>
-                    <div class="hero-subtitle">
-                        Track how the sprint is progressing across commitment, carryover, bugs, and execution trends with a clean operational dashboard.
+        <div class="hero-card" style="border-color:{status_color}33; box-shadow: var(--glass-shadow), 0 0 48px {status_color}1A;">
+            <div style="display:flex; gap:40px; align-items:center; flex-wrap:wrap;">
+                <div class="hero-ring-wrap">
+                    <svg width="200" height="200" viewBox="0 0 200 200" role="img" aria-label="Sprint health score {score} out of 100">
+                        <circle cx="100" cy="100" r="{_ring_r}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="14"/>
+                        <circle cx="100" cy="100" r="{_ring_r}" fill="none"
+                            stroke="{status_color}" stroke-width="14"
+                            stroke-dasharray="{_ring_circ:.2f}"
+                            stroke-dashoffset="{_ring_offset:.2f}"
+                            stroke-linecap="round"
+                            transform="rotate(-90 100 100)"
+                            style="filter:drop-shadow(0 0 10px {status_color}88); transition:stroke-dashoffset 800ms cubic-bezier(0.16,1,0.3,1);"/>
+                    </svg>
+                    <div class="hero-ring-center">
+                        <div class="hero-ring-number" style="color:{status_var}; text-shadow:0 0 32px {status_color}55;">{score}</div>
+                        <div class="hero-ring-max">/100</div>
                     </div>
                 </div>
-                <div class="hero-badge" style="background:rgba({badge_rgb},0.12); color:{status_var}; border:1px solid {status_color}44; box-shadow: 0 0 16px {status_color}22;">
-                    {score} · {_health_label(score)}
+                <div class="hero-meta">
+                    <div class="hero-overline">Sprint Health Platform</div>
+                    <div class="hero-title">Sprint Health Score</div>
+                    <div style="margin:10px 0 12px 0;">
+                        <span class="hero-badge" style="background:rgba({badge_rgb},0.12); color:{status_var}; border:1px solid {status_color}44; box-shadow:0 0 16px {status_color}22;">
+                            {_health_label(score)}
+                        </span>
+                    </div>
+                    <div class="hero-subtitle">{_health_description(score)}</div>
                 </div>
             </div>
-            <div class="hero-progress"><div class="hero-progress-fill" style="width:{max(0, min(100, score))}%; background:linear-gradient(90deg, {status_var} 0%, {status_var}aa 100%);"></div></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1970,7 +2221,7 @@ def main() -> None:
         help="Switch the dashboard lens without changing the underlying data.",
     )
 
-    overview_tab, trends_tab, operations_tab = st.tabs(["📈 Overview", "📉 Trends", "⚙️ Operations"])
+    overview_tab, trends_tab, operations_tab = st.tabs(["Overview", "Trends", "Operations"])
 
     with overview_tab:
         metric_cols = st.columns(4, gap="large")
@@ -2023,11 +2274,7 @@ def main() -> None:
 
         if insights:
             _render_section_header("Insights", "Deterministic root-cause analysis for the current sprint outcome.")
-            insight_html = "".join(
-                f'<li><span class="insight-icon" aria-hidden="true"></span><span>{html.escape(insight)}</span></li>'
-                for insight in insights
-            )
-            st.markdown(f'<ul class="insight-list">{insight_html}</ul>', unsafe_allow_html=True)
+            st.markdown(_insights_structured_html(insights, "Sprint Insights"), unsafe_allow_html=True)
 
         if metrics_catalog:
             _render_section_header("Editable Metric Layer", "Current effective metric values after applying database overrides.")
@@ -2081,34 +2328,78 @@ def main() -> None:
         st.markdown(f'<div class="context-chip">{html.escape(range_note)}</div>', unsafe_allow_html=True)
 
         history_df = _build_health_history_dataframe(history)
-        if not history_df.empty:
-            st.subheader("Sprint Health Trend")
-            trend_chart = px.area(
-                history_df,
-                x="sprint",
-                y="health_score",
-                markers=True,
+        if history_df.empty or len(history_df) < 2:
+            st.markdown(
+                """
+                <div class="content-card" style="text-align:center; padding:40px 24px;">
+                    <div style="margin-bottom:12px;">
+                        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+                            <circle cx="20" cy="20" r="18" stroke="rgba(148,163,184,0.3)" stroke-width="2"/>
+                            <path d="M12 28L20 14L28 22" stroke="rgba(148,163,184,0.5)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </div>
+                    <div style="font-size:15px; font-weight:600; color:var(--text-primary); margin-bottom:6px;">Not enough data for trend yet</div>
+                    <div style="font-size:13px; color:var(--text-muted);">At least two sprint history entries are required to display the trend line.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
-            marker_colors = [_health_tier_color(int(value), theme) for value in history_df["health_score"].tolist()]
-            trend_chart.update_traces(
-                line=dict(color="#3B82F6", width=3),
+        else:
+            scores = history_df["health_score"].tolist()
+            deltas = [None] + [scores[i] - scores[i - 1] for i in range(1, len(scores))]
+            history_df = history_df.copy()
+            history_df["delta"] = deltas
+            history_df["delta_str"] = history_df["delta"].apply(
+                lambda d: f"+{int(d)}" if d is not None and d > 0 else (f"{int(d)}" if d is not None else "baseline")
+            )
+            marker_colors = [_health_tier_color(int(v), theme) for v in history_df["health_score"].tolist()]
+            trend_chart = go.Figure()
+            trend_chart.add_trace(go.Scatter(
+                x=history_df["sprint"],
+                y=history_df["health_score"].clip(0, 100),
+                mode="lines+markers",
+                line=dict(color="#3B82F6", width=3, shape="spline", smoothing=0.8),
+                marker=dict(size=9, color=marker_colors, line=dict(color="#ffffff", width=2)),
+                fill="tozeroy",
                 fillcolor="rgba(59,130,246,0.08)",
-                marker=dict(size=8, color=marker_colors, line=dict(color="#ffffff", width=1)),
+                customdata=list(zip(history_df["sprint"], history_df["delta_str"])),
+                hovertemplate="<b>%{customdata[0]}</b><br>Score: %{y}<br>Delta: %{customdata[1]}<extra></extra>",
+                name="Health Score",
+            ))
+            trend_chart.add_hline(
+                y=70, line_dash="dash", line_color="rgba(250,204,21,0.45)", line_width=1.5,
+                annotation_text="Target (70)", annotation_font_color="rgba(250,204,21,0.70)",
+                annotation_position="bottom right",
             )
-            trend_chart.add_hline(y=70, line_dash="dash", line_color="#FACC15", annotation_text="Target")
-            trend_chart.add_hline(y=85, line_dash="dash", line_color="#22C55E", annotation_text="Excellent")
+            trend_chart.add_hline(
+                y=85, line_dash="dash", line_color="rgba(34,197,94,0.45)", line_width=1.5,
+                annotation_text="Excellent (85)", annotation_font_color="rgba(34,197,94,0.70)",
+                annotation_position="top right",
+            )
             trend_chart.update_layout(
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
-                height=340,
-                margin=dict(l=20, r=20, t=20, b=20),
-                font=dict(color=theme["muted"]),
-                xaxis=dict(tickangle=30, showgrid=False),
-                yaxis=dict(gridcolor=theme["grid"], zeroline=False),
+                height=360,
+                margin=dict(l=20, r=20, t=24, b=24),
+                font=dict(color=theme["muted"], family="Inter, Segoe UI, sans-serif"),
+                showlegend=False,
+                xaxis=dict(tickangle=20, showgrid=False, tickfont=dict(color=theme["muted"])),
+                yaxis=dict(
+                    range=[0, 105],
+                    gridcolor=theme["grid"],
+                    zeroline=False,
+                    tickfont=dict(color=theme["muted"]),
+                    gridwidth=0.5,
+                ),
+                hoverlabel=dict(
+                    bgcolor="rgba(15,23,42,0.92)",
+                    bordercolor="rgba(148,163,184,0.20)",
+                    font=dict(color="#F1F5F9", size=13),
+                ),
             )
             st.plotly_chart(trend_chart, use_container_width=True, config={"displayModeBar": False})
             st.dataframe(
-                history_df.rename(
+                history_df[["sprint", "health_score", "commitment_score", "carryover_score", "cycle_time_score", "bug_score", "delta_str"]].rename(
                     columns={
                         "sprint": "Sprint",
                         "health_score": "Health",
@@ -2116,6 +2407,7 @@ def main() -> None:
                         "carryover_score": "Carryover",
                         "cycle_time_score": "Cycle Time",
                         "bug_score": "Bug",
+                        "delta_str": "Delta",
                     }
                 ),
                 use_container_width=True,
