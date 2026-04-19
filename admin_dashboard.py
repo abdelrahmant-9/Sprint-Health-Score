@@ -448,17 +448,29 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       margin: 0 auto;
       width: 100%;
     }}
-    .nav-list {{ list-style: none; display: flex; flex-direction: column; gap: 6px; }}
+    .nav-label {{
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
+      color: var(--text-muted);
+      padding: 0 4px;
+      margin-bottom: 4px;
+    }}
+    .nav-divider {{ height: 1px; background: var(--glass-border); margin: 10px 0; }}
+    .nav-list {{ list-style: none; display: flex; flex-direction: column; gap: 2px; }}
     .nav-item a {{
-      display: block;
-      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
       border-radius: var(--radius-md);
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 500;
       border-left: 2px solid transparent;
-      transition: all 180ms cubic-bezier(0.16,1,0.3,1);
+      transition: all 160ms cubic-bezier(0.16,1,0.3,1);
     }}
     .nav-item a:hover {{
       background: var(--glass-bg);
@@ -470,23 +482,41 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       color: var(--brand-primary);
       border-left-color: var(--brand-primary);
     }}
+    .nav-item a svg {{ flex-shrink: 0; opacity: 0.65; transition: opacity 160ms ease; }}
+    .nav-item a:hover svg, .nav-item.active a svg {{ opacity: 1; }}
     .logout-link a {{ color: var(--red) !important; }}
     .logout-link a:hover {{ background: var(--red-soft) !important; border-left-color: var(--red) !important; }}
     .header {{
-      margin-bottom: 32px;
-      padding-bottom: 20px;
+      margin-bottom: 28px;
+      padding-bottom: 18px;
       border-bottom: 1px solid var(--glass-border);
     }}
     .header h1 {{
-      font-size: 22px;
+      font-size: 20px;
       font-weight: 700;
       color: var(--text-primary);
       letter-spacing: -0.02em;
     }}
-    .header p {{
-      margin-top: 4px;
-      font-size: 14px;
+    .header .header-eyebrow {{
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.10em;
       color: var(--text-muted);
+      margin-bottom: 5px;
+    }}
+    .header p {{
+      margin-top: 3px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }}
+    .actions-bar {{
+      display: flex;
+      gap: 10px;
+      margin-top: 28px;
+      padding-top: 20px;
+      border-top: 1px solid var(--glass-border);
+      flex-wrap: wrap;
     }}
     section {{
       background: var(--glass-bg);
@@ -632,24 +662,28 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
       border-collapse: collapse;
     }}
     th {{
-      background: rgba(255,255,255,0.03);
+      background: rgba(255,255,255,0.025);
       font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.09em;
       color: var(--text-muted);
-      padding: 12px 20px;
+      padding: 11px 20px;
       text-align: left;
       border-bottom: 1px solid var(--glass-border);
+      white-space: nowrap;
     }}
     td {{
-      padding: 14px 20px;
-      font-size: 14px;
+      padding: 13px 20px;
+      font-size: 13px;
+      line-height: 1.45;
       color: var(--text-secondary);
       border-bottom: 1px solid rgba(148,163,184,0.06);
+      vertical-align: middle;
     }}
-    tbody tr:hover td {{ background: rgba(255,255,255,0.02); }}
+    tbody tr:hover td {{ background: rgba(255,255,255,0.025); }}
     tbody tr:last-child td {{ border-bottom: none; }}
+    .email-cell {{ font-weight: 500; color: var(--text-primary); font-size: 13px; }}
     .email-cell {{ font-weight: 500; color: var(--text-primary); }}
     .pill {{
       display: inline-flex;
@@ -768,11 +802,50 @@ def _layout_html(content: str, title: str = "Admin Control Center", user_role: s
         <div class="brand-name">Lumofy</div>
       </div>
       <nav>
+        <div class="nav-label">Workspace</div>
         <ul class="nav-list">
-          <li class="nav-item {'active' if active_path == '/' else ''}"><a href="/" data-label="Main Dashboard">Main Dashboard</a></li>
-          <li class="nav-item {'active' if active_path == '/admin' else ''}" {admin_only}><a href="/admin" data-label="Settings">Settings</a></li>
-          <li class="nav-item {'active' if active_path == '/users' else ''}" {user_mgmt_only}><a href="/users" data-label="User Management">User Management</a></li>
-          <li class="nav-item logout-link"><a href="/logout" data-label="Logout">Logout</a></li>
+          <li class="nav-item {'active' if active_path == '/' else ''}">
+            <a href="/">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M2 8L8 2L14 8V14H10V10H6V14H2V8Z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+              </svg>
+              Sprint Metrics
+            </a>
+          </li>
+        </ul>
+        <div class="nav-divider" {admin_only}></div>
+        <div class="nav-label" {admin_only}>Admin</div>
+        <ul class="nav-list">
+          <li class="nav-item {'active' if active_path == '/admin' else ''}" {admin_only}>
+            <a href="/admin">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="8" cy="8" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.5 3.5l1.4 1.4M11.1 11.1l1.4 1.4M3.5 12.5l1.4-1.4M11.1 4.9l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              Settings
+            </a>
+          </li>
+          <li class="nav-item {'active' if active_path == '/users' else ''}" {user_mgmt_only}>
+            <a href="/users">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <circle cx="6" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M1 14c0-2.761 2.239-4 5-4s5 1.239 5 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M11.5 7c1.1 0 2 .9 2 2M13.5 14c0-1.657-.9-3-2-3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              User Management
+            </a>
+          </li>
+        </ul>
+        <div class="nav-divider"></div>
+        <ul class="nav-list">
+          <li class="nav-item logout-link">
+            <a href="/logout">
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M6 14H2V2h4M10 11l3-3-3-3M13 8H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+              Sign out
+            </a>
+          </li>
         </ul>
       </nav>
     </aside>
@@ -821,14 +894,16 @@ def _dashboard_html(user, message: str = "", error: str = "") -> str:
 
     content = f"""
       <header class="header">
-        <div><h1>Admin Control Panel</h1><p>Edit thresholds, scoring settings, and presentation controls without leaving the workspace.</p></div>
+        <div class="header-eyebrow">Administration</div>
+        <h1>Settings</h1>
+        <p>Edit scoring thresholds, weights, and presentation controls.</p>
       </header>
       {saved_banner}{error_banner}
       <form method="post" action="/save">
         {''.join(sections)}
-        <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
-          <button class="save" type="submit">Save Changes</button>
-          <button class="reset" type="submit" formaction="/reset">Reset Defaults</button>
+        <div class="actions-bar">
+          <button class="save" type="submit">Save changes</button>
+          <button class="reset" type="submit" formaction="/reset">Reset defaults</button>
         </div>
       </form>
     """
@@ -895,32 +970,34 @@ def _users_html(user, message: str = "", error: str = "") -> str:
 
     content = f"""
       <header class="header">
-        <div><h1>User Management</h1><p>Manage access levels, account states, and provision new users.</p></div>
+        <div class="header-eyebrow">Administration</div>
+        <h1>User Management</h1>
+        <p>Manage access levels, account states, and provision new users.</p>
       </header>
       {banner}{err_banner}
       <section>
-        <div class="section-head"><h3>Create Account</h3><p>Add a new user to the workspace with the correct permissions.</p></div>
+        <div class="section-head"><h3>Create Account</h3><p>Add a new user with the correct role and access level.</p></div>
         <form method="post" action="/users/add" class="grid" style="grid-template-columns:1fr 1fr 1fr">
-          <div class="field"><span>Email</span><input type="text" name="new_username" required></div>
-          <div class="field"><span>Password</span><input type="password" name="new_password" required></div>
+          <div class="field"><span>Email</span><input type="text" name="new_username" required autocomplete="off"></div>
+          <div class="field"><span>Password</span><input type="password" name="new_password" required autocomplete="new-password"></div>
           <div class="field"><span>Role</span><select name="new_role"><option value="viewer">Viewer</option><option value="editor">Editor</option><option value="admin">Admin</option></select></div>
-          <div style="grid-column:1/-1"><button class="save" type="submit" style="width:100%">Add User</button></div>
+          <div style="grid-column:1/-1"><button class="save" type="submit" style="width:100%">Create user</button></div>
         </form>
       </section>
       <section>
-        <div class="section-head"><h3>Users Table</h3><p>Account summary with role, status, and failed attempt visibility.</p></div>
+        <div class="section-head"><h3>All Accounts</h3><p>Account summary with role, status, and failed login visibility.</p></div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr><th>Email</th><th>Role</th><th>Last Login</th><th>Failed Attempts</th><th>Status</th></tr>
             </thead>
-            <tbody>{rows}</tbody>
+            <tbody>{rows if rows else '<tr><td colspan="5" style="color:var(--text-muted);padding:20px;">No accounts found.</td></tr>'}</tbody>
           </table>
         </div>
       </section>
       <section>
-        <div class="section-head"><h3>User Action Cards</h3><p>One-card view for account actions and quick review.</p></div>
-        {action_cards}
+        <div class="section-head"><h3>User Actions</h3><p>Manage roles, lock state, and account removal.</p></div>
+        {action_cards if action_cards else '<div style="color:var(--text-muted);font-size:13px;padding:8px 0;">No accounts to manage.</div>'}
       </section>
     """
     return _layout_html(content, user_role=user["role"], active_path="/users")

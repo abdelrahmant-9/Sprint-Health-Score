@@ -1050,27 +1050,35 @@ def _inject_base_styles(theme: dict) -> None:
                 overflow: hidden;
             }}
             .saas-table th {{
-                padding: 12px 0;
+                padding: 11px 16px 11px 0;
                 text-align: left;
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 700;
                 text-transform: uppercase;
-                letter-spacing: 0.08em;
+                letter-spacing: 0.09em;
                 color: var(--text-muted);
                 border-bottom: 1px solid var(--glass-border);
+                white-space: nowrap;
             }}
             .saas-table td {{
-                padding: 14px 0;
-                font-size: 14px;
+                padding: 13px 16px 13px 0;
+                font-size: 13px;
+                line-height: 1.45;
                 color: var(--text-secondary);
-                border-bottom: 1px solid rgba(148,163,184,0.08);
-                vertical-align: top;
+                border-bottom: 1px solid rgba(148,163,184,0.07);
+                vertical-align: middle;
             }}
-            .saas-table tbody tr:nth-child(even) td {{
-                background: {"rgba(255,255,255,0.02)" if is_dark else "rgba(15,23,42,0.02)"};
+            .saas-table tbody tr:hover td {{
+                background: {"rgba(255,255,255,0.025)" if is_dark else "rgba(15,23,42,0.025)"};
             }}
             .saas-table tr:last-child td {{ border-bottom: none; }}
+            .saas-table td:first-child,
+            .saas-table th:first-child {{ padding-left: 0; }}
             .saas-table td:first-child {{ font-weight: 500; color: var(--text-primary); }}
+            .saas-table .col-right {{ text-align: right; padding-right: 0; }}
+            .attempts-ok   {{ color: var(--text-muted); font-variant-numeric: tabular-nums; }}
+            .attempts-warn {{ color: var(--yellow); font-weight: 600; font-variant-numeric: tabular-nums; }}
+            .attempts-bad  {{ color: var(--red);    font-weight: 700; font-variant-numeric: tabular-nums; }}
             .empty-state {{
                 padding-top: 4px;
                 font-size: 14px;
@@ -1454,6 +1462,87 @@ def _inject_base_styles(theme: dict) -> None:
             }}
             .nav-icon-row svg {{ flex-shrink: 0; }}
 
+            /* ── Admin page header ── */
+            .admin-page-header {{
+                padding: 20px 24px;
+                border-radius: var(--radius-xl);
+                border: 1px solid var(--glass-border);
+                background: var(--glass-bg);
+                backdrop-filter: blur(var(--glass-blur));
+                -webkit-backdrop-filter: blur(var(--glass-blur));
+                box-shadow: var(--glass-shadow);
+                margin-bottom: 24px;
+                position: relative;
+                overflow: hidden;
+            }}
+            .admin-page-header::before {{
+                content: "";
+                position: absolute;
+                top: 0; left: 0; right: 0;
+                height: 1px;
+                background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+                pointer-events: none;
+            }}
+            .admin-page-header .page-section {{
+                font-size: 10px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.10em;
+                color: var(--text-muted);
+                margin-bottom: 5px;
+            }}
+            .admin-page-header .page-title {{
+                font-size: 20px;
+                font-weight: 700;
+                color: var(--text-primary);
+                letter-spacing: -0.02em;
+                margin-bottom: 4px;
+            }}
+            .admin-page-header .page-sub {{
+                font-size: 13px;
+                color: var(--text-muted);
+                line-height: 1.5;
+            }}
+
+            /* ── Admin section divider ── */
+            .admin-section {{
+                margin: 28px 0 16px 0;
+                padding-bottom: 10px;
+                border-bottom: 1px solid var(--glass-border);
+                display: flex;
+                align-items: baseline;
+                gap: 10px;
+            }}
+            .admin-section-title {{
+                font-size: 12px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.09em;
+                color: var(--text-muted);
+            }}
+            .admin-section-sub {{
+                font-size: 12px;
+                color: var(--text-muted);
+                opacity: 0.65;
+            }}
+
+            /* ── Sidebar nav structure ── */
+            .sidebar-section-label {{
+                font-size: 10px;
+                font-weight: 700;
+                text-transform: uppercase;
+                letter-spacing: 0.10em;
+                color: var(--text-muted);
+                padding: 0 2px;
+                margin-bottom: 4px;
+                margin-top: 4px;
+            }}
+            .sidebar-divider {{
+                height: 1px;
+                background: var(--glass-border);
+                margin: 12px 0;
+            }}
+
             /* ── Status badge ── */
             .status-badge {{
                 display: inline-flex;
@@ -1759,6 +1848,39 @@ def _render_login_screen():
     )
 
 
+def _admin_page_header_html(section: str, title: str, subtitle: str) -> str:
+    """Consistent glass page header for admin views."""
+    return f"""
+    <div class="admin-page-header">
+        <div class="page-section">{html.escape(section)}</div>
+        <div class="page-title">{html.escape(title)}</div>
+        <div class="page-sub">{html.escape(subtitle)}</div>
+    </div>
+    """
+
+
+def _admin_section_html(title: str, subtitle: str = "") -> str:
+    """Thin section divider used between logical blocks in admin views."""
+    sub_html = f'<span class="admin-section-sub">{html.escape(subtitle)}</span>' if subtitle else ""
+    return f"""
+    <div class="admin-section">
+        <span class="admin-section-title">{html.escape(title)}</span>
+        {sub_html}
+    </div>
+    """
+
+
+def _attempts_cell_html(attempts: int) -> str:
+    """Render failed-attempt count with semantic color class."""
+    if attempts == 0:
+        css = "attempts-ok"
+    elif attempts < 3:
+        css = "attempts-warn"
+    else:
+        css = "attempts-bad"
+    return f'<span class="{css}">{attempts}</span>'
+
+
 def _render_admin_dashboard(user: dict):
     if user.get("role") not in ["admin", "super_admin"]:
         st.error("Access denied")
@@ -1767,13 +1889,11 @@ def _render_admin_dashboard(user: dict):
     theme = _get_theme()
     _inject_base_styles(theme)
     st.markdown(
-        """
-        <div class="glass-card" style="margin-bottom:24px; padding:22px 28px;">
-            <div class="hero-overline">Administration</div>
-            <div class="hero-title" style="font-size:22px; margin-bottom:4px;">Admin Control Panel</div>
-            <div class="metric-subtext">Review accounts, roles, login health, and access permissions.</div>
-        </div>
-        """,
+        _admin_page_header_html(
+            "Administration",
+            "User Management",
+            "Review accounts, roles, login health, and access permissions.",
+        ),
         unsafe_allow_html=True,
     )
     _show_admin_feedback()
@@ -1784,43 +1904,35 @@ def _render_admin_dashboard(user: dict):
         st.error(f"Cannot fetch users: {exc}")
         return
 
-    st.markdown(
-        """
-        <div class="glass-card" style="margin-bottom:20px;">
-            <div class="table-title">Users Summary</div>
-            <div class="metric-subtext">Access levels, account health, and recent login activity.</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    # ── Users table ──────────────────────────────────────────────────────────
     table_rows = []
     for user_row in users:
         locked = _is_locked_account(user_row)
         attempts = int(user_row.get("failed_attempts", 0) or 0)
-        attempt_color = "var(--text-muted)" if attempts == 0 else ("var(--yellow)" if attempts < 3 else "var(--red)")
         table_rows.append(
             "<tr>"
             f"<td>{html.escape(str(user_row.get('email', '')))}</td>"
             f"<td>{_role_badge_html(str(user_row.get('role', 'viewer')))}</td>"
             f"<td>{html.escape(_format_timestamp(user_row.get('last_login_at')))}</td>"
-            f"<td style='text-align:right; color:{attempt_color};'>{attempts}</td>"
+            f"<td class='col-right'>{_attempts_cell_html(attempts)}</td>"
             f"<td>{_status_badge_html(locked)}</td>"
             "</tr>"
         )
     st.markdown(
         f"""
         <div class="content-card">
+            <div class="table-title">All accounts</div>
             <table class="saas-table">
                 <thead>
                     <tr>
                         <th>Email</th>
                         <th>Role</th>
-                        <th>Last Login</th>
-                        <th style="text-align:right;">Failed Attempts</th>
+                        <th>Last login</th>
+                        <th class="col-right">Failed attempts</th>
                         <th>Status</th>
                     </tr>
                 </thead>
-                <tbody>{''.join(table_rows)}</tbody>
+                <tbody>{''.join(table_rows) if table_rows else '<tr><td colspan="5" style="color:var(--text-muted);padding:20px 0;">No accounts found.</td></tr>'}</tbody>
             </table>
         </div>
         """,
@@ -1828,11 +1940,20 @@ def _render_admin_dashboard(user: dict):
     )
 
     if user.get("role") != "super_admin":
-        st.info("Admins can view users only. Only super_admin can create, delete, change roles, or lock accounts.")
+        st.markdown(
+            """
+            <div class="summary-banner" style="margin-top:16px;">
+                Admins can view the account table only.
+                Contact a super admin to create, delete, or modify accounts.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         return
 
+    # ── Create account ────────────────────────────────────────────────────────
+    st.markdown(_admin_section_html("Create account", "Add a new workspace user"), unsafe_allow_html=True)
     with st.form("create_user_form", clear_on_submit=True):
-        st.markdown('<div class="glass-card" style="margin-bottom:16px;"><div class="table-title">Create Account</div><div class="metric-subtext">Provision a new workspace user with the correct role and access level.</div></div>', unsafe_allow_html=True)
         create_cols = st.columns(3)
         with create_cols[0]:
             email = st.text_input("Email", placeholder="user@example.com")
@@ -1845,7 +1966,7 @@ def _render_admin_dashboard(user: dict):
                 index=3,
                 format_func=_role_label,
             )
-        submitted = st.form_submit_button("Create User", type="primary", use_container_width=True)
+        submitted = st.form_submit_button("Create user", type="primary", use_container_width=True)
         if submitted:
             try:
                 _submit_user_create(email, password, role)
@@ -1853,7 +1974,8 @@ def _render_admin_dashboard(user: dict):
                 _set_admin_feedback("error", str(exc))
             st.rerun()
 
-    st.subheader("User Actions")
+    # ── Per-user actions ──────────────────────────────────────────────────────
+    st.markdown(_admin_section_html("User actions", "Change role, lock, or remove accounts"), unsafe_allow_html=True)
     current_user_id = user.get("id")
     role_options = [value for value, _ in USER_ROLE_OPTIONS]
     for user_row in users:
@@ -1863,88 +1985,80 @@ def _render_admin_dashboard(user: dict):
         account_locked = _is_locked_account(user_row)
         is_current_user = current_user_id == account_id
         default_role_index = role_options.index(account_role) if account_role in role_options else 0
+        initials = "".join(p[:1].upper() for p in account_email.split("@")[0].replace(".", " ").split()[:2]) or "U"
 
-        initials = "".join(part[:1].upper() for part in account_email.split("@")[0].replace(".", " ").split()[:2]) or "U"
+        # Identity card — avatar, email, last login, badges
         st.markdown(
             f"""
             <div class="user-card">
                 <div class="user-summary">
                     <span class="user-avatar">{html.escape(initials[:2])}</span>
-                    <div>
-                        <div style="font-size:14px; font-weight:600; color:var(--text-primary);">{html.escape(account_email)}</div>
-                        <div style="font-size:12px; color:var(--text-muted);">{html.escape(_format_timestamp(user_row.get("last_login_at")))}</div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="font-size:13px; font-weight:600; color:var(--text-primary); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            {html.escape(account_email)}
+                            {"&nbsp;<span style='font-size:11px;color:var(--text-muted);font-weight:400;'>(you)</span>" if is_current_user else ""}
+                        </div>
+                        <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">
+                            Last login: {html.escape(_format_timestamp(user_row.get("last_login_at")))}
+                        </div>
                     </div>
-                    <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap;">{_role_badge_html(account_role)}{_status_badge_html(account_locked)}</div>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+                        {_role_badge_html(account_role)}
+                        {_status_badge_html(account_locked)}
+                    </div>
                 </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        with st.container():
-            summary_cols = st.columns([2.2, 1.2, 1.4, 1.1, 1.1])
-            with summary_cols[0]:
-                st.markdown(f"**{account_email}**")
-                if is_current_user:
-                    st.caption("Current session account")
-            with summary_cols[1]:
-                st.caption("Role")
-                st.write(_role_label(account_role))
-            with summary_cols[2]:
-                st.caption("Last Login")
-                st.write(_format_timestamp(user_row.get("last_login_at")))
-            with summary_cols[3]:
-                st.caption("Failed Attempts")
-                st.write(int(user_row.get("failed_attempts", 0) or 0))
-            with summary_cols[4]:
-                st.caption("Status")
-                st.write("Locked" if account_locked else "Active")
-
-            action_cols = st.columns([2.2, 1.2, 1.2, 1.2])
-            with action_cols[0]:
-                selected_role = st.selectbox(
-                    "Change Role",
-                    role_options,
-                    index=default_role_index,
-                    format_func=_role_label,
-                    key=f"user-role-{account_id}",
-                    disabled=is_current_user,
-                )
-            with action_cols[1]:
-                if st.button(
-                    "Update Role",
-                    key=f"user-role-update-{account_id}",
-                    use_container_width=True,
-                    disabled=is_current_user or selected_role == account_role,
-                ):
-                    try:
-                        _submit_user_role_update(account_id, selected_role)
-                    except Exception as exc:
-                        _set_admin_feedback("error", str(exc))
-                    st.rerun()
-            with action_cols[2]:
-                if st.button(
-                    "Unlock" if account_locked else "Lock",
-                    key=f"user-lock-toggle-{account_id}",
-                    use_container_width=True,
-                    disabled=is_current_user,
-                ):
-                    try:
-                        _submit_user_lock_change(account_id, locked=account_locked)
-                    except Exception as exc:
-                        _set_admin_feedback("error", str(exc))
-                    st.rerun()
-            with action_cols[3]:
-                if st.button(
-                    "Delete",
-                    key=f"user-delete-{account_id}",
-                    use_container_width=True,
-                    disabled=is_current_user,
-                ):
-                    try:
-                        _submit_user_delete(account_id)
-                    except Exception as exc:
-                        _set_admin_feedback("error", str(exc))
-                    st.rerun()
+        # Action controls — role change, lock toggle, delete
+        action_cols = st.columns([2.4, 1.1, 1.1, 1.0])
+        with action_cols[0]:
+            selected_role = st.selectbox(
+                "Role",
+                role_options,
+                index=default_role_index,
+                format_func=_role_label,
+                key=f"user-role-{account_id}",
+                disabled=is_current_user,
+                label_visibility="collapsed",
+            )
+        with action_cols[1]:
+            if st.button(
+                "Update role",
+                key=f"user-role-update-{account_id}",
+                use_container_width=True,
+                disabled=is_current_user or selected_role == account_role,
+            ):
+                try:
+                    _submit_user_role_update(account_id, selected_role)
+                except Exception as exc:
+                    _set_admin_feedback("error", str(exc))
+                st.rerun()
+        with action_cols[2]:
+            if st.button(
+                "Unlock" if account_locked else "Lock",
+                key=f"user-lock-toggle-{account_id}",
+                use_container_width=True,
+                disabled=is_current_user,
+            ):
+                try:
+                    _submit_user_lock_change(account_id, locked=account_locked)
+                except Exception as exc:
+                    _set_admin_feedback("error", str(exc))
+                st.rerun()
+        with action_cols[3]:
+            if st.button(
+                "Delete",
+                key=f"user-delete-{account_id}",
+                use_container_width=True,
+                disabled=is_current_user,
+            ):
+                try:
+                    _submit_user_delete(account_id)
+                except Exception as exc:
+                    _set_admin_feedback("error", str(exc))
+                st.rerun()
 
 
 def _render_admin_metrics_dashboard(user: dict) -> None:
@@ -1956,13 +2070,11 @@ def _render_admin_metrics_dashboard(user: dict) -> None:
     theme = _get_theme()
     _inject_base_styles(theme)
     st.markdown(
-        """
-        <div class="glass-card" style="margin-bottom:24px; padding:22px 28px;">
-            <div class="hero-overline">Admin</div>
-            <div class="hero-title" style="font-size:22px; margin-bottom:4px;">Metrics Override Center</div>
-            <div class="metric-subtext">Edit live metric overrides on top of the existing calculations in app/metrics.py.</div>
-        </div>
-        """,
+        _admin_page_header_html(
+            "Admin",
+            "Metrics Override Center",
+            "Edit presentation-layer overrides. Underlying scoring calculations in app/metrics.py are not changed.",
+        ),
         unsafe_allow_html=True,
     )
     _show_admin_feedback()
@@ -1974,29 +2086,37 @@ def _render_admin_metrics_dashboard(user: dict) -> None:
         return
 
     if not metrics:
-        st.info("No editable metrics are available yet.")
+        st.markdown(
+            """
+            <div class="content-card">
+                <div class="table-title">Editable metrics</div>
+                <div class="empty-state">No editable metrics are configured yet.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         return
 
     metric_df = pd.DataFrame(metrics)
     editable_df = metric_df[["metric_name", "value", "base_value", "override_value", "updated_at"]].copy()
-    st.markdown('<div class="glass-card" style="margin-bottom:16px;"><div class="table-title">Editable Metrics</div><div class="metric-subtext">Adjust presentation-layer override values while keeping the underlying calculations intact.</div></div>', unsafe_allow_html=True)
-    st.dataframe(metric_df, use_container_width=True, hide_index=True)
+
+    st.markdown(_admin_section_html("Metric overrides", "Edit the effective value column — base value and override value are read-only"), unsafe_allow_html=True)
     edited_df = st.data_editor(
         editable_df,
         use_container_width=True,
         hide_index=True,
         disabled=["metric_name", "base_value", "override_value", "updated_at"],
         column_config={
-            "metric_name": st.column_config.TextColumn("Metric", disabled=True),
-            "value": st.column_config.NumberColumn("Effective Value", step=0.1),
-            "base_value": st.column_config.NumberColumn("Base Value", disabled=True),
-            "override_value": st.column_config.NumberColumn("Override Value", disabled=True),
-            "updated_at": st.column_config.TextColumn("Updated At", disabled=True),
+            "metric_name":      st.column_config.TextColumn("Metric",          disabled=True),
+            "value":            st.column_config.NumberColumn("Effective value", step=0.1),
+            "base_value":       st.column_config.NumberColumn("Base value",     disabled=True),
+            "override_value":   st.column_config.NumberColumn("Override value", disabled=True),
+            "updated_at":       st.column_config.TextColumn("Last updated",     disabled=True),
         },
     )
 
-    st.caption("Admins and super_admins can change metric override values. Updates propagate into the dashboard snapshot after save.")
-    if st.button("Save Metric Changes", type="primary", use_container_width=True):
+    st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+    if st.button("Save metric changes", type="primary", use_container_width=True):
         changed_rows = []
         for original_row, edited_row in zip(metric_df.to_dict("records"), edited_df.to_dict("records")):
             try:
@@ -2053,15 +2173,19 @@ def main() -> None:
         """,
         unsafe_allow_html=True,
     )
-    st.sidebar.markdown("**Navigation**")
+    st.sidebar.markdown('<div class="sidebar-section-label">Navigation</div>', unsafe_allow_html=True)
     if st.sidebar.button("Sprint Metrics", use_container_width=True):
         st.session_state["current_view"] = "main"
 
     if user and user.get("role") in ["admin", "super_admin"]:
+        st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
+        st.sidebar.markdown('<div class="sidebar-section-label">Admin</div>', unsafe_allow_html=True)
         if st.sidebar.button("User Management", use_container_width=True):
             st.session_state["current_view"] = "admin"
-        if st.sidebar.button("Admin Metrics", use_container_width=True):
+        if st.sidebar.button("Metric Overrides", use_container_width=True):
             st.session_state["current_view"] = "admin_metrics"
+
+    st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
     st.sidebar.toggle("Auto refresh (30s)", key="auto_refresh_dashboard")
             
     if st.session_state["current_view"] == "admin":
